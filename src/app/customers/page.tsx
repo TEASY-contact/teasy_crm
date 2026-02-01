@@ -4,12 +4,13 @@ import { Box, Flex, Spacer, useDisclosure, HStack, Badge, Text, VStack, useToast
 import { FilterBar } from "@/components/features/customer/FilterBar";
 import { CustomerTable } from "@/components/features/customer/CustomerTable";
 import { PageHeader, TeasyButton, TeasyInput, TeasyModal, TeasyModalBody, TeasyModalContent, TeasyModalFooter, TeasyModalHeader, TeasyModalOverlay } from "@/components/common/UIComponents";
-import { useState, useEffect } from "react";
-import { Customer } from "@/types/customer";
+import { useState } from "react";
+import { Customer } from "@/types/domain";
 import { CustomerRegistrationModal } from "@/components/features/customer/CustomerRegistrationModal";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, orderBy, query, doc, deleteDoc } from "firebase/firestore";
+import { collection, getDocs, orderBy, query, doc, deleteDoc } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 /**
  * Constants & Utilities: Standardized for Customer Management (v123.78)
@@ -34,7 +35,19 @@ const SORT_STRATEGIES: Record<string, (a: Customer, b: Customer) => number> = {
 };
 
 export default function CustomersPage() {
-    const [customers, setCustomers] = useState<Customer[]>([]);
+    const queryClient = useQueryClient();
+    const { data: customers = [], isLoading } = useQuery({
+        queryKey: ["customers", "list"],
+        queryFn: async () => {
+            const q = query(collection(db, "customers"), orderBy("createdAt", "desc"));
+            const snapshot = await getDocs(q);
+            return snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            } as Customer));
+        }
+    });
+
     const [searchQuery, setSearchQuery] = useState("");
     const [sortBy, setSortBy] = useState("none");
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -45,19 +58,7 @@ export default function CustomersPage() {
     const [delConfirmInput, setDelConfirmInput] = useState("");
     const isMaster = userData?.role === 'master';
 
-    useEffect(() => {
-        const q = query(collection(db, "customers"), orderBy("createdAt", "desc"));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const data = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            } as Customer));
-            setCustomers(data);
-        }, (error) => {
-            console.error("Firestore snapshot error:", error);
-        });
-        return () => unsubscribe();
-    }, []);
+    const refreshCustomers = () => queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
 
     // 1. Filter Logic (v123.78)
     const filtered = customers.filter(c => {
@@ -100,6 +101,7 @@ export default function CustomersPage() {
         try {
             const promises = selectedIds.map(id => deleteDoc(doc(db, "customers", id)));
             await Promise.all(promises);
+            refreshCustomers();
             toast({ title: "삭제 완료", description: `${selectedIds.length}명의 고객 정보가 삭제되었습니다.`, status: "success" });
             setSelectedIds([]);
             onDelClose();
@@ -182,6 +184,7 @@ export default function CustomersPage() {
                     searchQuery={searchQuery}
                     selectedIds={selectedIds}
                     setSelectedIds={setSelectedIds}
+                    isLoading={isLoading}
                 />
             </Box>
 

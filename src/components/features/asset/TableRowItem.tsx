@@ -1,7 +1,7 @@
 // src/components/features/asset/TableRowItem.tsx
 import React from "react";
 import {
-    Box, Flex, Text, Checkbox, Grid, GridItem, VStack, Divider, Badge, IconButton
+    Box, Flex, Text, Checkbox, Grid, GridItem, VStack, HStack, Divider, Badge, IconButton
 } from "@chakra-ui/react";
 import { Reorder, useDragControls } from "framer-motion";
 import { MdRemove } from "react-icons/md";
@@ -124,8 +124,12 @@ export const TableRowItem = ({
                     <AssetTd textAlign="center" color="gray.600">
                         {asset.category ? <HighlightedText text={asset.category} query={search} /> : <Text as="span" color="gray.400">-</Text>}
                     </AssetTd>
-                    <AssetTd fontWeight="bold" color="gray.800" textAlign={asset.name ? "left" : "center"}>
-                        {asset.name ? <HighlightedText text={asset.name} query={search} /> : <Text as="span" color="gray.400">-</Text>}
+                    <AssetTd fontWeight="bold" color="gray.800" overflow="hidden">
+                        <TruncatedTooltip label={asset.name || "-"}>
+                            <Box isTruncated>
+                                {asset.name ? <HighlightedText text={asset.name} query={search} /> : <Text as="span" color="gray.400">-</Text>}
+                            </Box>
+                        </TruncatedTooltip>
                     </AssetTd>
                     <AssetTd textAlign="center">
                         <Box as="span" fontWeight="semibold" color="gray.800">
@@ -193,12 +197,34 @@ export const TableRowItem = ({
                             </Box>
                         </TruncatedTooltip>
                     </AssetTd>
-                    <AssetTd fontWeight="bold" color="gray.800" overflow="hidden" textAlign={asset.name ? "left" : "center"}>
-                        <TruncatedTooltip label={asset.name || "-"}>
-                            <Box as="span">
-                                {asset.name ? <HighlightedText text={asset.name} query={search} /> : <Text as="span" color="gray.400">-</Text>}
-                            </Box>
-                        </TruncatedTooltip>
+                    <AssetTd fontWeight="bold" color="gray.800" overflow="hidden">
+                        <Flex w="full" align="center" justify="flex-start" overflow="hidden">
+                            <TruncatedTooltip label={asset.name || "-"}>
+                                <Box isTruncated flexShrink={1} mr={1.5}>
+                                    {asset.name ? <HighlightedText text={asset.name} query={search} /> : <Text as="span" color="gray.400">-</Text>}
+                                </Box>
+                            </TruncatedTooltip>
+                            {asset.isDeliveryItem && (
+                                <Badge
+                                    bg="gray.100"
+                                    color="gray.500"
+                                    fontSize="10px"
+                                    px={2}
+                                    h="18px"
+                                    display="inline-flex"
+                                    alignItems="center"
+                                    justifyContent="center"
+                                    borderRadius="4px"
+                                    fontWeight="bold"
+                                    textTransform="none"
+                                    flexShrink={0}
+                                    ml={1}
+                                    _hover={{ bg: "gray.500", color: "white" }}
+                                >
+                                    배송
+                                </Badge>
+                            )}
+                        </Flex>
                     </AssetTd>
                     <AssetTd textAlign="center" color="gray.600" overflow="hidden">
                         <TruncatedTooltip label={asset.lastActionDate || "-"}>
@@ -290,7 +316,8 @@ export const TableRowItem = ({
                         </VStack>
                     </AssetTd>
                 </>
-            )}
-        </Reorder.Item>
+            )
+            }
+        </Reorder.Item >
     );
 };

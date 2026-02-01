@@ -17,6 +17,7 @@ interface Option {
     value: string;
     label: string;
     isDivider?: boolean;
+    isDisabled?: boolean;
 }
 
 interface CustomSelectProps {
@@ -78,15 +79,16 @@ export const CustomSelect = ({
                     ) : (
                         <MenuItem
                             key={option.value}
-                            onClick={() => onChange(option.value)}
+                            onClick={() => !option.isDisabled && onChange(option.value)}
+                            isDisabled={option.isDisabled}
                             fontSize="sm"
                             color={option.value === value ? "brand.600" : "gray.700"}
                             bg={option.value === value ? "brand.50" : "transparent"}
                             fontWeight={option.value === value ? "bold" : "normal"}
-                            _hover={{ bg: "brand.50", color: "brand.600" }}
-                            _focus={{ bg: "brand.50", color: "brand.600" }}
+                            _hover={option.isDisabled ? {} : { bg: "gray.100", color: "brand.600" }}
+                            _focus={option.isDisabled ? {} : { bg: "gray.100", color: "brand.600" }}
                         >
-                            <Text as="span" mr={2} color={option.value === value ? "brand.400" : "gray.300"}>·</Text>
+                            <Text as="span" mr={2} color={option.value === value ? "brand.400" : (option.isDisabled ? "gray.200" : "gray.300")}>·</Text>
                             {option.label}
                         </MenuItem>
                     )

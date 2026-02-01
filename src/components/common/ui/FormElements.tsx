@@ -49,5 +49,5 @@ export const TeasyTextarea = (props: TextareaProps) => (
     />
 );
 
-export const TeasyFormLabel = (props: FormLabelProps) => <FormLabel fontSize="13px" fontWeight="600" color="gray.400" mb={1.5} {...props} />;
+export const TeasyFormLabel = ({ sub, ...props }: FormLabelProps & { sub?: boolean }) => <FormLabel fontSize={sub ? "xs" : "13px"} fontWeight={sub ? "500" : "600"} color="gray.400" mb={1.5} requiredIndicator={sub ? <></> : undefined} {...props} />;
 export const TeasyFormHelperText = (props: TextProps) => <Text fontSize="11px" fontWeight="500" color="gray.400" mt={1} pl={0.5} {...props} />;

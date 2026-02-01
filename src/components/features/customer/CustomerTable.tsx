@@ -13,7 +13,7 @@ import {
     Badge,
     Tooltip,
 } from "@chakra-ui/react";
-import { Customer } from "@/types/customer";
+import { Customer } from "@/types/domain";
 import Link from "next/link";
 
 /**
@@ -77,6 +77,7 @@ interface CustomerTableProps {
     searchQuery?: string;
     selectedIds: string[];
     setSelectedIds: React.Dispatch<React.SetStateAction<string[]>>;
+    isLoading?: boolean;
 }
 
 export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSelectedIds }: CustomerTableProps) => {
@@ -170,9 +171,9 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
                                     </VStack>
                                 </Td>
                                 <Td py={2} fontSize="sm" color="gray.600" borderBottom="1px" borderColor="gray.100" textAlign="left" px={4}>
-                                    <TruncatedTooltip label={customer.ownedProducts.join(", ") || "-"}>
+                                    <TruncatedTooltip label={(customer.ownedProducts || []).join(", ") || "-"}>
                                         <Box as="span" isTruncated display="block">
-                                            {renderThinParentheses(customer.ownedProducts.join(", ") || "-")}
+                                            {renderThinParentheses((customer.ownedProducts || []).join(", ") || "-")}
                                         </Box>
                                     </TruncatedTooltip>
                                 </Td>

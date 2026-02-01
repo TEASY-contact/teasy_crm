@@ -10,18 +10,17 @@ import { MdSearch, MdAdd, MdHorizontalRule, MdOpenInNew } from "react-icons/md";
 import { PageHeader, TeasyButton, TeasyPlaceholderText } from "@/components/common/UIComponents";
 import { db } from "@/lib/firebase";
 import {
-    collection, query, onSnapshot, addDoc, serverTimestamp,
-    deleteDoc, doc, writeBatch, orderBy, where
+    collection, query, addDoc, serverTimestamp,
+    deleteDoc, doc, writeBatch, orderBy, getDocs
 } from "firebase/firestore";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { CustomSelect } from "@/components/common/CustomSelect";
 import { AssetData, getAssetTimestamp } from "@/utils/assetUtils";
 import { AssetTable } from "@/components/features/asset/AssetTable";
 import { AssetModal } from "@/components/features/asset/AssetModal";
 
 export default function AssetManagementPage() {
-    const [assets, setAssets] = useState<AssetData[]>([]);
     const [search, setSearch] = useState("");
-    const [isLoading, setIsLoading] = useState(true);
     const [viewMode, setViewMode] = useState<"inventory" | "product">("inventory");
     const [filterType, setFilterType] = useState<string>("all");
     const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
@@ -29,28 +28,88 @@ export default function AssetManagementPage() {
 
     const createDisclosure = useDisclosure();
 
-    useEffect(() => {
-        // Fetch all assets, but we'll sort them by orderIndex
-        const q = query(collection(db, "assets"), orderBy("orderIndex", "asc"));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
+    const queryClient = useQueryClient();
+
+    const { data: assets = [], isLoading } = useQuery({
+        queryKey: ["assets", "management"],
+        queryFn: async () => {
+            const q = query(collection(db, "assets"), orderBy("orderIndex", "asc"));
+            const snapshot = await getDocs(q);
             const fetchedData = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
             } as AssetData));
 
-            // Default sort by createdAt if orderIndex missing (fallback for legacy data)
-            const sortedData = [...fetchedData].sort((a, b) => {
+            // Default sort fallback
+            return [...fetchedData].sort((a, b) => {
                 if (a.orderIndex !== undefined && b.orderIndex !== undefined) return a.orderIndex - b.orderIndex;
                 return getAssetTimestamp(b.createdAt) - getAssetTimestamp(a.createdAt);
             });
-            setAssets(sortedData);
-            setIsLoading(false);
-        }, (err) => {
-            console.error("Fetch Assets Error:", err);
-            setIsLoading(false);
-        });
-        return () => unsubscribe();
-    }, []);
+        }
+    });
+
+    const refreshAssets = () => queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
+
+    /**
+     * Reorder Mutation with Optimistic Update & Rollback (v123.86)
+     */
+    const reorderMutation = useMutation({
+        mutationFn: async (finalGlobalOrder: AssetData[]) => {
+            const CHUNK_SIZE = 500;
+            const chunks = [];
+            for (let i = 0; i < finalGlobalOrder.length; i += CHUNK_SIZE) {
+                chunks.push(finalGlobalOrder.slice(i, i + CHUNK_SIZE));
+            }
+
+            let globalCounter = 0;
+            for (const chunk of chunks) {
+                const batch = writeBatch(db);
+                chunk.forEach((asset) => {
+                    const assetRef = doc(db, "assets", asset.id);
+                    batch.update(assetRef, { orderIndex: globalCounter++ });
+                });
+                await batch.commit();
+            }
+        },
+        onMutate: async (newOrder) => {
+            // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
+            await queryClient.cancelQueries({ queryKey: ["assets", "management"] });
+
+            // Snapshot the previous value
+            const previousAssets = queryClient.getQueryData<AssetData[]>(["assets", "management"]);
+
+            // Optimistically update to the new value
+            queryClient.setQueryData(["assets", "management"], newOrder);
+
+            // Return a context object with the snapshotted value
+            return { previousAssets };
+        },
+        onError: (err, newOrder, context) => {
+            // If the mutation fails, use the context returned from onMutate to roll back
+            if (context?.previousAssets) {
+                queryClient.setQueryData(["assets", "management"], context.previousAssets);
+            }
+            toast({ title: "순서 저장 실패", description: "네트워크 오류로 인해 순서가 원복되었습니다.", status: "error", duration: 3000 });
+        },
+        onSettled: () => {
+            // Always refetch after error or success to keep server/client in sync
+            refreshAssets();
+        },
+        onSuccess: () => {
+            const toastId = "reorder-success";
+            if (!toast.isActive(toastId)) {
+                toast({
+                    id: toastId,
+                    title: "순서 변경 및 저장 완료",
+                    status: "success",
+                    duration: 2000,
+                    isClosable: true,
+                    position: "top"
+                });
+            }
+            if (navigator.vibrate) navigator.vibrate(10);
+        }
+    });
 
     const handleAddDivider = async () => {
         try {
@@ -58,8 +117,9 @@ export default function AssetManagementPage() {
                 type: "divider",
                 dividerType: viewMode,
                 createdAt: serverTimestamp(),
-                orderIndex: assets.length // Initial order at the end
+                orderIndex: assets.length
             });
+            refreshAssets();
         } catch (err) {
             console.error(err);
         }
@@ -68,6 +128,7 @@ export default function AssetManagementPage() {
     const handleDeleteDivider = async (id: string) => {
         try {
             await deleteDoc(doc(db, "assets", id));
+            refreshAssets();
         } catch (err) {
             console.error(err);
         }
@@ -226,43 +287,8 @@ export default function AssetManagementPage() {
                                 const reorderedIds = new Set(newOrder.map(a => a.id));
                                 const untouchedAssets = assets.filter(a => !reorderedIds.has(a.id));
                                 const finalGlobalOrder = [...untouchedAssets, ...newOrder];
-                                setAssets(finalGlobalOrder);
 
-                                try {
-                                    // Chunk size of 500 for Firestore batch limit
-                                    const CHUNK_SIZE = 500;
-                                    const chunks = [];
-                                    for (let i = 0; i < finalGlobalOrder.length; i += CHUNK_SIZE) {
-                                        chunks.push(finalGlobalOrder.slice(i, i + CHUNK_SIZE));
-                                    }
-
-                                    // Commit each chunk as a separate batch
-                                    let globalCounter = 0;
-                                    for (const chunk of chunks) {
-                                        const batch = writeBatch(db);
-                                        chunk.forEach((asset) => {
-                                            const assetRef = doc(db, "assets", asset.id);
-                                            batch.update(assetRef, { orderIndex: globalCounter++ });
-                                        });
-                                        await batch.commit();
-                                    }
-
-                                    const toastId = "reorder-success";
-                                    if (!toast.isActive(toastId)) {
-                                        toast({
-                                            id: toastId,
-                                            title: "순서 변경 및 저장 완료",
-                                            status: "success",
-                                            duration: 2000,
-                                            isClosable: true,
-                                            position: "top"
-                                        });
-                                    }
-                                    if (navigator.vibrate) navigator.vibrate(10);
-                                } catch (err) {
-                                    console.error("Failed to sync global order:", err);
-                                    toast({ title: "순서 저장 실패", status: "error", duration: 3000 });
-                                }
+                                reorderMutation.mutate(finalGlobalOrder);
                             }}
                         />
                     )}

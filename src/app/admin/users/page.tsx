@@ -9,8 +9,9 @@ import {
 import { MdSearch, MdPersonAdd, MdEdit, MdBlock } from "react-icons/md";
 import { PageHeader, TeasyButton, SurnameBadge } from "@/components/common/UIComponents";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, query, orderBy, doc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, doc, updateDoc } from "firebase/firestore";
 import { UserData, UserRole } from "@/types/auth";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserCreateModal } from "../../../components/features/admin/UserCreateModal";
 import { UserEditModal } from "../../../components/features/admin/UserEditModal";
 
@@ -40,27 +41,25 @@ const HighlightedText = ({ text, query }: { text: string, query: string }) => {
 };
 
 export default function UserManagementPage() {
-    const [users, setUsers] = useState<UserData[]>([]);
-    const [search, setSearch] = useState("");
-    const [isLoading, setIsLoading] = useState(true);
-
-    const createDisclosure = useDisclosure();
-    const editDisclosure = useDisclosure();
-    const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
-
-    useEffect(() => {
-        const q = query(collection(db, "users"), orderBy("name", "asc"));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const userData = snapshot.docs.map(doc => ({
+    const queryClient = useQueryClient();
+    const { data: users = [], isLoading } = useQuery({
+        queryKey: ["users", "list"],
+        queryFn: async () => {
+            const q = query(collection(db, "users"), orderBy("name", "asc"));
+            const snapshot = await getDocs(q);
+            return snapshot.docs.map(doc => ({
                 uid: doc.id,
                 ...doc.data()
             } as UserData));
-            setUsers(userData);
-            setIsLoading(false);
-        });
+        }
+    });
 
-        return () => unsubscribe();
-    }, []);
+    const refreshUsers = () => queryClient.invalidateQueries({ queryKey: ["users", "list"] });
+
+    const [search, setSearch] = useState("");
+    const createDisclosure = useDisclosure();
+    const editDisclosure = useDisclosure();
+    const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
 
     const filteredUsers = users.filter(u =>
         u.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -82,6 +81,7 @@ export default function UserManagementPage() {
                 updateData[field] = !currentVal;
             }
             await updateDoc(doc(db, "users", userId), updateData);
+            refreshUsers();
         } catch (e) {
             console.error(e);
         }

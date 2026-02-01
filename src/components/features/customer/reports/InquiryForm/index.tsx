@@ -1,57 +1,86 @@
 "use client";
-import React, { useRef, forwardRef, useImperativeHandle } from "react";
+import React, { useRef, forwardRef, useImperativeHandle, useCallback } from "react";
 import {
     VStack, FormControl, Box, Flex, Spinner,
-    HStack, Text, useToast, Badge
+    HStack, Text, useToast
 } from "@chakra-ui/react";
-import { TeasyDateTimeInput, TeasyFormLabel, TeasyInput, TeasyTextarea, TeasyPhoneInput, TeasyUniversalViewer, TeasyAudioPlayer, TeasyButton } from "@/components/common/UIComponents";
+import {
+    TeasyDateTimeInput,
+    TeasyFormLabel,
+    TeasyInput,
+    TeasyTextarea,
+    TeasyPhoneInput,
+    TeasyUniversalViewer,
+    TeasyAudioPlayer,
+    TeasyButton
+} from "@/components/common/UIComponents";
 import { CustomSelect } from "@/components/common/CustomSelect";
 import { useAuth } from "@/context/AuthContext";
 import { useReportMetadata } from "@/hooks/useReportMetadata";
 import { useInquiryForm } from "./useInquiryForm";
 import { ReportFileList } from "../common/ReportFileList";
-import { db } from "@/lib/firebase";
-import { doc, deleteDoc } from "firebase/firestore";
+import { InquiryFormData, InquiryFormHandle, InquiryFile } from "./types";
 
-export const InquiryForm = forwardRef(({ customer, activityId, initialData, isReadOnly = false, defaultManager = "" }: any, ref) => {
+interface InquiryFormProps {
+    customer: { id: string, name: string, address?: string, phone?: string };
+    activityId?: string;
+    initialData?: any;
+    isReadOnly?: boolean;
+    defaultManager?: string;
+}
+
+export const InquiryForm = forwardRef<InquiryFormHandle, InquiryFormProps>(({
+    customer,
+    activityId,
+    initialData,
+    isReadOnly = false,
+    defaultManager = ""
+}, ref) => {
     const { userData } = useAuth();
-    const toast = useToast();
     const recordingInputRef = useRef<HTMLInputElement>(null);
     const quoteInputRef = useRef<HTMLInputElement>(null);
 
-    // Custom Hooks for shared metadata and specific inquiry logic
     const { managerOptions, products } = useReportMetadata();
     const {
         formData, setFormData,
-        recordings, setRecordings, quotes,
+        recordings, quotes,
         isLoading,
         handleFileAdd, handleFileRemove,
-        submit
+        submit,
+        handleDelete
     } = useInquiryForm({ customer, activityId, initialData, defaultManager, userData });
 
-    // Internal UI States (Viewer/Audio)
-    const [viewerState, setViewerState] = React.useState({ isOpen: false, files: [] as any[], index: 0 });
-    const [audioState, setAudioState] = React.useState({ isOpen: false, file: null as any });
+    const [viewerState, setViewerState] = React.useState({ isOpen: false, files: [] as InquiryFile[], index: 0 });
+    const [audioState, setAudioState] = React.useState({ isOpen: false, file: null as InquiryFile | null });
 
     useImperativeHandle(ref, () => ({
-        submit: () => submit(managerOptions),
-        delete: async () => {
-            if (!activityId) return false;
-            try {
-                await deleteDoc(doc(db, "activities", activityId));
-                toast({ title: "삭제 성공", status: "info", duration: 2000, position: "top" });
-                return true;
-            } catch (error) {
-                return false;
-            }
-        }
-    }));
+        submit: (mOpts: any[]) => submit(mOpts),
+        delete: handleDelete
+    }), [submit, handleDelete]);
+
+    const handleChannelChange = useCallback((val: string) => {
+        if (isReadOnly) return;
+        const isPhoneInquiry = val === "전화 문의";
+        setFormData((prev: InquiryFormData) => ({
+            ...prev,
+            channel: val as any,
+            nickname: isPhoneInquiry ? "" : prev.nickname,
+            phone: isPhoneInquiry ? (prev.phone || customer?.phone || "") : ""
+        }));
+    }, [isReadOnly, customer?.phone, setFormData]);
 
     return (
         <Box position="relative">
             {isLoading && (
-                <Flex position="absolute" top={0} left={0} right={0} bottom={0} bg="whiteAlpha.700" zIndex={10} align="center" justify="center">
-                    <Spinner size="xl" color="brand.500" thickness="4px" />
+                <Flex
+                    position="absolute" top={0} left={0} right={0} bottom={0}
+                    bg="whiteAlpha.800" zIndex={20} align="center" justify="center"
+                    borderRadius="md"
+                >
+                    <VStack spacing={4}>
+                        <Spinner size="xl" color="brand.500" thickness="4px" />
+                        <Text fontWeight="bold" color="brand.600">문의 처리 중...</Text>
+                    </VStack>
                 </Flex>
             )}
 
@@ -61,7 +90,7 @@ export const InquiryForm = forwardRef(({ customer, activityId, initialData, isRe
                         <TeasyFormLabel>접수 일시</TeasyFormLabel>
                         <TeasyDateTimeInput
                             value={formData.date}
-                            onChange={(val: string) => !isReadOnly && setFormData({ ...formData, date: val })}
+                            onChange={(val: string) => !isReadOnly && setFormData((prev: InquiryFormData) => ({ ...prev, date: val }))}
                             isDisabled={isReadOnly}
                         />
                     </FormControl>
@@ -70,76 +99,68 @@ export const InquiryForm = forwardRef(({ customer, activityId, initialData, isRe
                         <CustomSelect
                             placeholder="선택"
                             value={formData.manager}
-                            onChange={(val) => !isReadOnly && setFormData({ ...formData, manager: val })}
+                            onChange={(val) => !isReadOnly && setFormData((prev: InquiryFormData) => ({ ...prev, manager: val }))}
                             options={managerOptions}
                             isDisabled={isReadOnly}
                         />
                     </FormControl>
                 </HStack>
 
-
                 <VStack spacing={2} align="stretch">
-                    <HStack spacing={4}>
-                        <FormControl isRequired>
-                            <TeasyFormLabel>유입 채널</TeasyFormLabel>
-                            <CustomSelect
-                                placeholder="선택"
-                                value={formData.channel}
-                                onChange={(val) => {
-                                    if (isReadOnly) return;
-                                    const isPhoneInquiry = val === "전화 문의";
+                    <FormControl isRequired>
+                        <TeasyFormLabel>유입 채널</TeasyFormLabel>
+                        <CustomSelect
+                            placeholder="선택"
+                            value={formData.channel}
+                            onChange={handleChannelChange}
+                            options={[
+                                { value: "전화 문의", label: "전화 문의" },
+                                { value: "네이버 톡톡", label: "네이버 톡톡" },
+                                { value: "채널톡", label: "채널톡" },
+                                { value: "기타", label: "기타" }
+                            ]}
+                            isDisabled={isReadOnly}
+                        />
+                    </FormControl>
 
-                                    // Helper: Clean up state immediately when switching mode
-                                    if (isPhoneInquiry) {
-                                        // Switched TO Phone Inquiry -> Clear Nickname
-                                        const newPhone = formData.phone || customer?.phone || "";
-                                        setFormData({ ...formData, channel: val, nickname: "", phone: newPhone });
-                                    } else {
-                                        // Switched FROM Phone Inquiry (or others) -> Clear Phone & Recordings
-                                        setFormData({ ...formData, channel: val, phone: "" });
-                                        setRecordings([]); // Explicitly clear in-memory recordings
-                                    }
-                                }}
-                                options={[
-                                    { value: "전화 문의", label: "전화 문의" },
-                                    { value: "네이버 톡톡", label: "네이버 톡톡" },
-                                    { value: "채널톡", label: "채널톡" },
-                                    { value: "기타", label: "기타" }
-                                ]}
-                                isDisabled={isReadOnly}
-                            />
-                        </FormControl>
-                    </HStack>
-
-                    {/* Conditional Detail Card */}
                     {formData.channel && (
                         <Box bg="gray.50" p={4} borderRadius="xl" border="1px" borderColor="gray.200">
                             {formData.channel === "전화 문의" ? (
                                 <Box>
                                     <FormControl isRequired>
-                                        <TeasyFormLabel>연락처</TeasyFormLabel>
+                                        <TeasyFormLabel sub>연락처</TeasyFormLabel>
                                         <HStack w="full" spacing={2}>
                                             <Box flex={1}>
                                                 <TeasyPhoneInput
                                                     value={formData.phone}
-                                                    onChange={(val: string) => !isReadOnly && setFormData({ ...formData, phone: val })}
+                                                    onChange={(val: string) => !isReadOnly && setFormData((prev: InquiryFormData) => ({ ...prev, phone: val }))}
                                                     placeholder="000-0000-0000"
                                                     isDisabled={isReadOnly}
                                                 />
                                             </Box>
                                             <Box>
-                                                <TeasyButton
-                                                    onClick={() => recordingInputRef.current?.click()}
-                                                    bg="gray.100"
-                                                    color="gray.600"
-                                                    _hover={{ bg: "gray.200", color: "gray.600" }}
-                                                    h="40px"
-                                                    px={4}
-                                                    fontWeight="400"
-                                                >
-                                                    통화 파일 업로드
-                                                </TeasyButton>
-                                                <input type="file" hidden ref={recordingInputRef} onChange={(e) => handleFileAdd(e.target.files, 'recording')} />
+                                                {!isReadOnly && (
+                                                    <>
+                                                        <TeasyButton
+                                                            onClick={() => recordingInputRef.current?.click()}
+                                                            bg="gray.100"
+                                                            color="gray.600"
+                                                            _hover={{ bg: "gray.200" }}
+                                                            h="40px"
+                                                            px={4}
+                                                            fontWeight="400"
+                                                        >
+                                                            통화 파일 업로드
+                                                        </TeasyButton>
+                                                        <input
+                                                            type="file"
+                                                            hidden
+                                                            ref={recordingInputRef}
+                                                            accept="audio/*"
+                                                            onChange={(e) => handleFileAdd(e.target.files, 'recording')}
+                                                        />
+                                                    </>
+                                                )}
                                             </Box>
                                         </HStack>
                                     </FormControl>
@@ -152,16 +173,15 @@ export const InquiryForm = forwardRef(({ customer, activityId, initialData, isRe
                                     />
                                 </Box>
                             ) : (
-                                <FormControl>
-                                    <TeasyFormLabel>
-                                        {formData.channel === "기타" ? "유입 채널" : "닉네임"}
+                                <FormControl isRequired={formData.channel !== "기타"}>
+                                    <TeasyFormLabel sub>
+                                        {formData.channel === "기타" ? "유입 채널 상세" : "닉네임"}
                                     </TeasyFormLabel>
                                     <TeasyInput
                                         value={formData.nickname}
-                                        onChange={(e: any) => !isReadOnly && setFormData({ ...formData, nickname: e.target.value })}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => !isReadOnly && setFormData((prev: InquiryFormData) => ({ ...prev, nickname: e.target.value }))}
                                         placeholder="입력"
                                         isDisabled={isReadOnly}
-                                        _readOnly={{ bg: "gray.50", cursor: "default", color: "gray.600" }}
                                     />
                                 </FormControl>
                             )}
@@ -175,7 +195,7 @@ export const InquiryForm = forwardRef(({ customer, activityId, initialData, isRe
                         <CustomSelect
                             placeholder="선택"
                             value={formData.product}
-                            onChange={(val) => !isReadOnly && setFormData({ ...formData, product: val })}
+                            onChange={(val) => !isReadOnly && setFormData((prev: InquiryFormData) => ({ ...prev, product: val }))}
                             options={products}
                             isDisabled={isReadOnly}
                         />
@@ -185,7 +205,7 @@ export const InquiryForm = forwardRef(({ customer, activityId, initialData, isRe
                         <CustomSelect
                             placeholder="선택"
                             value={formData.result}
-                            onChange={(val) => !isReadOnly && setFormData({ ...formData, result: val })}
+                            onChange={(val) => !isReadOnly && setFormData((prev: InquiryFormData) => ({ ...prev, result: val as any }))}
                             options={[
                                 { value: "구매 예정", label: "구매 예정" },
                                 { value: "시연 확정", label: "시연 확정" },
@@ -201,32 +221,39 @@ export const InquiryForm = forwardRef(({ customer, activityId, initialData, isRe
                     <TeasyFormLabel>참고 사항</TeasyFormLabel>
                     <TeasyTextarea
                         value={formData.memo}
-                        onChange={(e: any) => !isReadOnly && setFormData({ ...formData, memo: e.target.value })}
+                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => !isReadOnly && setFormData((prev: InquiryFormData) => ({ ...prev, memo: e.target.value }))}
                         placeholder="입력"
                         isDisabled={isReadOnly}
-                        _readOnly={{ bg: "gray.50", cursor: "default", color: "gray.600" }}
                     />
                 </FormControl>
-
-                {/* File Upload Sections */}
 
                 <Box>
                     <HStack spacing={2} align="center" mb={2}>
                         <TeasyFormLabel mb={0}>견적서</TeasyFormLabel>
                         <Box>
-                            <TeasyButton
-                                onClick={() => quoteInputRef.current?.click()}
-                                bg="gray.100"
-                                color="gray.600"
-                                _hover={{ bg: "gray.200", color: "gray.600" }}
-                                h="32px"
-                                size="sm"
-                                px={3}
-                                fontWeight="400"
-                            >
-                                견적서 파일 업로드
-                            </TeasyButton>
-                            <input type="file" hidden ref={quoteInputRef} onChange={(e) => handleFileAdd(e.target.files, 'quote')} />
+                            {!isReadOnly && (
+                                <>
+                                    <TeasyButton
+                                        onClick={() => quoteInputRef.current?.click()}
+                                        bg="gray.100"
+                                        color="gray.600"
+                                        _hover={{ bg: "gray.200" }}
+                                        h="32px"
+                                        size="sm"
+                                        px={3}
+                                        fontWeight="400"
+                                    >
+                                        견적서 파일 업로드
+                                    </TeasyButton>
+                                    <input
+                                        type="file"
+                                        hidden
+                                        ref={quoteInputRef}
+                                        accept="image/*,application/pdf"
+                                        onChange={(e) => handleFileAdd(e.target.files, 'quote')}
+                                    />
+                                </>
+                            )}
                         </Box>
                     </HStack>
                     <ReportFileList
@@ -239,15 +266,14 @@ export const InquiryForm = forwardRef(({ customer, activityId, initialData, isRe
                 </Box>
             </VStack>
 
-            {/* Overlays */}
             <TeasyAudioPlayer
                 isOpen={audioState.isOpen}
-                onClose={() => setAudioState({ ...audioState, isOpen: false })}
+                onClose={() => setAudioState(prev => ({ ...prev, isOpen: false }))}
                 file={audioState.file}
             />
             <TeasyUniversalViewer
                 isOpen={viewerState.isOpen}
-                onClose={() => setViewerState({ ...viewerState, isOpen: false })}
+                onClose={() => setViewerState(prev => ({ ...prev, isOpen: false }))}
                 files={viewerState.files}
                 initialIndex={viewerState.index}
             />

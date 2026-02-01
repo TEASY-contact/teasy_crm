@@ -15,7 +15,7 @@ export const useAssetModal = (isOpen: boolean, onClose: () => void, assets: Asse
     const form = useAssetFormState(isOpen, selectedAsset, isProduct);
     const {
         category, setCategory, name, setName, qty, setQty, price, setPrice,
-        selectedComponents, setSelectedComponents, editReason
+        selectedComponents, setSelectedComponents, editReason, isDeliveryItem, setIsDeliveryItem
     } = form;
 
     const stockNum = parseInt(qty.replace(/,/g, "") || "0");

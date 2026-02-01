@@ -1,28 +1,33 @@
 "use client";
-import React, { forwardRef, useImperativeHandle, useRef } from "react";
+import React, { forwardRef, useImperativeHandle, useRef, useCallback } from "react";
 import {
     VStack, FormControl, Box, Flex, Spinner,
-    HStack, Text, useToast
+    HStack, Text
 } from "@chakra-ui/react";
 import { CustomSelect } from "@/components/common/CustomSelect";
 import { TeasyDateTimeInput, TeasyFormLabel, TeasyInput, TeasyTextarea, TeasyPhoneInput } from "@/components/common/UIComponents";
-import { useAuth } from "@/context/AuthContext";
 import { useReportMetadata } from "@/hooks/useReportMetadata";
 import { useDemoCompleteForm } from "./useDemoCompleteForm";
 import { PhotoGrid } from "../common/PhotoGrid";
-import { db } from "@/lib/firebase";
-import { doc, deleteDoc } from "firebase/firestore";
+import { DEMO_CONSTANTS, ManagerOption, DemoCompleteFormData } from "./types";
 
-export const DemoCompleteForm = forwardRef(({
+interface DemoCompleteFormProps {
+    customer: { id: string, name: string };
+    activities?: any[];
+    activityId?: string;
+    initialData?: any;
+    isReadOnly?: boolean;
+    defaultManager?: string;
+}
+
+export const DemoCompleteForm = forwardRef<any, DemoCompleteFormProps>(({
     customer,
     activities = [],
     activityId,
     initialData,
     isReadOnly = false,
     defaultManager = ""
-}: any, ref) => {
-    const { userData } = useAuth();
-    const toast = useToast();
+}, ref) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const { managerOptions, products } = useReportMetadata();
@@ -30,32 +35,24 @@ export const DemoCompleteForm = forwardRef(({
         formData, setFormData,
         isLoading,
         handleFileUpload, removePhoto,
-        submit
-    } = useDemoCompleteForm({ customer, activities, activityId, initialData, defaultManager, userData });
+        submit,
+        handleDelete
+    } = useDemoCompleteForm({ customer, activities, activityId, initialData, defaultManager });
 
-    const handleCashInput = (val: string) => {
+    const handleCashInput = useCallback((val: string) => {
         const num = val.replace(/[^0-9]/g, "");
         if (!num) {
-            setFormData({ ...formData, discountValue: "" });
+            setFormData(prev => ({ ...prev, discountValue: "" }));
             return;
         }
         const formatted = new Intl.NumberFormat().format(parseInt(num));
-        setFormData({ ...formData, discountValue: `-${formatted}` });
-    };
+        setFormData(prev => ({ ...prev, discountValue: `-${formatted}` }));
+    }, [setFormData]);
 
     useImperativeHandle(ref, () => ({
-        submit: () => submit(managerOptions),
-        delete: async () => {
-            if (!activityId) return false;
-            try {
-                await deleteDoc(doc(db, "activities", activityId));
-                toast({ title: "삭제 성공", status: "info", duration: 2000, position: "top" });
-                return true;
-            } catch (error) {
-                return false;
-            }
-        }
-    }));
+        submit: () => submit(managerOptions as ManagerOption[]),
+        delete: handleDelete
+    }), [submit, handleDelete, managerOptions]);
 
     return (
         <Box position="relative">
@@ -67,7 +64,7 @@ export const DemoCompleteForm = forwardRef(({
                 >
                     <VStack spacing={4}>
                         <Spinner size="xl" color="brand.500" thickness="4px" />
-                        <Text fontWeight="bold" color="brand.600">보고서 저장 중...</Text>
+                        <Text fontWeight="bold" color="brand.600">보고서 처리 중...</Text>
                     </VStack>
                 </Flex>
             )}
@@ -77,7 +74,7 @@ export const DemoCompleteForm = forwardRef(({
                         <TeasyFormLabel>완료 일시</TeasyFormLabel>
                         <TeasyDateTimeInput
                             value={formData.date}
-                            onChange={(val: string) => !isReadOnly && setFormData({ ...formData, date: val })}
+                            onChange={(val: string) => !isReadOnly && setFormData((prev: DemoCompleteFormData) => ({ ...prev, date: val }))}
                             isDisabled={isReadOnly}
                         />
                     </FormControl>
@@ -86,7 +83,7 @@ export const DemoCompleteForm = forwardRef(({
                         <CustomSelect
                             placeholder="선택"
                             value={formData.manager}
-                            onChange={(val) => !isReadOnly && setFormData({ ...formData, manager: val })}
+                            onChange={(val) => !isReadOnly && setFormData((prev: DemoCompleteFormData) => ({ ...prev, manager: val }))}
                             options={managerOptions}
                             isDisabled={isReadOnly}
                         />
@@ -97,10 +94,9 @@ export const DemoCompleteForm = forwardRef(({
                     <TeasyFormLabel>방문 주소</TeasyFormLabel>
                     <TeasyInput
                         value={formData.location}
-                        onChange={(e: any) => !isReadOnly && setFormData({ ...formData, location: e.target.value })}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => !isReadOnly && setFormData((prev: DemoCompleteFormData) => ({ ...prev, location: e.target.value }))}
                         placeholder="입력"
                         isDisabled={isReadOnly}
-                        _readOnly={{ bg: "gray.50", cursor: "default", color: "gray.600" }}
                     />
                 </FormControl>
 
@@ -108,7 +104,7 @@ export const DemoCompleteForm = forwardRef(({
                     <TeasyFormLabel>연락처</TeasyFormLabel>
                     <TeasyPhoneInput
                         value={formData.phone}
-                        onChange={(val: string) => !isReadOnly && setFormData({ ...formData, phone: val })}
+                        onChange={(val: string) => !isReadOnly && setFormData((prev: DemoCompleteFormData) => ({ ...prev, phone: val }))}
                         placeholder="000-0000-0000"
                         isDisabled={isReadOnly}
                     />
@@ -119,7 +115,7 @@ export const DemoCompleteForm = forwardRef(({
                     <CustomSelect
                         placeholder="선택"
                         value={formData.product}
-                        onChange={(val) => !isReadOnly && setFormData({ ...formData, product: val })}
+                        onChange={(val) => !isReadOnly && setFormData((prev: DemoCompleteFormData) => ({ ...prev, product: val }))}
                         options={products}
                         isDisabled={isReadOnly}
                     />
@@ -130,12 +126,8 @@ export const DemoCompleteForm = forwardRef(({
                     <CustomSelect
                         placeholder="선택"
                         value={formData.result}
-                        onChange={(val) => setFormData({ ...formData, result: val })}
-                        options={[
-                            { value: "구매의향 높음", label: "구매의향 높음" },
-                            { value: "구매의향 보통", label: "구매의향 보통" },
-                            { value: "구매의향 낮음", label: "구매의향 낮음" }
-                        ]}
+                        onChange={(val) => setFormData((prev: DemoCompleteFormData) => ({ ...prev, result: val }))}
+                        options={DEMO_CONSTANTS.RESULTS as any}
                         isDisabled={isReadOnly}
                     />
                 </FormControl>
@@ -146,41 +138,32 @@ export const DemoCompleteForm = forwardRef(({
                         <CustomSelect
                             placeholder="선택"
                             value={formData.discountType}
-                            onChange={(val) => setFormData({ ...formData, discountType: val, discountValue: "" })}
-                            options={[
-                                { value: "할인 없음", label: "할인 없음" },
-                                { value: "divider", label: "---", isDivider: true },
-                                { value: "현금 할인", label: "현금 할인" },
-                                { value: "네이버 쿠폰", label: "할인 쿠폰" }
-                            ]}
+                            onChange={(val) => setFormData((prev: DemoCompleteFormData) => ({ ...prev, discountType: val, discountValue: "" }))}
+                            options={DEMO_CONSTANTS.DISCOUNT_TYPES as any}
                             isDisabled={isReadOnly}
                         />
                     </FormControl>
 
                     {formData.discountType === "현금 할인" && (
                         <FormControl>
-                            <TeasyFormLabel>제안 금액</TeasyFormLabel>
+                            <TeasyFormLabel sub>제안 금액</TeasyFormLabel>
                             <TeasyInput
                                 placeholder="입력"
                                 value={formData.discountValue}
-                                onChange={(e: any) => handleCashInput(e.target.value)}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleCashInput(e.target.value)}
                                 isDisabled={isReadOnly}
-                                _readOnly={{ bg: "gray.50", cursor: "default", color: "gray.600" }}
                             />
                         </FormControl>
                     )}
 
                     {formData.discountType === "네이버 쿠폰" && (
                         <FormControl>
-                            <TeasyFormLabel>쿠폰 선택</TeasyFormLabel>
+                            <TeasyFormLabel sub>쿠폰 선택</TeasyFormLabel>
                             <CustomSelect
                                 placeholder="선택"
                                 value={formData.discountValue}
-                                onChange={(val) => setFormData({ ...formData, discountValue: val })}
-                                options={[
-                                    { value: "네이버 5%", label: "네이버 5%" },
-                                    { value: "네이버 8%", label: "네이버 8%" }
-                                ]}
+                                onChange={(val) => setFormData((prev: DemoCompleteFormData) => ({ ...prev, discountValue: val }))}
+                                options={DEMO_CONSTANTS.NAVER_COUPONS as any}
                                 isDisabled={isReadOnly}
                             />
                         </FormControl>
@@ -191,21 +174,21 @@ export const DemoCompleteForm = forwardRef(({
                     <TeasyFormLabel>참고 사항</TeasyFormLabel>
                     <TeasyTextarea
                         value={formData.memo}
-                        onChange={(e: any) => !isReadOnly && setFormData({ ...formData, memo: e.target.value })}
+                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => !isReadOnly && setFormData((prev: DemoCompleteFormData) => ({ ...prev, memo: e.target.value }))}
                         placeholder="입력"
                         isDisabled={isReadOnly}
-                        _readOnly={{ bg: "gray.50", cursor: "default", color: "gray.600" }}
                     />
                 </FormControl>
 
                 <FormControl>
-                    <TeasyFormLabel>현장 사진 ({formData.photos.length}/15)</TeasyFormLabel>
+                    <TeasyFormLabel>현장 사진 ({formData.photos.length}/{DEMO_CONSTANTS.MAX_PHOTOS})</TeasyFormLabel>
                     <Box p={4} border="1px dashed" borderColor="gray.200" borderRadius="xl" bg="gray.50">
                         <PhotoGrid
                             photos={formData.photos}
                             isReadOnly={isReadOnly}
                             onAddClick={() => fileInputRef.current?.click()}
                             onRemoveClick={removePhoto}
+                            maxPhotos={DEMO_CONSTANTS.MAX_PHOTOS}
                         />
                         <input type="file" multiple accept="image/*" ref={fileInputRef} style={{ display: "none" }} onChange={(e) => handleFileUpload(e.target.files)} />
                     </Box>

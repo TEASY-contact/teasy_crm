@@ -90,31 +90,134 @@ export const TimelineCard = ({
 
         if (stepType === 'inquiry') {
             const hasNickname = content.nickname && content.channel !== "전화 문의";
-            specificItems.push({
-                label: "채널",
-                value: `${content.channel}${hasNickname ? ` (${content.nickname})` : ""}`
-            });
+            if (content.channel) {
+                specificItems.push({
+                    label: "채널",
+                    value: `${content.channel}${hasNickname ? ` (${content.nickname})` : ""}`
+                });
+            }
 
             if (content.channel === "전화 문의" && content.phone) {
                 specificItems.push({ label: "전화", value: content.phone, isSubItem: true, isFirstSubItem: true });
             }
 
-            const displayProduct = (content.product || "").toString().toLowerCase() === "crm" ? "CRM" : content.product;
-            specificItems.push({ label: "상품", value: displayProduct });
+            if (content.product) {
+                const displayProduct = (content.product || "").toString().toLowerCase() === "crm" ? "CRM" : content.product;
+                specificItems.push({ label: "상품", value: displayProduct });
+            }
             if (content.result) {
                 specificItems.push({ label: "결과", value: content.result });
             }
         } else if (stepType === 'purchase_confirm') {
-            specificItems.push({ label: "결제", value: content.payMethod });
-            specificItems.push({ label: "금액", value: content.amount ? `${content.amount}원` : "-", isSubItem: true, isFirstSubItem: true });
-            if (content.discountAmount) specificItems.push({ label: "할인", value: `${content.discountAmount}원`, isSubItem: true });
-            if (content.userId) specificItems.push({ label: "ID", value: content.userId, isSubItem: true });
+            const categoryLabel = content.productCategory === "product" ? "시공" : (content.productCategory === "inventory" ? "배송" : "");
+
+            if (content.product) {
+                specificItems.push({
+                    label: "상품",
+                    value: (
+                        <HStack spacing={2} display="inline-flex" align="center">
+                            {categoryLabel && (
+                                <Box
+                                    as="span"
+                                    bg="gray.100"
+                                    color="gray.500"
+                                    fontSize="10px"
+                                    px={1.5}
+                                    h="18px"
+                                    borderRadius="4px"
+                                    fontWeight="bold"
+                                    display="flex"
+                                    alignItems="center"
+                                    flexShrink={0}
+                                >
+                                    {categoryLabel}
+                                </Box>
+                            )}
+                            <Text as="span">{content.product}</Text>
+                        </HStack>
+                    )
+                });
+            }
+
+            if (content.payMethod) {
+                specificItems.push({ label: "결제", value: content.payMethod });
+            }
+            if (content.amount) {
+                specificItems.push({ label: "금액", value: content.amount ? `${content.amount}원` : "-", isSubItem: true, isFirstSubItem: true });
+            }
+
+            // Integrated discount and ID display logic for better data consistency
+            const hasDiscount = content.discount && content.discount !== "미적용";
+
+            if (content.discountAmount) {
+                const displayValue = hasDiscount
+                    ? `${content.discount} (${content.discountAmount}원)`
+                    : `${content.discountAmount}원`;
+
+                specificItems.push({
+                    label: "할인",
+                    value: displayValue,
+                    isSubItem: true
+                });
+            }
+
+            if (content.userId) {
+                const displayValue = hasDiscount
+                    ? `${content.discount} (${content.userId})`
+                    : `(${content.userId})`;
+
+                specificItems.push({
+                    label: "할인",
+                    value: displayValue,
+                    isSubItem: true
+                });
+            }
+
+            if (hasDiscount && !content.discountAmount && !content.userId) {
+                specificItems.push({ label: "할인", value: content.discount, isSubItem: true });
+            }
+
+            // 배송 정보 (고도화 반영: 계층 구조 적용)
+            if (content.productCategory === 'inventory' && content.deliveryInfo) {
+                const { courier, trackingNumber, shipmentDate, deliveryAddress } = content.deliveryInfo;
+                const datePart = (shipmentDate || "").split(" ")[0];
+
+                // 1. 주요 배송 정보 (날짜 + 주소)
+                if (datePart || deliveryAddress) {
+                    const separator = (datePart && deliveryAddress) ? "  /  " : "";
+                    specificItems.push({
+                        label: "배송",
+                        value: `${datePart}${separator}${deliveryAddress || ""}`
+                    });
+                }
+
+                // 2. 상세 정보 (업체)
+                if (courier) {
+                    specificItems.push({
+                        label: "업체",
+                        value: courier,
+                        isSubItem: true,
+                        isFirstSubItem: true
+                    });
+                }
+
+                // 3. 상세 정보 (송장)
+                if (trackingNumber) {
+                    specificItems.push({
+                        label: "송장",
+                        value: trackingNumber,
+                        isSubItem: true,
+                        isFirstSubItem: !courier
+                    });
+                }
+            }
         } else {
             // Standard report types (Visits: Demo, Install, AS)
-            specificItems.push({
-                label: (stepType === 'demo_schedule' || stepType === 'demo_complete') ? "주소" : ((stepType || "").includes("schedule") ? "장소" : "방문처"),
-                value: content.location
-            });
+            // Only push items if they have valid values to prevent UI noise and crashes
+            if (content.location && stepType !== 'remoteas_complete') {
+                const locationLabel = (stepType === 'demo_schedule' || stepType === 'demo_complete') ? "주소" : ((stepType || "").includes("schedule") ? "장소" : "방문처");
+                specificItems.push({ label: locationLabel, value: content.location });
+            }
 
             // Phone and Product
             if (content.phone) {

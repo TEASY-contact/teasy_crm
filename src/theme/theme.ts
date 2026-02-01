@@ -9,7 +9,7 @@ export const theme = extendTheme({
   },
   styles: {
     global: {
-      "html, body, button, input, select, textarea, label": {
+      "html, body, button, input, select, textarea, label, span, div": {
         letterSpacing: "0.5px",
       },
       "input::placeholder, textarea::placeholder": {

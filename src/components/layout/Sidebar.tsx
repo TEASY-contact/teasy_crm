@@ -58,7 +58,7 @@ export const Sidebar = React.memo(() => {
                         <Box px={3} mb={4}>
                             <Divider borderColor="whiteAlpha.300" />
                         </Box>
-                        <Text fontSize="11px" fontWeight="700" color="whiteAlpha.600" mb={2} px={3} letterSpacing="wider">ADMIN</Text>
+                        <Text fontSize="11px" fontWeight="700" color="whiteAlpha.600" mb={2} px={3}>ADMIN</Text>
                         <NavItem icon={MdSettings} href="/admin">관리자 페이지</NavItem>
                     </Box>
                 )}

@@ -8,14 +8,18 @@ import {
  * Utility to make parentheses thin as requested by user
  */
 export const ThinParen = ({ text }: { text: string }) => {
-    const parts = text.split(/([()\-])/);
+    const parts = text.split(/([()\-×/])/);
     return (
         <>
-            {parts.map((part, i) => (
-                (part === '(' || part === ')' || part === '-')
-                    ? <Text key={i} as="span" fontWeight="400" color="gray.400">{part}</Text>
-                    : part
-            ))}
+            {parts.map((part, i) => {
+                if (part === '(' || part === ')' || part === '-' || part === '×') {
+                    return <Text key={i} as="span" fontWeight="400" color="gray.400">{part}</Text>;
+                }
+                if (part === '/') {
+                    return <Text key={i} as="span" fontWeight="bold" color="gray.300" fontSize="10px">{part}</Text>;
+                }
+                return part;
+            })}
         </>
     );
 };

@@ -24,7 +24,7 @@ export const ChatRoom = ({ messages, lastReadTimestamp }: any) => {
                             {index === firstUnreadIndex && firstUnreadIndex !== -1 && (
                                 <Flex align="center" py={4}>
                                     <Divider borderColor="gray.100" />
-                                    <Text fontSize="10px" color="gray.400" whiteSpace="nowrap" px={3} letterSpacing="0.5px">여기까지 읽었습니다</Text>
+                                    <Text fontSize="10px" color="gray.400" whiteSpace="nowrap" px={3}>여기까지 읽었습니다</Text>
                                     <Divider borderColor="gray.100" />
                                 </Flex>
                             )}
@@ -38,7 +38,7 @@ export const ChatRoom = ({ messages, lastReadTimestamp }: any) => {
                                         borderRadius={isMe ? "18px 2px 18px 18px" : "2px 18px 18px 18px"}
                                         shadow="sm"
                                     >
-                                        <Text fontSize="sm" lineHeight="1.5" letterSpacing="0.5px">{msg.content}</Text>
+                                        <Text fontSize="sm" lineHeight="1.5">{msg.content}</Text>
                                     </Box>
                                     <Text fontSize="10px" color="gray.400">{msg.time || "오전 10:00"}</Text>
                                 </VStack>

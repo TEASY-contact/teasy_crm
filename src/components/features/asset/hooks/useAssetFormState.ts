@@ -13,6 +13,7 @@ export const useAssetFormState = (isOpen: boolean, selectedAsset: AssetData | un
     const [price, setPrice] = useState("");
     const [composition, setComposition] = useState("");
     const [selectedComponents, setSelectedComponents] = useState<string[]>([]);
+    const [isDeliveryItem, setIsDeliveryItem] = useState(false);
     const [editReason, setEditReason] = useState("");
 
     useEffect(() => {
@@ -20,6 +21,7 @@ export const useAssetFormState = (isOpen: boolean, selectedAsset: AssetData | un
             if (selectedAsset) {
                 setCategory(selectedAsset.category || "");
                 setName(selectedAsset.name || "");
+                setIsDeliveryItem(selectedAsset.isDeliveryItem || false);
                 if (isProduct) {
                     setPrice((selectedAsset.price || 0).toLocaleString());
                     setSpec(selectedAsset.spec || "");
@@ -34,6 +36,7 @@ export const useAssetFormState = (isOpen: boolean, selectedAsset: AssetData | un
                 }
             } else {
                 setCategory(""); setName(""); setSpec(""); setUnit(""); setNotes(""); setQty(""); setPrice(""); setComposition(""); setSelectedComponents([]);
+                setIsDeliveryItem(false);
             }
             setEditReason("");
         }
@@ -42,9 +45,10 @@ export const useAssetFormState = (isOpen: boolean, selectedAsset: AssetData | un
     return useMemo(() => ({
         category, setCategory, name, setName, spec, setSpec, unit, setUnit, notes, setNotes,
         qty, setQty, price, setPrice, composition, setComposition,
-        selectedComponents, setSelectedComponents, editReason, setEditReason
+        selectedComponents, setSelectedComponents, editReason, setEditReason,
+        isDeliveryItem, setIsDeliveryItem
     }), [
         category, name, spec, unit, notes, qty, price, composition,
-        selectedComponents, editReason
+        selectedComponents, editReason, isDeliveryItem
     ]);
 };

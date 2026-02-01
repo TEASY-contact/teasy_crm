@@ -1,45 +1,51 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@chakra-ui/react";
 import { db, storage } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp, updateDoc, doc, deleteDoc, query, where, getDocs } from "firebase/firestore";
-import { ref as sRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { collection, serverTimestamp, doc, query, where, getDocs, runTransaction } from "firebase/firestore";
+import { ref as sRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { useAuth } from "@/context/AuthContext";
 import { applyColonStandard } from "@/utils/textFormatter";
+import { DemoCompleteFormData, DemoCompleteActivity, ManagerOption, DEMO_CONSTANTS } from "./types";
 
-export const useDemoCompleteForm = ({ customer, activities, activityId, initialData, defaultManager, userData }: any) => {
+interface UseDemoCompleteFormProps {
+    customer: { id: string, name: string };
+    activities?: any[]; // Assuming activities can be of various types, or a more specific type if available
+    activityId?: string;
+    initialData?: Partial<DemoCompleteFormData>;
+    defaultManager?: string;
+}
+
+export const useDemoCompleteForm = ({ customer, activities, activityId, initialData, defaultManager }: UseDemoCompleteFormProps) => {
+    const { userData } = useAuth();
     const toast = useToast();
     const [isLoading, setIsLoading] = useState(false);
 
     // File upload state for UI only
     const [pendingFiles, setPendingFiles] = useState<{ url: string, file: File }[]>([]);
 
-    const [formData, setFormData] = useState({
-        date: initialData?.date || "",
-        manager: initialData?.manager || defaultManager,
-        location: initialData?.location || "",
-        phone: initialData?.phone || "",
-        product: initialData?.product || "",
-        result: initialData?.result || "",
-        discountType: initialData?.discountType || "",
-        discountValue: initialData?.discountValue || "",
-        memo: initialData?.memo || "",
-        photos: initialData?.photos || [] as string[]
+    const [formData, setFormData] = useState<DemoCompleteFormData>({
+        date: "",
+        manager: defaultManager || "",
+        location: "",
+        phone: "",
+        product: "",
+        result: "",
+        discountType: "",
+        discountValue: "",
+        memo: "",
+        photos: []
     });
 
+    // Populate Initial Data
     useEffect(() => {
         if (initialData) {
-            setFormData({
-                date: initialData.date || "",
-                manager: initialData.manager || "",
-                location: initialData.location || "",
-                phone: initialData.phone || "",
-                product: initialData.product || "",
-                result: initialData.result || "",
-                discountType: initialData.discountType || "",
-                discountValue: initialData.discountValue || "",
-                memo: initialData.memo || "",
+            setFormData(prev => ({
+                ...prev,
+                ...initialData,
+                manager: initialData.manager || defaultManager || "",
                 photos: initialData.photos || []
-            });
+            }));
         } else {
             // New report: Auto-fill current date
             const now = new Date();
@@ -60,59 +66,96 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
                 }));
             }
         }
-    }, [initialData, activityId, activities, defaultManager]);
+    }, [initialData, activities, defaultManager]);
 
-    const handleFileUpload = (files: FileList | null) => {
+    // --- Auxiliary Functions (Resource UI) ---
+    const handleFileUpload = useCallback((files: FileList | null) => {
         if (!files || files.length === 0) return;
-        if (formData.photos.length + files.length > 15) {
-            toast({ title: "한도 초과", description: "사진은 최대 15장까지 업로드 가능합니다.", status: "warning", position: "top" });
-            return;
-        }
 
-        const newPending: { url: string, file: File }[] = [];
-        const newUrls: string[] = [];
+        setFormData(prev => {
+            if (prev.photos.length + files.length > DEMO_CONSTANTS.MAX_PHOTOS) {
+                toast({ title: "한도 초과", description: `사진은 최대 ${DEMO_CONSTANTS.MAX_PHOTOS}장까지 업로드 가능합니다.`, status: "warning", position: "top" });
+                return prev;
+            }
 
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            if (!file.type.startsWith("image/")) continue;
-            const localUrl = URL.createObjectURL(file);
-            newPending.push({ url: localUrl, file });
-            newUrls.push(localUrl);
-        }
+            const newPending: { url: string, file: File }[] = [];
+            const newUrls: string[] = [];
 
-        setPendingFiles(prev => [...prev, ...newPending]);
-        setFormData(prev => ({ ...prev, photos: [...prev.photos, ...newUrls] }));
-    };
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                if (!file.type.startsWith("image/")) continue;
+                const localUrl = URL.createObjectURL(file);
+                newPending.push({ url: localUrl, file });
+                newUrls.push(localUrl);
+            }
 
-    const removePhoto = (index: number) => {
-        const targetUrl = formData.photos[index];
-        if (targetUrl.startsWith('blob:')) {
-            URL.revokeObjectURL(targetUrl);
-            setPendingFiles(prev => prev.filter(p => p.url !== targetUrl));
-        }
-        setFormData(prev => ({
-            ...prev,
-            photos: prev.photos.filter((_: string, i: number) => i !== index)
+            setPendingFiles(curr => [...curr, ...newPending]);
+            return { ...prev, photos: [...prev.photos, ...newUrls] };
+        });
+    }, [toast]);
+
+    const removePhoto = useCallback((index: number) => {
+        setFormData(prev => {
+            const targetUrl = prev.photos[index];
+            if (targetUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(targetUrl);
+                setPendingFiles(curr => curr.filter(p => p.url !== targetUrl));
+            }
+            return {
+                ...prev,
+                photos: prev.photos.filter((_, i) => i !== index)
+            };
+        });
+    }, []);
+
+    // --- Core Resource Management (Physics) ---
+    const cleanupOrphanedPhotos = useCallback(async (urlsToDelete: string[]) => {
+        if (!urlsToDelete || urlsToDelete.length === 0) return;
+
+        // Final protection: only delete if they are real cloud URLs
+        const cloudUrls = urlsToDelete.filter(url => url.startsWith('https://firebasestorage.googleapis.com'));
+        if (cloudUrls.length === 0) return;
+
+        await Promise.allSettled(cloudUrls.map(async (url) => {
+            try {
+                const storageRef = sRef(storage, url);
+                await deleteObject(storageRef);
+            } catch (e) {
+                console.warn("Resource cleanup attempt failed:", url, e);
+            }
         }));
-    };
+    }, []);
 
-    const submit = async (managerOptions: any[]) => {
+    // --- Main Actions ---
+    const submit = useCallback(async (managerOptions: ManagerOption[]) => {
         if (isLoading) return false;
 
-        if (!formData.manager || !formData.product || !formData.result || !formData.discountType) {
-            toast({ title: "입력 부족", status: "warning", duration: 2000, position: "top" });
+        // Validation Rule Object
+        const validations = [
+            { cond: !formData.manager, msg: "담당자를 선택해주세요." },
+            { cond: !formData.product, msg: "상품을 선택해주세요." },
+            { cond: !formData.result, msg: "결과를 선택해주세요." },
+            { cond: !formData.discountType, msg: "할인 종류를 선택해주세요." }
+        ];
+
+        const error = validations.find(v => v.cond);
+        if (error) {
+            toast({ title: error.msg, status: "warning", duration: 2000, position: "top" });
             return false;
         }
 
         setIsLoading(true);
         try {
+            // 1. Data Sanitization
+            const cleanPhone = formData.phone.replace(/[^0-9]/g, "");
+
+            // 2. Parallel Photo Processing
             let finalPhotos = [...formData.photos];
             if (pendingFiles.length > 0) {
-                // Parallel Upload for Performance (v123.82 Optimization)
                 const uploadPromises = pendingFiles.map(async (p, i) => {
                     const ext = p.file.name.split('.').pop() || 'jpg';
                     const filename = `site_${Date.now()}_${i}_${Math.random().toString(36).substring(7)}.${ext}`;
-                    const storagePath = `site_photos/${customer.id}/${filename}`;
+                    const storagePath = `${DEMO_CONSTANTS.STORAGE_PATH_PREFIX}/${customer.id}/${filename}`;
                     const storageRef = sRef(storage, storagePath);
                     await uploadBytes(storageRef, p.file);
                     return await getDownloadURL(storageRef);
@@ -122,56 +165,142 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
                 finalPhotos = finalPhotos.filter(url => !url.startsWith('blob:')).concat(uploadedUrls);
             }
 
-            const selectedManager = managerOptions.find(o => o.value === formData.manager);
+            // 3. Transactional Persistence with Meta-Lock
+            const saveResult = await runTransaction(db, async (transaction) => {
+                const selectedManager = managerOptions.find(o => o.value === formData.manager);
+                const targetActivityId = activityId || doc(collection(db, "activities")).id;
+                const activityRef = doc(db, "activities", targetActivityId);
 
-            const dataToSave = {
-                customerId: customer.id,
-                customerName: customer.name,
-                type: "demo_complete",
-                typeName: "시연 완료",
-                date: formData.date,
-                manager: formData.manager,
-                managerName: selectedManager?.label || formData.manager,
-                managerRole: selectedManager?.role || "employee",
-                location: formData.location || "",
-                phone: formData.phone || "",
-                product: formData.product,
-                result: formData.result,
-                discountType: formData.discountType,
-                discountValue: formData.discountValue,
-                memo: applyColonStandard(formData.memo || ""),
-                photos: finalPhotos,
-                updatedAt: serverTimestamp(),
-                createdByName: userData?.name || ""
-            };
+                const metaRef = doc(db, "customer_meta", `${customer.id}_demo`);
+                const metaSnap = await transaction.get(metaRef);
+                let currentMeta = metaSnap.exists() ? metaSnap.data() : { lastSequence: 0, totalCount: 0 };
 
-            if (activityId) {
-                await updateDoc(doc(db, "activities", activityId), dataToSave);
-            } else {
-                const existingCount = (activities || []).filter((a: any) => a.type === "demo_complete").length;
-                await addDoc(collection(db, "activities"), {
-                    ...dataToSave,
-                    sequenceNumber: existingCount + 1,
-                    createdAt: serverTimestamp(),
-                    createdBy: userData?.uid || "system",
+                const dataToSave: DemoCompleteActivity = {
+                    customerId: customer.id,
+                    customerName: customer.name,
+                    type: DEMO_CONSTANTS.TYPE,
+                    typeName: DEMO_CONSTANTS.TYPE_NAME,
+                    date: formData.date,
+                    manager: formData.manager,
+                    managerName: selectedManager?.label || formData.manager,
+                    managerRole: selectedManager?.role || "employee",
+                    location: formData.location,
+                    phone: cleanPhone,
+                    product: formData.product,
+                    result: formData.result,
+                    discountType: formData.discountType,
+                    discountValue: formData.discountValue,
+                    memo: applyColonStandard(formData.memo || ""),
+                    photos: finalPhotos,
+                    updatedAt: serverTimestamp(),
+                    createdByName: userData?.name || "알 수 없음"
+                };
+
+                // Sync with Customer Document (Last Consult Date)
+                const customerRef = doc(db, "customers", customer.id);
+                transaction.update(customerRef, {
+                    lastConsultDate: formData.date,
+                    updatedAt: serverTimestamp()
                 });
-            }
 
-            setPendingFiles([]);
-            toast({ title: "저장 성공", status: "success", duration: 3000, position: "top" });
-            return true;
+                if (activityId) {
+                    transaction.update(activityRef, dataToSave as any); // Cast to any for updateDoc flexibility
+                } else {
+                    const nextSeq = (Number(currentMeta.lastSequence) || 0) + 1;
+                    transaction.set(activityRef, {
+                        ...dataToSave,
+                        sequenceNumber: nextSeq,
+                        createdAt: serverTimestamp(),
+                        createdBy: userData?.uid || "system",
+                    });
+
+                    transaction.set(metaRef, {
+                        lastSequence: nextSeq,
+                        totalCount: (Number(currentMeta.totalCount) || 0) + 1,
+                        lastUpdatedAt: serverTimestamp()
+                    }, { merge: true });
+                }
+
+                return { success: true };
+            });
+
+            if (saveResult.success) {
+                // 4. POST-DB Resource Cleanup (Safe transition)
+                // --- CRITICAL FIX: Only cleanup if DB update succeeded ---
+                if (activityId && initialData?.photos) {
+                    const removedPhotos = initialData.photos.filter((oldUrl: string) => !finalPhotos.includes(oldUrl));
+                    await cleanupOrphanedPhotos(removedPhotos);
+                }
+
+                setPendingFiles([]);
+                toast({ title: "저장 완료", status: "success", duration: 3000, position: "top" });
+                return true;
+            }
+            return false;
         } catch (error: any) {
-            toast({ title: "저장 실패", description: error.message, status: "error", duration: 5000, position: "top" });
+            console.error("Demo Complete Submit Failure:", error);
+            toast({ title: "저장 실패", description: error.message, status: "error", position: "top" });
             return false;
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [isLoading, formData, pendingFiles, activityId, initialData?.photos, customer.id, customer.name, userData?.name, userData?.uid, toast, cleanupOrphanedPhotos]);
+
+    const handleDelete = useCallback(async () => {
+        if (!activityId) return false;
+        if (!window.confirm(`정말 이 [${DEMO_CONSTANTS.TYPE_NAME}] 보고서를 삭제하시겠습니까?\n첨부된 모든 사진 데이터도 영구히 삭제됩니다.`)) return false;
+
+        setIsLoading(true);
+        try {
+            const cleanupResult = await runTransaction(db, async (transaction) => {
+                const activityRef = doc(db, "activities", activityId);
+                const activitySnap = await transaction.get(activityRef);
+
+                if (!activitySnap.exists()) return { success: false, msg: "데이터가 존재하지 않습니다." };
+
+                const activityData = activitySnap.data() as DemoCompleteActivity;
+                const photosToDelete = activityData.photos || [];
+
+                const metaRef = doc(db, "customer_meta", `${customer.id}_demo`);
+                const metaSnap = await transaction.get(metaRef);
+
+                if (metaSnap.exists()) {
+                    const currentMeta = metaSnap.data();
+                    transaction.update(metaRef, {
+                        totalCount: Math.max(0, (Number(currentMeta.totalCount) || 0) - 1),
+                        lastDeletedAt: serverTimestamp()
+                    });
+                }
+
+                transaction.delete(activityRef);
+                return { success: true, photos: photosToDelete };
+            });
+
+            if (cleanupResult.success) {
+                // Physical Cleanup after successful DB deletion
+                if (cleanupResult.photos && cleanupResult.photos.length > 0) {
+                    await cleanupOrphanedPhotos(cleanupResult.photos);
+                }
+                toast({ title: "삭제 완료", status: "info", duration: 2000, position: "top" });
+                return true;
+            } else {
+                toast({ title: "삭제 실패", description: cleanupResult.msg, status: "error", position: "top" });
+                return false;
+            }
+        } catch (error) {
+            console.error("Demo Delete Failure:", error);
+            toast({ title: "삭제 실패", status: "error", position: "top" });
+            return false;
+        } finally {
+            setIsLoading(false);
+        }
+    }, [activityId, customer.id, toast, cleanupOrphanedPhotos]);
 
     return {
         formData, setFormData,
         isLoading,
         handleFileUpload, removePhoto,
-        submit
+        submit,
+        handleDelete
     };
 };

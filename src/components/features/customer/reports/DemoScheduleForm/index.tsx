@@ -1,97 +1,53 @@
 "use client";
-import React, { forwardRef, useImperativeHandle, useState, useEffect } from "react";
-import { VStack, FormControl, Box, Spinner, HStack, useToast, Flex } from "@chakra-ui/react";
+import React, { forwardRef, useImperativeHandle, useCallback } from "react";
+import { VStack, FormControl, Box, Spinner, HStack, Flex, Text } from "@chakra-ui/react";
 import { CustomSelect } from "@/components/common/CustomSelect";
 import { TeasyDateTimeInput, TeasyFormLabel, TeasyInput, TeasyTextarea, TeasyPhoneInput } from "@/components/common/UIComponents";
-import { useAuth } from "@/context/AuthContext";
 import { useReportMetadata } from "@/hooks/useReportMetadata";
-import { db } from "@/lib/firebase";
-import { doc, updateDoc, deleteDoc, collection, addDoc, serverTimestamp, query, where, getDocs } from "firebase/firestore";
-import { applyColonStandard } from "@/utils/textFormatter";
+import { useDemoScheduleForm } from "./useDemoScheduleForm";
+import { DemoScheduleFormData, DemoScheduleFormHandle } from "./types";
+import { ManagerOption } from "../DemoCompleteForm/types";
 
-export const DemoScheduleForm = forwardRef(({ customer, activityId, initialData, isReadOnly = false, defaultManager = "" }: any, ref) => {
-    const { userData } = useAuth();
-    const toast = useToast();
+interface DemoScheduleFormProps {
+    customer: { id: string, name: string, address?: string, phone?: string };
+    activityId?: string;
+    initialData?: Partial<DemoScheduleFormData>;
+    isReadOnly?: boolean;
+    defaultManager?: string;
+}
+
+export const DemoScheduleForm = forwardRef<DemoScheduleFormHandle, DemoScheduleFormProps>(({
+    customer,
+    activityId,
+    initialData,
+    isReadOnly = false,
+    defaultManager = ""
+}, ref) => {
     const { managerOptions, products } = useReportMetadata();
-    const [isLoading, setIsLoading] = useState(false);
-
-    const [formData, setFormData] = useState({
-        date: initialData?.date || "",
-        manager: initialData?.manager || defaultManager,
-        location: initialData?.location || customer?.address || "",
-        phone: initialData?.phone || customer?.phone || "",
-        product: initialData?.product || "",
-        memo: initialData?.memo || ""
-    });
-
-    useEffect(() => {
-        if (initialData) {
-            setFormData({
-                date: initialData.date || "",
-                manager: initialData.manager || "",
-                location: initialData.location || "",
-                phone: initialData.phone || "",
-                product: initialData.product || "",
-                memo: initialData.memo || ""
-            });
-        } else {
-            const now = new Date();
-            const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}  ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-            setFormData(prev => ({ ...prev, date: formattedDate, manager: prev.manager || defaultManager, location: customer?.address || "", phone: customer?.phone || "" }));
-        }
-    }, [initialData, defaultManager]);
+    const {
+        formData, setFormData,
+        isLoading,
+        submit,
+        handleDelete
+    } = useDemoScheduleForm({ customer, activityId, initialData, defaultManager });
 
     useImperativeHandle(ref, () => ({
-        submit: async () => {
-            if (!formData.manager || !formData.date || !formData.product || !formData.location || !formData.phone) {
-                toast({ title: "입력 부족", status: "warning", duration: 2000, position: "top" });
-                return false;
-            }
-
-            setIsLoading(true);
-            try {
-                const selectedManager = managerOptions.find(o => o.value === formData.manager);
-                const dataToSave = {
-                    customerId: customer.id,
-                    customerName: customer?.name || "",
-                    type: "demo_schedule",
-                    typeName: "시연 일정",
-                    ...formData,
-                    memo: applyColonStandard(formData.memo || ""),
-                    managerName: selectedManager?.label || formData.manager,
-                    managerRole: selectedManager?.role || "employee",
-                    updatedAt: serverTimestamp(),
-                    createdByName: userData?.name || ""
-                };
-
-                if (activityId) {
-                    await updateDoc(doc(db, "activities", activityId), dataToSave);
-                } else {
-                    const q = query(collection(db, "activities"), where("customerId", "==", customer.id), where("type", "==", "demo_schedule"));
-                    const snapshot = await getDocs(q);
-                    const maxSeq = snapshot.docs.reduce((max, d) => Math.max(max, d.data().sequenceNumber || 0), 0);
-                    await addDoc(collection(db, "activities"), { ...dataToSave, sequenceNumber: maxSeq + 1, createdAt: serverTimestamp(), createdBy: userData?.uid });
-                }
-                toast({ title: "예약 완료", status: "success", duration: 2000, position: "top" });
-                return true;
-            } catch (error) { return false; } finally { setIsLoading(false); }
-        },
-        delete: async () => {
-            if (!activityId) return false;
-            setIsLoading(true);
-            try {
-                await deleteDoc(doc(db, "activities", activityId));
-                toast({ title: "삭제 성공", status: "info", duration: 2000, position: "top" });
-                return true;
-            } catch (error) { return false; } finally { setIsLoading(false); }
-        }
-    }));
+        submit: () => submit(managerOptions as ManagerOption[]),
+        delete: handleDelete
+    }), [submit, handleDelete, managerOptions]);
 
     return (
         <Box position="relative">
             {isLoading && (
-                <Flex position="absolute" top={0} left={0} right={0} bottom={0} bg="whiteAlpha.700" zIndex={10} align="center" justify="center">
-                    <Spinner size="xl" color="brand.500" thickness="4px" />
+                <Flex
+                    position="absolute" top={0} left={0} right={0} bottom={0}
+                    bg="whiteAlpha.800" zIndex={20} align="center" justify="center"
+                    borderRadius="md"
+                >
+                    <VStack spacing={4}>
+                        <Spinner size="xl" color="brand.500" thickness="4px" />
+                        <Text fontWeight="bold" color="brand.600">일정 처리 중...</Text>
+                    </VStack>
                 </Flex>
             )}
             <VStack spacing={6} align="stretch">
@@ -100,7 +56,7 @@ export const DemoScheduleForm = forwardRef(({ customer, activityId, initialData,
                         <TeasyFormLabel>시연 일시</TeasyFormLabel>
                         <TeasyDateTimeInput
                             value={formData.date}
-                            onChange={(val: string) => !isReadOnly && setFormData({ ...formData, date: val })}
+                            onChange={(val: string) => !isReadOnly && setFormData((prev: DemoScheduleFormData) => ({ ...prev, date: val }))}
                             isDisabled={isReadOnly}
                         />
                     </FormControl>
@@ -109,7 +65,7 @@ export const DemoScheduleForm = forwardRef(({ customer, activityId, initialData,
                         <CustomSelect
                             placeholder="선택"
                             value={formData.manager}
-                            onChange={(val) => !isReadOnly && setFormData({ ...formData, manager: val })}
+                            onChange={(val) => !isReadOnly && setFormData((prev: DemoScheduleFormData) => ({ ...prev, manager: val }))}
                             options={managerOptions}
                             isDisabled={isReadOnly}
                         />
@@ -120,7 +76,7 @@ export const DemoScheduleForm = forwardRef(({ customer, activityId, initialData,
                     <TeasyFormLabel>방문 주소</TeasyFormLabel>
                     <TeasyInput
                         value={formData.location}
-                        onChange={(e: any) => !isReadOnly && setFormData({ ...formData, location: e.target.value })}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => !isReadOnly && setFormData((prev: DemoScheduleFormData) => ({ ...prev, location: e.target.value }))}
                         placeholder="입력"
                         isDisabled={isReadOnly}
                     />
@@ -130,7 +86,7 @@ export const DemoScheduleForm = forwardRef(({ customer, activityId, initialData,
                     <TeasyFormLabel>연락처</TeasyFormLabel>
                     <TeasyPhoneInput
                         value={formData.phone}
-                        onChange={(val: string) => !isReadOnly && setFormData({ ...formData, phone: val })}
+                        onChange={(val: string) => !isReadOnly && setFormData((prev: DemoScheduleFormData) => ({ ...prev, phone: val }))}
                         placeholder="000-0000-0000"
                         isDisabled={isReadOnly}
                     />
@@ -141,7 +97,7 @@ export const DemoScheduleForm = forwardRef(({ customer, activityId, initialData,
                     <CustomSelect
                         placeholder="선택"
                         value={formData.product}
-                        onChange={(val) => !isReadOnly && setFormData({ ...formData, product: val })}
+                        onChange={(val) => !isReadOnly && setFormData((prev: DemoScheduleFormData) => ({ ...prev, product: val }))}
                         options={products}
                         isDisabled={isReadOnly}
                     />
@@ -151,10 +107,9 @@ export const DemoScheduleForm = forwardRef(({ customer, activityId, initialData,
                     <TeasyFormLabel>참고 사항</TeasyFormLabel>
                     <TeasyTextarea
                         value={formData.memo}
-                        onChange={(e: any) => !isReadOnly && setFormData({ ...formData, memo: e.target.value })}
+                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => !isReadOnly && setFormData((prev: DemoScheduleFormData) => ({ ...prev, memo: e.target.value }))}
                         placeholder="입력"
                         isDisabled={isReadOnly}
-                        _readOnly={{ bg: "gray.50", cursor: "default", color: "gray.600" }}
                     />
                 </FormControl>
             </VStack>

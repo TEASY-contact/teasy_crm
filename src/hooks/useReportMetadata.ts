@@ -1,107 +1,126 @@
 // src/hooks/useReportMetadata.ts
 "use client";
-import { useState, useEffect } from "react";
+import { useMemo } from "react";
 import { db } from "@/lib/firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
-
-export interface ManagerOption {
-    value: string;
-    label: string;
-    role?: string;
-    isDivider?: boolean;
-    status?: string;
-}
-
-export interface ProductOption {
-    value: string;
-    label: string;
-    isDivider?: boolean;
-}
+import { useQuery } from "@tanstack/react-query";
+import { Asset, User, ManagerOption, ProductOption } from "@/types/domain";
 
 /**
  * Hook to fetch common metadata (Managers, Products) for report forms.
- * Prevents redundant fetch logic across different form components.
+ * Uses React Query for caching across different form components.
  */
 export const useReportMetadata = () => {
-    const [managerOptions, setManagerOptions] = useState<ManagerOption[]>([]);
-    const [products, setProducts] = useState<ProductOption[]>([]);
-    const [isLoadingMetadata, setIsLoadingMetadata] = useState(true);
+    // 1. Fetch Assets (Inventory/Product/Divider)
+    const { data: rawAssets = [], isLoading: isLoadingAssets } = useQuery({
+        queryKey: ["assets", "metadata"],
+        queryFn: async () => {
+            const qAssets = query(
+                collection(db, "assets"),
+                where("type", "in", ["product", "inventory", "divider"])
+            );
+            const snapshot = await getDocs(qAssets);
+            return snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })) as Asset[];
+        }
+    });
 
-    useEffect(() => {
-        const fetchData = async () => {
-            setIsLoadingMetadata(true);
-            try {
-                // 1. Fetch Products and Dividers from Assets collection
-                const qProducts = query(
-                    collection(db, "assets"),
-                    where("type", "in", ["product", "divider"])
-                );
-                const productSnapshot = await getDocs(qProducts);
+    // 2. Fetch Users (Managers)
+    const { data: allUsers = [], isLoading: isLoadingUsers } = useQuery({
+        queryKey: ["users", "managers"],
+        queryFn: async () => {
+            const userSnap = await getDocs(collection(db, "users"));
+            return userSnap.docs.map(d => ({
+                id: d.id,
+                ...d.data()
+            })) as User[];
+        }
+    });
 
-                const fetchedProducts = productSnapshot.docs
-                    .map(doc => {
-                        const data = doc.data() as any;
-                        // Filter out inventory-side dividers if any
-                        if (data.type === "divider" && data.dividerType !== "product") return null;
+    // 3. Process Products & Inventory (Memoized)
+    const processedAssets = useMemo(() => {
+        const seenProducts = new Set();
+        const fetchedProducts = rawAssets
+            .filter(data => data.type === "product" || (data.type === "divider" && data.dividerType === "product"))
+            .map(data => ({
+                value: data.type === "divider" ? `divider_${data.id}` : data.name,
+                label: data.type === "divider" ? "---" : data.name,
+                isDivider: data.type === "divider",
+                orderIndex: data.orderIndex ?? 999
+            }))
+            .sort((a, b) => a.orderIndex - b.orderIndex)
+            .filter(item => {
+                if (item.isDivider) return true;
+                if (seenProducts.has(item.value)) return false;
+                seenProducts.add(item.value);
+                return true;
+            });
 
-                        return {
-                            value: data.type === "divider" ? `divider_${doc.id}` : data.name,
-                            label: data.type === "divider" ? "---" : data.name,
-                            isDivider: data.type === "divider",
-                            orderIndex: data.orderIndex || 999
-                        };
-                    })
-                    .filter((item): item is any => item !== null)
-                    .sort((a, b) => a.orderIndex - b.orderIndex);
+        const seenInventory = new Set();
+        const fetchedInventory = rawAssets
+            .filter(data => data.type === "inventory" || (data.type === "divider" && data.dividerType === "inventory"))
+            .map(data => ({
+                value: data.type === "divider" ? `divider_${data.id}` : data.name,
+                label: data.type === "divider" ? "---" : data.name,
+                category: data.category || "",
+                isDivider: data.type === "divider",
+                isDeliveryItem: !!data.isDeliveryItem,
+                orderIndex: data.orderIndex ?? 999
+            }))
+            .sort((a, b) => a.orderIndex - b.orderIndex)
+            .filter(item => {
+                if (item.isDivider) return true;
+                if (seenInventory.has(item.value)) return false;
+                seenInventory.add(item.value);
+                return true;
+            });
 
-                setProducts(fetchedProducts.length > 0 ? fetchedProducts : [
-                    { value: "뷰라클", label: "뷰라클" },
-                    { value: "CRM", label: "CRM" }
-                ]);
-
-                // 2. Fetch Users and Group into Managers
-                const userSnap = await getDocs(collection(db, "users"));
-                const allUsers = userSnap.docs.map(d => ({
-                    uid: d.id,
-                    ...d.data()
-                })) as any[];
-
-                const internalStaff = allUsers
-                    .filter(u => ['master', 'admin', 'employee'].includes(u.role))
-                    .map(u => ({
-                        value: u.uid,
-                        label: u.status === 'banned' ? `${u.name}(퇴)` : u.name,
-                        role: u.role,
-                        status: u.status
-                    }))
-                    .sort((a, b) => a.label.localeCompare(b.label)) as ManagerOption[];
-
-                const partnerStaff = allUsers
-                    .filter(u => u.role === 'partner')
-                    .map(u => ({
-                        value: u.uid,
-                        label: u.status === 'banned' ? `${u.name}(퇴)` : u.name,
-                        role: u.role,
-                        status: u.status
-                    }))
-                    .sort((a, b) => a.label.localeCompare(b.label)) as ManagerOption[];
-
-                const finalManagerOptions: ManagerOption[] = [...internalStaff];
-                if (internalStaff.length > 0 && partnerStaff.length > 0) {
-                    finalManagerOptions.push({ value: "divider", label: "---", isDivider: true });
-                }
-                finalManagerOptions.push(...partnerStaff);
-                setManagerOptions(finalManagerOptions);
-
-            } catch (error) {
-                console.error("[useReportMetadata] Error fetching metadata:", error);
-            } finally {
-                setIsLoadingMetadata(false);
-            }
+        return {
+            products: fetchedProducts.length > 0 ? fetchedProducts : [
+                { value: "뷰라클", label: "뷰라클" },
+                { value: "CRM", label: "CRM" }
+            ],
+            inventoryItems: fetchedInventory
         };
+    }, [rawAssets]);
 
-        fetchData();
-    }, []);
+    // 4. Process Manager Options (Memoized)
+    const managerOptions = useMemo(() => {
+        const internalStaff = allUsers
+            .filter(u => ['master', 'admin', 'employee'].includes(u.role))
+            .map(u => ({
+                value: u.id,
+                label: u.status === 'banned' ? `${u.name}(퇴)` : u.name,
+                role: u.role,
+                status: u.status
+            }))
+            .sort((a, b) => a.label.localeCompare(b.label)) as ManagerOption[];
 
-    return { managerOptions, products, isLoadingMetadata };
+        const partnerStaff = allUsers
+            .filter(u => u.role === 'partner')
+            .map(u => ({
+                value: u.id,
+                label: u.status === 'banned' ? `${u.name}(퇴)` : u.name,
+                role: u.role,
+                status: u.status
+            }))
+            .sort((a, b) => a.label.localeCompare(b.label)) as ManagerOption[];
+
+        const final: ManagerOption[] = [...internalStaff];
+        if (internalStaff.length > 0 && partnerStaff.length > 0) {
+            final.push({ value: "divider", label: "---", isDivider: true });
+        }
+        final.push(...partnerStaff);
+        return final;
+    }, [allUsers]);
+
+    return {
+        managerOptions,
+        products: processedAssets.products,
+        inventoryItems: processedAssets.inventoryItems,
+        rawAssets,
+        isLoadingMetadata: isLoadingAssets || isLoadingUsers
+    };
 };

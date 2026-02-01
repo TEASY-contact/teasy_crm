@@ -2,7 +2,7 @@
 import React from "react";
 import {
     VStack, FormControl, Box, Flex, Text, Badge,
-    useToast, HStack, Spacer
+    useToast, HStack, Spacer, Switch
 } from "@chakra-ui/react";
 import { Reorder } from "framer-motion";
 import {
@@ -36,6 +36,7 @@ export const AssetModal: React.FC<AssetModalProps> = ({
     const {
         category, setCategory, name, setName, qty, price,
         selectedComponents, setSelectedComponents, editReason, setEditReason, isSubmitting,
+        isDeliveryItem, setIsDeliveryItem,
         suggestions, setSuggestions, showSuggestions, setShowSuggestions,
         isEdit, isProduct, compositionOptions,
         isCategoryChanged, isNameChanged, isQtyChanged,
@@ -158,6 +159,17 @@ export const AssetModal: React.FC<AssetModalProps> = ({
                                                 });
                                             }
                                         }}
+                                    />
+                                </FormControl>
+
+                                <FormControl isRequired display="flex" alignItems="center" justifyContent="space-between">
+                                    <TeasyFormLabel mb="0" cursor="pointer" onClick={() => !isProduct && setIsDeliveryItem(!isDeliveryItem)}>
+                                        배송 물품 등록
+                                    </TeasyFormLabel>
+                                    <Switch
+                                        colorScheme="brand"
+                                        isChecked={isDeliveryItem}
+                                        onChange={(e) => setIsDeliveryItem(e.target.checked)}
                                     />
                                 </FormControl>
 

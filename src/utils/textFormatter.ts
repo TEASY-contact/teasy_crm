@@ -48,7 +48,7 @@ export const applyColonStandard = (text: string): string => {
  */
 export const formatAssetDate = (dateString: string | null | undefined): string => {
     if (!dateString) return "-";
-    return dateString.replace(/\s+/g, "  ");
+    return dateString.replace(/\s+/g, "  ").replace(/\./g, "-");
 };
 
 /**

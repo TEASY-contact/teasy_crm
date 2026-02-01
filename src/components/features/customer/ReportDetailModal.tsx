@@ -8,6 +8,7 @@ import { StandardReportForm } from "./reports/StandardReportForm/index";
 import { DemoScheduleForm } from "./reports/DemoScheduleForm/index";
 import { DemoCompleteForm } from "./reports/DemoCompleteForm/index";
 import { PurchaseConfirmForm } from "./reports/PurchaseConfirmForm/index";
+import { Activity, Customer } from "@/types/domain";
 import {
     TeasyButton,
     TeasyModalHeader,
@@ -24,13 +25,13 @@ import { doc, updateDoc } from "firebase/firestore";
 interface ReportDetailModalProps {
     isOpen: boolean;
     onClose: () => void;
-    customer: any;
-    activity: any;
+    customer: Customer;
+    activity: Activity;
     isDashboardView?: boolean;
     isConfirmationMode?: boolean;
 }
 
-const ReportDetailModalContent = ({ onClose, customer, activity, isDashboardView, isConfirmationMode }: { onClose: () => void, customer: any, activity: any, isDashboardView?: boolean, isConfirmationMode?: boolean }) => {
+const ReportDetailModalContent = ({ onClose, customer, activity, isDashboardView, isConfirmationMode }: { onClose: () => void, customer: Customer, activity: Activity, isDashboardView?: boolean, isConfirmationMode?: boolean }) => {
     const { userData } = useAuth();
     const formRef = useRef<any>(null);
     const toast = useToast();
