@@ -21,9 +21,9 @@ export const TimelineInfoItem = ({ label, value, isHighlight, isSubItem, isFirst
                     </Box>
                 )}
                 <Box color="gray.400" fontWeight="medium" display="inline-flex" w="8px" flexShrink={0}>·</Box>
-                <Text color="gray.400" fontWeight="medium" flexShrink={0}>{label}&nbsp;:&nbsp;&nbsp;</Text>
+                <Text color="gray.400" fontWeight="medium" flexShrink={0}>{label}{(displayValue !== undefined && displayValue !== null && displayValue !== "") ? "\u00A0:\u00A0\u00A0" : ""}</Text>
                 <Box color={isHighlight ? "brand.500" : "gray.600"} fontWeight={isHighlight ? "bold" : "medium"} whiteSpace="pre-wrap">
-                    {typeof displayValue === 'string' ? <ThinParen text={displayValue} /> : displayValue}
+                    {displayValue ? (typeof displayValue === 'string' ? <ThinParen text={displayValue} /> : displayValue) : null}
                 </Box>
             </Flex>
             {children}
@@ -37,9 +37,13 @@ export const TimelineFileList = ({ files, label, isSubItem, isFirstSubItem, uplo
 
     if (!files || files.length === 0) return null;
 
+    const formattedTimestamp = typeof timestamp === 'string' && /\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(timestamp)
+        ? timestamp.replace(/\s+/, "  ")
+        : timestamp;
+
     const filesWithUploader = useMemo(() =>
-        files.map((f: any) => ({ ...f, author: f.author || uploader, timestamp: f.timestamp || timestamp })),
-        [files, uploader, timestamp]
+        files.map((f: any) => ({ ...f, author: f.author || uploader, timestamp: f.author ? f.timestamp : formattedTimestamp })),
+        [files, uploader, formattedTimestamp]
     );
 
     const handleConfirm = (index: number) => {
@@ -51,7 +55,7 @@ export const TimelineFileList = ({ files, label, isSubItem, isFirstSubItem, uplo
     };
 
     return (
-        <VStack align="start" mt={1} spacing={1.5} pl={isSubItem ? "19.5px" : 0}>
+        <VStack align="start" spacing={1.5} pl={isSubItem ? "19.5px" : 0}>
             <HStack spacing={0} fontSize="sm">
                 <Flex align="baseline" gap={0}>
                     {isSubItem && (
@@ -71,7 +75,7 @@ export const TimelineFileList = ({ files, label, isSubItem, isFirstSubItem, uplo
                 </Box>
                 <HStack spacing={1.5} ml={4}>
                     <Box as="button" type="button" bg="gray.100" color="gray.500" fontSize="10px" px={2} h="18px" borderRadius="4px" cursor="pointer" transition="all 0.2s" _hover={{ bg: "gray.500", color: "white" }} onClick={(e) => { e.stopPropagation(); handleConfirm(0); }} fontWeight="bold" textTransform="none">확인</Box>
-                    <Text color="gray.300" fontSize="10px" fontWeight="bold">/</Text>
+                    <Text color="gray.500" fontWeight="500">/</Text>
                     <Box as="button" type="button" bg="gray.100" color="gray.500" fontSize="10px" px={2} h="18px" borderRadius="4px" cursor="pointer" transition="all 0.2s" _hover={{ bg: "gray.500", color: "white" }} onClick={async (e: any) => { e.stopPropagation(); for (let i = 0; i < filesWithUploader.length; i++) { await triggerTeasyDownload(filesWithUploader[i]); if (i < filesWithUploader.length - 1) await new Promise(r => setTimeout(r, 200)); } }} fontWeight="bold" textTransform="none">다운로드</Box>
                 </HStack>
             </HStack>

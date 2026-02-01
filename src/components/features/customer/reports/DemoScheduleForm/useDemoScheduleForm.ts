@@ -4,6 +4,7 @@ import { useToast } from "@chakra-ui/react";
 import { db } from "@/lib/firebase";
 import { collection, serverTimestamp, doc, runTransaction } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
 import { applyColonStandard } from "@/utils/textFormatter";
 import { DemoScheduleFormData, DemoScheduleActivity, SCHEDULE_CONSTANTS } from "./types";
 import { ManagerOption } from "../DemoCompleteForm/types";
@@ -17,6 +18,7 @@ interface UseDemoScheduleFormProps {
 
 export const useDemoScheduleForm = ({ customer, activityId, initialData, defaultManager }: UseDemoScheduleFormProps) => {
     const { userData } = useAuth();
+    const queryClient = useQueryClient();
     const toast = useToast();
     const [isLoading, setIsLoading] = useState(false);
 
@@ -78,7 +80,7 @@ export const useDemoScheduleForm = ({ customer, activityId, initialData, default
                 const activityRef = doc(db, "activities", targetActivityId);
 
                 // --- Meta-Locking for Serialization ---
-                const metaRef = doc(db, "customer_meta", `${customer.id}_schedule`);
+                const metaRef = doc(db, "customer_meta", `${customer.id}_demo_schedule`);
                 const metaSnap = await transaction.get(metaRef);
                 let currentMeta = metaSnap.exists() ? metaSnap.data() : { lastSequence: 0, totalCount: 0 };
 
@@ -128,6 +130,7 @@ export const useDemoScheduleForm = ({ customer, activityId, initialData, default
             });
 
             if (saveResult.success) {
+                queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 toast({ title: "예약 완료", status: "success", duration: 2000, position: "top" });
                 return true;
             }
@@ -153,7 +156,7 @@ export const useDemoScheduleForm = ({ customer, activityId, initialData, default
 
                 if (!activitySnap.exists()) return { success: false, msg: "데이터가 존재하지 않습니다." };
 
-                const metaRef = doc(db, "customer_meta", `${customer.id}_schedule`);
+                const metaRef = doc(db, "customer_meta", `${customer.id}_demo_schedule`);
                 const metaSnap = await transaction.get(metaRef);
 
                 if (metaSnap.exists()) {
@@ -169,6 +172,7 @@ export const useDemoScheduleForm = ({ customer, activityId, initialData, default
             });
 
             if (result.success) {
+                queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 toast({ title: "삭제 완료", status: "info", duration: 2000, position: "top" });
                 return true;
             }
@@ -180,7 +184,7 @@ export const useDemoScheduleForm = ({ customer, activityId, initialData, default
         } finally {
             setIsLoading(false);
         }
-    }, [activityId, customer.id, toast]);
+    }, [activityId, customer.id, toast, queryClient]);
 
     return {
         formData, setFormData,

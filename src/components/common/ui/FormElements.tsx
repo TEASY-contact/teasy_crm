@@ -22,7 +22,7 @@ export const TeasyInput = (props: InputProps) => (
 );
 
 export const TeasyPhoneInput = ({ value, onChange, ...props }: any) => (
-    <TeasyInput type="tel" placeholder="000-0000-0000" value={value} onChange={(e: any) => onChange(formatPhone(e.target.value))} {...props} />
+    <TeasyInput type="tel" placeholder="000-0000-0000" value={formatPhone(value)} onChange={(e: any) => onChange(formatPhone(e.target.value))} {...props} />
 );
 
 export const TeasyLicenseInput = ({ value, onChange, ...props }: any) => (

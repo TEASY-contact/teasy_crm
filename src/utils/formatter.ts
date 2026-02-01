@@ -1,5 +1,6 @@
 // src/utils/formatter.ts
-export const formatPhone = (val: string) => {
+export const formatPhone = (val: string | null | undefined) => {
+    if (!val) return "";
     const nums = val.replace(/[^\d]/g, "");
     if (nums.startsWith("02")) {
         if (nums.length <= 2) return nums;

@@ -13,6 +13,7 @@ export const TABLE_CELL_DEFAULTS = {
     borderRight: "1px",
     borderColor: "gray.50",
     fontSize: "sm",
+    letterSpacing: "0.5px",
 };
 
 export const TABLE_HEADER_DEFAULTS = {

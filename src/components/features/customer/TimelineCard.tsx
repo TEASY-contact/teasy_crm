@@ -2,6 +2,7 @@ import React from "react";
 import { Box, Flex, Text, VStack, HStack, Badge } from "@chakra-ui/react";
 import { TimelineItem } from "@/types/timeline";
 import { TimelineBadge, TimelineInfoItem, TimelineFileList, ThinParen, TeasyButton, TeasyUniversalViewer } from "@/components/common/UIComponents";
+import { formatPhone } from "@/utils/formatter";
 import { useDisclosure } from "@chakra-ui/react";
 
 const STEP_LABELS: Record<string, string> = {
@@ -58,7 +59,7 @@ export const TimelineCard = ({
     onTitleClick?: () => void;
 }) => {
     const { isOpen: isPhotosOpen, onOpen: onPhotosOpen, onClose: onPhotosClose } = useDisclosure();
-    const content = item.content || {};
+    const content = { ...item, ...(item.content || {}) };
     const sitePhotos = content.photos || [];
 
     const prepareFiles = (rawFiles: any[], typeLabel: string) => {
@@ -111,7 +112,47 @@ export const TimelineCard = ({
         } else if (stepType === 'purchase_confirm') {
             const categoryLabel = content.productCategory === "product" ? "시공" : (content.productCategory === "inventory" ? "배송" : "");
 
-            if (content.product) {
+            const validProducts = (content.selectedProducts || []).filter((p: any) => p.name && p.name.trim() !== "");
+            if (validProducts.length > 0) {
+                const productList = validProducts.map((p: any, idx: number) => {
+                    const circle = validProducts.length > 1 ? String.fromCharCode(9312 + idx) : "";
+                    const rawName = p.name || "";
+                    const cleanName = rawName.toLowerCase() === "crm" ? "CRM" : rawName;
+                    return `${circle}${cleanName} × ${p.quantity}`;
+                }).join("\n");
+
+                specificItems.push({
+                    label: "상품",
+                    value: (
+                        <HStack spacing={2} display="inline-flex" align="top">
+                            {categoryLabel && (
+                                <Box
+                                    as="span"
+                                    bg="gray.100"
+                                    color="gray.500"
+                                    fontSize="10px"
+                                    px={1.5}
+                                    h="18px"
+                                    borderRadius="4px"
+                                    fontWeight="bold"
+                                    display="flex"
+                                    alignItems="center"
+                                    flexShrink={0}
+                                    mt="2px"
+                                >
+                                    {categoryLabel}
+                                </Box>
+                            )}
+                            <Text as="span" whiteSpace="pre-wrap" lineHeight="1.6"><ThinParen text={productList} /></Text>
+                        </HStack>
+                    )
+                });
+            } else if (content.product) {
+                let displayProduct = (content.product || "").toString().toLowerCase() === "crm" ? "CRM" : content.product;
+                // Clean legacy single-item circle if it's the only one
+                if (displayProduct.startsWith("①") && !displayProduct.includes("②")) {
+                    displayProduct = displayProduct.substring(1).trim();
+                }
                 specificItems.push({
                     label: "상품",
                     value: (
@@ -133,7 +174,7 @@ export const TimelineCard = ({
                                     {categoryLabel}
                                 </Box>
                             )}
-                            <Text as="span">{content.product}</Text>
+                            <Text as="span"><ThinParen text={displayProduct} /></Text>
                         </HStack>
                     )
                 });
@@ -221,16 +262,116 @@ export const TimelineCard = ({
 
             // Phone and Product
             if (content.phone) {
-                specificItems.push({ label: "전화", value: content.phone });
+                specificItems.push({ label: "전화", value: formatPhone(content.phone) });
             }
-            if (content.product) {
-                const displayProduct = (content.product || "").toString().toLowerCase() === "crm" ? "CRM" : content.product;
+            const validProducts = (content.selectedProducts || []).filter((p: any) => p.name && p.name.trim() !== "");
+            if (validProducts.length > 0) {
+                const productList = validProducts.map((p: any, idx: number) => {
+                    const circle = validProducts.length > 1 ? String.fromCharCode(9312 + idx) : "";
+                    return `${circle}${p.name} × ${p.quantity}`;
+                }).join("\n");
+
+                specificItems.push({
+                    label: "상품",
+                    value: <Text whiteSpace="pre-wrap" lineHeight="1.6" verticalAlign="top"><ThinParen text={productList} /></Text>
+                });
+            } else if (content.product) {
+                let displayProduct = (content.product || "").toString().toLowerCase() === "crm" ? "CRM" : content.product;
+                // Clean legacy single-item circle
+                if (displayProduct.startsWith("①") && !displayProduct.includes("②")) {
+                    displayProduct = displayProduct.substring(1).trim();
+                }
                 specificItems.push({ label: "상품", value: displayProduct });
+            }
+
+            // 시공/AS 물품 (v124.2 고도화: 원형 숫자 조건부 표시 및 줄바꿈 적용)
+            const supplies = content.content?.selectedSupplies || content.selectedSupplies;
+            const validSupplies = (Array.isArray(supplies) ? supplies : []).filter((s: any) => s.name && s.name.trim() !== "");
+            if (validSupplies.length > 0) {
+                const displaySupplies = validSupplies.map((s: any, idx: number) => {
+                    const circle = validSupplies.length > 1 ? String.fromCharCode(9312 + idx) : "";
+                    return `${circle}${s.name} × ${s.quantity}`;
+                }).join("\n");
+
+                specificItems.push({
+                    label: "물품",
+                    value: <Text whiteSpace="pre-wrap" lineHeight="1.6" verticalAlign="top"><ThinParen text={displaySupplies} /></Text>
+                });
             }
 
             // Results
             if (content.result) {
                 specificItems.push({ label: "결과", value: content.result });
+            }
+
+            // 시공 Task (표준 그레이 배지 적용)
+            if (stepType === 'install_schedule') {
+                const before = (content.tasksBefore || []).filter((t: string) => t.trim() !== "");
+                const after = (content.tasksAfter || []).filter((t: string) => t.trim() !== "");
+
+                if (before.length > 0 || after.length > 0) {
+                    const taskLines: React.ReactNode[] = [];
+
+                    // Render Before Tasks
+                    before.forEach((t: string, i: number) => {
+                        let taskText = t;
+                        if (before.length === 1 && taskText.startsWith("①") && !taskText.includes("②")) {
+                            taskText = taskText.substring(1).trim();
+                        }
+                        const circle = before.length > 1 ? String.fromCharCode(9312 + i) : "";
+                        taskLines.push(
+                            <HStack key={`before-${i}`} align="start" spacing={2} w="full">
+                                <Box w="46px" flexShrink={0}>
+                                    {i === 0 && (
+                                        <Box bg="gray.100" color="gray.500" fontSize="10px" px={1.5} h="18px" borderRadius="4px" display="flex" alignItems="center" justifyContent="center" fontWeight="bold">
+                                            시공 전
+                                        </Box>
+                                    )}
+                                </Box>
+                                <Text fontSize="sm" whiteSpace="pre-wrap" lineHeight="1.6" flex={1}>
+                                    <ThinParen text={`${circle}${taskText}`} />
+                                </Text>
+                            </HStack>
+                        );
+                    });
+
+                    // Spacer between Before and After groups
+                    if (before.length > 0 && after.length > 0) {
+                        taskLines.push(<Box key="spacer" h={0} />);
+                    }
+
+                    // Render After Tasks
+                    after.forEach((t: string, i: number) => {
+                        let taskText = t;
+                        if (after.length === 1 && taskText.startsWith("①") && !taskText.includes("②")) {
+                            taskText = taskText.substring(1).trim();
+                        }
+                        const circle = after.length > 1 ? String.fromCharCode(9312 + i) : "";
+                        taskLines.push(
+                            <HStack key={`after-${i}`} align="start" spacing={2} w="full">
+                                <Box w="46px" flexShrink={0}>
+                                    {i === 0 && (
+                                        <Box bg="gray.100" color="gray.500" fontSize="10px" px={1.5} h="18px" borderRadius="4px" display="flex" alignItems="center" justifyContent="center" fontWeight="bold">
+                                            시공 후
+                                        </Box>
+                                    )}
+                                </Box>
+                                <Text fontSize="sm" whiteSpace="pre-wrap" lineHeight="1.6" flex={1}>
+                                    <ThinParen text={`${circle}${taskText}`} />
+                                </Text>
+                            </HStack>
+                        );
+                    });
+
+                    specificItems.push({
+                        label: "업무",
+                        value: (
+                            <VStack align="start" spacing={0} w="full" mt="1px">
+                                {taskLines}
+                            </VStack>
+                        )
+                    });
+                }
             }
 
             // 시연 완료(demo_complete) 특화: 괄호(Parentheses) 방식 복구
@@ -259,7 +400,14 @@ export const TimelineCard = ({
             <VStack align="start" spacing={2.5} w="full">
                 <Flex gap={8} w="full" align="stretch">
                     {/* Left: Info List */}
-                    <VStack align="start" spacing={1.5} flex={3} fontSize="sm" color="gray.600">
+                    <VStack
+                        align="start"
+                        spacing={1.5}
+                        flex={3}
+                        fontSize="sm"
+                        color="gray.600"
+                        lineHeight="1.6"
+                    >
                         {allItems.map((itm: any, idx) => {
                             const isPhone = itm.label === "전화";
                             const isPhoneInquiry = content.channel === "전화 문의";

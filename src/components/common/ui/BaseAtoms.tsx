@@ -8,15 +8,13 @@ import {
  * Utility to make parentheses thin as requested by user
  */
 export const ThinParen = ({ text }: { text: string }) => {
-    const parts = text.split(/([()\-×/])/);
+    const parts = text.split(/([()\-×/xX])/);
     return (
         <>
             {parts.map((part, i) => {
-                if (part === '(' || part === ')' || part === '-' || part === '×') {
-                    return <Text key={i} as="span" fontWeight="400" color="gray.400">{part}</Text>;
-                }
-                if (part === '/') {
-                    return <Text key={i} as="span" fontWeight="bold" color="gray.300" fontSize="10px">{part}</Text>;
+                const isSpecial = part === '(' || part === ')' || part === '-' || part === '/' || part === '×' || (part && part.toLowerCase() === 'x');
+                if (isSpecial) {
+                    return <Text key={i} as="span" color="gray.500" fontWeight="500">{part}</Text>;
                 }
                 return part;
             })}
@@ -43,7 +41,7 @@ export const TeasyBadge = ({ colorType = 'brand', children, ...props }: any) => 
     const c = colorMap[colorType] || colorMap.brand;
     return (
         <Badge
-            bg={c.bg} color={c.color} px={0} w="50px" h="18px" display="flex" alignItems="center" justifyContent="center" borderRadius="15%" textTransform="none" fontSize="10px" fontWeight="600" {...props}
+            bg={c.bg} color={c.color} px={0} w="50px" h="18px" display="flex" alignItems="center" justifyContent="center" borderRadius="15%" textTransform="none" fontSize="10px" fontWeight="600" letterSpacing="0" {...props}
         >
             {children}
         </Badge>

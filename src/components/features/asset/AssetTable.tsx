@@ -79,15 +79,15 @@ export const AssetTable: React.FC<AssetTableProps> = ({
                                 <AssetTh colSpan={3}>수정내용</AssetTh>
                             </Tr>
                             <Tr h="27.5px">
-                                <AssetTh color="gray.400" fontWeight="normal">등록일시</AssetTh>
-                                <AssetTh color="gray.400" fontWeight="normal">담당자</AssetTh>
-                                <AssetTh color="gray.400" fontWeight="normal">입고</AssetTh>
-                                <AssetTh color="gray.400" fontWeight="normal">출고</AssetTh>
-                                <AssetTh color="gray.400" fontWeight="normal" textAlign="left">납품처</AssetTh>
-                                <AssetTh color="gray.400" fontWeight="normal">재고</AssetTh>
-                                <AssetTh color="gray.400" fontWeight="normal">수정일시</AssetTh>
-                                <AssetTh color="gray.400" fontWeight="normal">담당자</AssetTh>
-                                <AssetTh color="gray.400" fontWeight="normal">수정사항</AssetTh>
+                                <AssetTh fontWeight="normal">등록일시</AssetTh>
+                                <AssetTh fontWeight="normal">담당자</AssetTh>
+                                <AssetTh fontWeight="normal">입고</AssetTh>
+                                <AssetTh fontWeight="normal">출고</AssetTh>
+                                <AssetTh fontWeight="normal" textAlign="left">납품처</AssetTh>
+                                <AssetTh fontWeight="normal">재고</AssetTh>
+                                <AssetTh fontWeight="normal">수정일시</AssetTh>
+                                <AssetTh fontWeight="normal">담당자</AssetTh>
+                                <AssetTh fontWeight="normal">수정사항</AssetTh>
                             </Tr>
 
                         </>

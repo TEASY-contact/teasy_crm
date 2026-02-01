@@ -121,7 +121,7 @@ interface PurchaseConfirmFormProps {
 export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
     ({ customer, activityId, initialData, isReadOnly = false, defaultManager = "" }, ref) => {
         const { managerOptions, products, inventoryItems, rawAssets } = useReportMetadata();
-        const [productCategory, setProductCategory] = useState<string>("");
+        const [productCategory, setProductCategory] = useState<string>(initialData?.productCategory || "");
         const scrollContainerRef = useRef<HTMLDivElement>(null);
 
         const [formData, setFormData] = useState<PurchaseFormData>({
@@ -148,6 +148,7 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
             const formattedNow = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}  ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
             if (initialData) {
+                if (initialData.productCategory) setProductCategory(initialData.productCategory);
                 setFormData({
                     date: initialData.date || formattedNow,
                     manager: initialData.manager || defaultManager,
@@ -196,7 +197,7 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
             customer,
             activityId,
             formData,
-            productCategory,
+            productCategory: productCategory as 'product' | 'inventory',
             managerOptions,
             inventoryItems
         });

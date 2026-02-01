@@ -33,16 +33,24 @@ export default function AssetManagementPage() {
     const { data: assets = [], isLoading } = useQuery({
         queryKey: ["assets", "management"],
         queryFn: async () => {
-            const q = query(collection(db, "assets"), orderBy("orderIndex", "asc"));
+            const q = query(collection(db, "assets"));
             const snapshot = await getDocs(q);
             const fetchedData = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
             } as AssetData));
 
-            // Default sort fallback
+            // Enhanced mixed-type sort (v123.82): New activities (no index) at the TOP
             return [...fetchedData].sort((a, b) => {
-                if (a.orderIndex !== undefined && b.orderIndex !== undefined) return a.orderIndex - b.orderIndex;
+                const hasA = a.orderIndex !== undefined && a.orderIndex !== null;
+                const hasB = b.orderIndex !== undefined && b.orderIndex !== null;
+
+                // Priority: Items WITHOUT orderIndex (new report activities) go to TOP
+                if (!hasA && hasB) return -1;
+                if (hasA && !hasB) return 1;
+
+                if (hasA && hasB) return (a.orderIndex as number) - (b.orderIndex as number);
+
                 return getAssetTimestamp(b.createdAt) - getAssetTimestamp(a.createdAt);
             });
         }
@@ -150,6 +158,7 @@ export default function AssetManagementPage() {
                 if (filterType === "inflow") return !!a.lastInflow;
                 if (filterType === "outflow") return !!a.lastOutflow;
                 if (filterType === "edit") return !!a.editLog && a.editLog !== "-";
+                if (filterType === "delivery") return !!a.isDeliveryItem;
             }
             return true;
         });
@@ -205,7 +214,8 @@ export default function AssetManagementPage() {
                                 { value: "divider", label: "", isDivider: true },
                                 { value: "inflow", label: "입고" },
                                 { value: "outflow", label: "출고" },
-                                { value: "edit", label: "수정사항" },
+                                { value: "edit", label: "수정" },
+                                { value: "delivery", label: "배송가능" },
                             ]}
                         />
                     </Box>

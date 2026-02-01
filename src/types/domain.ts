@@ -110,6 +110,10 @@ export interface Activity extends BaseDoc {
     discountAmount?: number;
     userId?: string;
     productCategory?: 'product' | 'inventory';
+    selectedProducts?: any[];
+    selectedSupplies?: any[];
+    tasksBefore?: string[];
+    tasksAfter?: string[];
     deliveryInfo?: DeliveryInfo;
 
     // Inquiry & Demo specific

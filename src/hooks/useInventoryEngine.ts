@@ -5,16 +5,21 @@ import { doc, runTransaction, serverTimestamp } from "firebase/firestore";
 export const useInventoryEngine = () => {
     const reconcileStock = async (items: { id: string; qty: number }[], type: 'deduct' | 'restore', customerId: string, timelineId: string) => {
         await runTransaction(db, async (transaction) => {
-            for (const item of items) {
+            // 1. ALL READS FIRST
+            const snapshots = await Promise.all(items.map(async (item) => {
                 const itemRef = doc(db, "inventory_items", item.id);
-                const itemSnap = await transaction.get(itemRef); // FOR UPDATE behavior in Firestore transactions
+                const snap = await transaction.get(itemRef);
+                return { item, ref: itemRef, snap };
+            }));
 
-                if (!itemSnap.exists()) continue;
+            // 2. ALL WRITES AFTER
+            for (const { item, ref, snap } of snapshots) {
+                if (!snap.exists()) continue;
 
-                const currentStock = itemSnap.data().current_stock;
+                const currentStock = snap.data().current_stock;
                 const newStock = type === 'deduct' ? currentStock - item.qty : currentStock + item.qty;
 
-                transaction.update(itemRef, { current_stock: newStock });
+                transaction.update(ref, { current_stock: newStock });
 
                 const logRef = doc(db, "inventory_logs", Math.random().toString(36).substring(7));
                 transaction.set(logRef, {

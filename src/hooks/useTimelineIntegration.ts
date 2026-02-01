@@ -12,33 +12,38 @@ export const useTimelineIntegration = () => {
     const processReport = async (customerId: string, reportData: Partial<TimelineItem>) => {
         await runTransaction(db, async (transaction) => {
             const customerRef = doc(db, "customers", customerId);
+            const newTimelineRef = doc(collection(db, `customers/${customerId}/timelines`));
+
+            // 1. ALL READS FIRST (Customer and all inventory items)
             const customerSnap = await transaction.get(customerRef);
             if (!customerSnap.exists()) throw new Error("Customer not found");
 
-            const newTimelineRef = doc(collection(db, `customers/${customerId}/timelines`));
+            let inventorySnaps: any[] = [];
+            if (reportData.stepType === 'install_schedule' || reportData.stepType === 'as_schedule') {
+                const items = reportData.content.preparedParts || [];
+                inventorySnaps = await Promise.all(items.map(async (item: any) => {
+                    const itemRef = doc(db, "inventory_items", item.id);
+                    const snap = await transaction.get(itemRef);
+                    return { item, ref: itemRef, snap };
+                }));
+            }
 
-            // 1. Step Rollback & Sequence Logic
+            // 2. ALL WRITES AFTER
             transaction.set(newTimelineRef, {
                 ...reportData,
                 createdAt: serverTimestamp(),
             });
+
             transaction.update(customerRef, {
                 currentStep: reportData.stepType,
                 lastActivityDate: serverTimestamp()
             });
 
-            // 2. Inventory Two-Step Reconciliation (v122.0)
-            if (reportData.stepType === 'install_schedule' || reportData.stepType === 'as_schedule') {
-                const items = reportData.content.preparedParts || [];
-                for (const item of items) {
-                    const itemRef = doc(db, "inventory_items", item.id);
-                    const itemSnap = await transaction.get(itemRef);
-                    const currentStock = itemSnap.data()?.current_stock || 0;
-                    transaction.update(itemRef, { current_stock: currentStock - item.qty });
-                }
+            // Inventory Reconciliation
+            for (const { item, ref, snap } of inventorySnaps) {
+                const currentStock = snap.data()?.current_stock || 0;
+                transaction.update(ref, { current_stock: currentStock - item.qty });
             }
-
-            // 3. Tax Workflow Automation (Midnight Check logic handled via Cloud Functions)
         });
     };
 
@@ -46,12 +51,22 @@ export const useTimelineIntegration = () => {
         await runTransaction(db, async (transaction) => {
             const reportRef = doc(db, `customers/${customerId}/timelines`, timelineId);
 
-            for (const item of restockItems) {
+            // 1. ALL READS FIRST
+            const inventorySnaps = await Promise.all(restockItems.map(async (item) => {
                 if (item.action === 'restock') {
                     const itemRef = doc(db, "inventory_items", item.id);
-                    const itemSnap = await transaction.get(itemRef);
-                    const currentStock = itemSnap.data()?.current_stock || 0;
-                    transaction.update(itemRef, { current_stock: currentStock + item.qty });
+                    const snap = await transaction.get(itemRef);
+                    return { item, ref: itemRef, snap };
+                }
+                return null;
+            }));
+
+            // 2. ALL WRITES AFTER
+            for (const entry of inventorySnaps) {
+                if (entry) {
+                    const { item, ref, snap } = entry;
+                    const currentStock = snap.data()?.current_stock || 0;
+                    transaction.update(ref, { current_stock: currentStock + item.qty });
                 }
             }
             transaction.delete(reportRef);

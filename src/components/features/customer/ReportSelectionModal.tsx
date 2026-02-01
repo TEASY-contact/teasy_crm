@@ -8,6 +8,7 @@ import { PurchaseConfirmForm } from "./reports/PurchaseConfirmForm/index";
 import { StandardReportForm } from "./reports/StandardReportForm/index";
 import { DemoScheduleForm } from "./reports/DemoScheduleForm/index";
 import { DemoCompleteForm } from "./reports/DemoCompleteForm/index";
+import { InstallScheduleForm } from "./reports/InstallScheduleForm/index";
 import { TeasyButton, TeasyModalHeader, TeasyModalOverlay, TeasyModalContent, TeasyModalBody, TeasyModalFooter, TeasyModal } from "@/components/common/UIComponents";
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -141,6 +142,8 @@ const ReportSelectionModalContent = ({ onClose, customer, activities = [] }: { o
                 return <PurchaseConfirmForm {...props} />;
             case "demo_complete":
                 return <DemoCompleteForm {...props} />;
+            case "install_schedule":
+                return <InstallScheduleForm {...props} />;
             default:
                 return (
                     <StandardReportForm

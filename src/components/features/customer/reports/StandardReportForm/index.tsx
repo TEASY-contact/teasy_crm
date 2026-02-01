@@ -2,8 +2,11 @@
 import React, { forwardRef, useImperativeHandle, useState, useEffect } from "react";
 import { VStack, FormControl, Box, Spinner, HStack, useToast, Flex } from "@chakra-ui/react";
 import { CustomSelect } from "@/components/common/CustomSelect";
-import { TeasyDateTimeInput, TeasyFormLabel, TeasyInput, TeasyTextarea } from "@/components/common/UIComponents";
+import {
+    TeasyDateTimeInput, TeasyFormLabel, TeasyInput, TeasyTextarea, TeasyPhoneInput
+} from "@/components/common/UIComponents";
 import { useAuth } from "@/context/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
 import { useReportMetadata } from "@/hooks/useReportMetadata";
 import { db } from "@/lib/firebase";
 import {
@@ -47,6 +50,7 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
     reportLabel = "일반 업무"
 }, ref) => {
     const { userData } = useAuth();
+    const queryClient = useQueryClient();
     const toast = useToast();
     const { managerOptions } = useReportMetadata();
     const [isLoading, setIsLoading] = useState(false);
@@ -150,6 +154,7 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
                     }
                 });
 
+                queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 toast({ title: "저장 성공", status: "success", duration: 2000, position: "top" });
                 return true;
             } catch (error: any) {
@@ -177,6 +182,7 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
                     }
                     transaction.delete(activityRef);
                 });
+                queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 toast({ title: "삭제 성공", status: "info", duration: 2000, position: "top" });
                 return true;
             } catch (error) { return false; } finally { setIsLoading(false); }
@@ -226,12 +232,11 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
                 {hasPhone && (
                     <FormControl isReadOnly={isReadOnly} flex={1}>
                         <TeasyFormLabel>현장 연락처</TeasyFormLabel>
-                        <TeasyInput
+                        <TeasyPhoneInput
                             value={formData.phone}
-                            onChange={(e: any) => setFormData({ ...formData, phone: e.target.value })}
+                            onChange={(val: string) => setFormData({ ...formData, phone: val })}
                             placeholder="010-0000-0000"
                             isDisabled={isReadOnly}
-                            _readOnly={{ bg: "gray.50", cursor: "default", color: "gray.600" }}
                         />
                     </FormControl>
                 )}

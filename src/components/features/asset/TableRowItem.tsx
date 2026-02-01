@@ -1,15 +1,18 @@
 // src/components/features/asset/TableRowItem.tsx
 import React from "react";
 import {
-    Box, Flex, Text, Checkbox, Grid, GridItem, VStack, HStack, Divider, Badge, IconButton
+    Box, Flex, Text, Checkbox, Grid, GridItem, VStack, HStack, Divider, Badge, IconButton, Tooltip
 } from "@chakra-ui/react";
 import { Reorder, useDragControls } from "framer-motion";
 import { MdRemove } from "react-icons/md";
 import { AssetData } from "@/utils/assetUtils";
 import { formatAssetDate, formatAssetDisplay } from "@/utils/textFormatter";
+import { ReportBadge } from "@/components/common/UIComponents";
+import { getBadgeInfo } from "@/components/dashboard/utils/dashboardUtils";
 import {
     AssetTd, AssetTh, HighlightedText, TruncatedTooltip, HISTORY_GRID_RATIO
 } from "./AssetTableAtoms";
+import { ThinParen } from "@/components/common/ui/BaseAtoms";
 
 interface TableRowItemProps {
     asset: AssetData;
@@ -22,6 +25,18 @@ interface TableRowItemProps {
     onDeleteDivider?: (id: string) => void;
     totalCount: number;
 }
+
+const getActionType = (log?: string) => {
+    if (!log) return null;
+    if (log.includes("구매 확정") || log.includes("purchase_confirm")) return "purchase_confirm";
+    if (log.includes("시공 확정") || log.includes("install_schedule")) return "install_schedule";
+    if (log.includes("시연 확정") || log.includes("demo_schedule")) return "demo_schedule";
+    if (log.includes("A/S 확정") || log.includes("as_schedule")) return "as_schedule";
+    if (log.includes("A/S 완료") || log.includes("as_complete")) return "as_complete";
+    if (log.includes("원격 완료")) return "remoteas_complete";
+    if (log.includes("문의")) return "inquiry";
+    return null;
+};
 
 export const TableRowItem = ({
     asset,
@@ -124,7 +139,7 @@ export const TableRowItem = ({
                     <AssetTd textAlign="center" color="gray.600">
                         {asset.category ? <HighlightedText text={asset.category} query={search} /> : <Text as="span" color="gray.400">-</Text>}
                     </AssetTd>
-                    <AssetTd fontWeight="bold" color="gray.800" overflow="hidden">
+                    <AssetTd fontWeight="bold" color="gray.600" overflow="hidden">
                         <TruncatedTooltip label={asset.name || "-"}>
                             <Box isTruncated>
                                 {asset.name ? <HighlightedText text={asset.name} query={search} /> : <Text as="span" color="gray.400">-</Text>}
@@ -138,8 +153,8 @@ export const TableRowItem = ({
                     </AssetTd>
                     <AssetTd overflow="hidden" textAlign={asset.composition && asset.composition !== "-" ? "left" : "center"}>
                         <TruncatedTooltip label={asset.composition || "-"}>
-                            <Box as="span" color="gray.600">
-                                {asset.composition && asset.composition !== "-" ? <HighlightedText text={asset.composition} query={search} /> : <Text as="span" color="gray.400">-</Text>}
+                            <Box as="span" color="gray.600" fontSize="sm">
+                                {asset.composition && asset.composition !== "-" ? <ThinParen text={asset.composition} /> : <Text as="span" color="gray.400">-</Text>}
                             </Box>
                         </TruncatedTooltip>
                     </AssetTd>
@@ -197,7 +212,7 @@ export const TableRowItem = ({
                             </Box>
                         </TruncatedTooltip>
                     </AssetTd>
-                    <AssetTd fontWeight="bold" color="gray.800" overflow="hidden">
+                    <AssetTd fontWeight="bold" color="gray.600" overflow="hidden">
                         <Flex w="full" align="center" justify="flex-start" overflow="hidden">
                             <TruncatedTooltip label={asset.name || "-"}>
                                 <Box isTruncated flexShrink={1} mr={1.5}>
@@ -233,13 +248,13 @@ export const TableRowItem = ({
                             </Text>
                         </TruncatedTooltip>
                     </AssetTd>
-                    <AssetTd textAlign="center" fontSize="xs" color="gray.500" whiteSpace="nowrap">
+                    <AssetTd textAlign="center" fontSize="sm" color="gray.600" whiteSpace="nowrap">
                         {asset.lastOperator || <Text as="span" color="gray.400">-</Text>}
                     </AssetTd>
                     <AssetTd textAlign="center" color="blue.500" whiteSpace="nowrap" px={3}>
                         {asset.lastInflow ? (
-                            <Text as="span" fontWeight="bold">
-                                <Text as="span" fontWeight="normal" mr={0.5}>+</Text>
+                            <Text as="span">
+                                <Text as="span" mr={0.5}>+</Text>
                                 {asset.lastInflow.toLocaleString()}
                             </Text>
                         ) : (
@@ -248,8 +263,8 @@ export const TableRowItem = ({
                     </AssetTd>
                     <AssetTd textAlign="center" color="red.500" whiteSpace="nowrap" px={3}>
                         {asset.lastOutflow ? (
-                            <Text as="span" fontWeight="bold">
-                                <Text as="span" fontWeight="normal" mr={0.5}>-</Text>
+                            <Text as="span">
+                                <Text as="span" mr={0.5}>-</Text>
                                 {asset.lastOutflow.toLocaleString()}
                             </Text>
                         ) : (
@@ -257,13 +272,31 @@ export const TableRowItem = ({
                         )}
                     </AssetTd>
                     <AssetTd overflow="hidden" textAlign={asset.lastRecipient && asset.lastRecipient !== "-" ? "left" : "center"} px={3}>
-                        <TruncatedTooltip label={asset.lastRecipient || "-"}>
-                            <Box as="span" fontSize="xs" color="gray.600">
-                                {asset.lastRecipient && asset.lastRecipient !== "-" ? asset.lastRecipient : <Text as="span" color="gray.400">-</Text>}
+                        <TruncatedTooltip label={asset.lastRecipient && asset.lastRecipient !== "-" ? asset.lastRecipient : "-"} noNowrap>
+                            <Box w="full">
+                                {asset.lastRecipient && asset.lastRecipient !== "-" ? (
+                                    <HStack spacing={1.5} w="full" overflow="hidden">
+                                        {(() => {
+                                            const actionType = getActionType(asset.editLog);
+                                            if (!actionType) return null;
+                                            const badge = getBadgeInfo(actionType);
+                                            return (
+                                                <ReportBadge colorType={badge.color as any} flexShrink={0}>
+                                                    {badge.text}
+                                                </ReportBadge>
+                                            );
+                                        })()}
+                                        <Text fontSize="sm" color="gray.600" fontWeight="normal" isTruncated flex={1}>
+                                            <HighlightedText text={asset.lastRecipient} query={search} />
+                                        </Text>
+                                    </HStack>
+                                ) : (
+                                    <Text as="span" color="gray.400">-</Text>
+                                )}
                             </Box>
                         </TruncatedTooltip>
                     </AssetTd>
-                    <AssetTd textAlign="center" fontWeight="extrabold" color="gray.800" whiteSpace="nowrap" px={3}>
+                    <AssetTd textAlign="center" fontWeight="bold" color="gray.600" whiteSpace="nowrap" px={3}>
                         {asset.stock?.toLocaleString() || 0}
                     </AssetTd>
                     <AssetTd colSpan={3} p={0} verticalAlign="top">
@@ -279,21 +312,61 @@ export const TableRowItem = ({
                                         <Box key={i} w="full">
                                             <Grid templateColumns={HISTORY_GRID_RATIO} w="full" minH="34px" alignItems="center">
                                                 <GridItem borderRight="1px" borderColor="gray.50" h="full" display="flex" alignItems="center" justifyContent="center">
-                                                    <Text fontSize="sm" color="gray.600" textAlign="center" whiteSpace="pre-wrap" w="full">
+                                                    <Text fontSize="sm" color="gray.600" textAlign="center" whiteSpace="pre-wrap" w="full" letterSpacing="0.5px">
                                                         {formatAssetDate(time.trim())}
                                                     </Text>
                                                 </GridItem>
                                                 <GridItem borderRight="1px" borderColor="gray.50" h="full" display="flex" alignItems="center" justifyContent="center">
-                                                    <Text fontSize="xs" color="gray.500" textAlign="center" w="full">
+                                                    <Text fontSize="sm" color="gray.600" textAlign="center" w="full" letterSpacing="0.5px">
                                                         {operator}
                                                     </Text>
                                                 </GridItem>
-                                                <GridItem px={3} py={1} h="full" display="flex" alignItems="center">
-                                                    <TruncatedTooltip label={logDetail} noNowrap>
-                                                        <Text fontSize="sm" color={logDetail && logDetail !== "-" ? "gray.600" : "gray.400"} whiteSpace="pre-wrap" textAlign="left" lineHeight="1.4">
-                                                            {formatAssetDisplay(logDetail)}
-                                                        </Text>
-                                                    </TruncatedTooltip>
+                                                <GridItem px={3} py={1} h="full" display="flex" alignItems="center" overflow="hidden">
+                                                    {(() => {
+                                                        const match = logDetail.match(/^(.*)\s*\(([^)]+)\)\s*([^()]*)$/);
+                                                        const mainText = match ? (match[1].trim() + " " + (match[3] || "").trim()).trim() : logDetail;
+                                                        const reasonText = match ? match[2].trim() : "";
+                                                        const hasReason = !!reasonText;
+
+                                                        const logTextNode = (
+                                                            <Text
+                                                                fontSize="sm"
+                                                                color={logDetail && logDetail !== "-" ? "gray.600" : "gray.400"}
+                                                                whiteSpace="nowrap"
+                                                                overflow="hidden"
+                                                                textOverflow="ellipsis"
+                                                                textAlign="left"
+                                                                lineHeight="1"
+                                                                letterSpacing="0.5px"
+                                                                display="block"
+                                                                w="full"
+                                                            >
+                                                                {formatAssetDisplay(mainText)}
+                                                            </Text>
+                                                        );
+
+                                                        if (hasReason) {
+                                                            return (
+                                                                <Tooltip
+                                                                    label={reasonText}
+                                                                    hasArrow
+                                                                    placement="top"
+                                                                    borderRadius="lg"
+                                                                    bg="gray.800"
+                                                                    color="white"
+                                                                    fontSize="xs"
+                                                                >
+                                                                    {logTextNode}
+                                                                </Tooltip>
+                                                            );
+                                                        }
+
+                                                        return (
+                                                            <TruncatedTooltip label={logDetail}>
+                                                                {logTextNode}
+                                                            </TruncatedTooltip>
+                                                        );
+                                                    })()}
                                                 </GridItem>
                                             </Grid>
                                             {i < arr.length - 1 && <Divider borderColor="gray.100" />}

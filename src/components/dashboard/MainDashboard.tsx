@@ -150,16 +150,22 @@ export const MainDashboard = () => {
                     <SideStatusCard title="업무 요청" count={unreadWorkRequests > 0 ? `+${unreadWorkRequests}` : 0} placeholder="모든 업무를 처리하였습니다." h="full" isEmpty={normalizedWorkRequests.length === 0}>
                         <TeasyList>
                             {normalizedWorkRequests.map((req, idx) => (
-                                <TeasyListItem key={req.id} isLast={idx === normalizedWorkRequests.length - 1} onClick={() => markWorkAsRead(req.id)} cursor="pointer" opacity={req.isRead ? 0.6 : 1}>
-                                    <HStack spacing={2} flex={1} overflow="hidden">
-                                        <SurnameBadge name={req.name} badgeChar={userMetadata[req.createdBy]?.badgeChar} color={userMetadata[req.createdBy]?.color || getBadgeColor(req.category)} />
-                                        <HStack spacing={1.5} flexShrink={0}>
-                                            <ReportBadge colorType={getBadgeInfo(req.category).color as any} fontSize="10px" px={1.5}>{getBadgeInfo(req.category).text}</ReportBadge>
-                                            <TeasyListText color="gray.800" fontWeight="bold">{req.customer}</TeasyListText>
-                                        </HStack>
-                                        <TeasyListText color="gray.500" fontWeight="medium" isTruncated flex={1}>{req.title}</TeasyListText>
-                                    </HStack>
-                                    <TeasyListSubText ml={2}>{(req.date || '').replace(/\s+/g, "  ").replace(/\//g, "-")}</TeasyListSubText>
+                                <TeasyListItem key={req.id} isLast={idx === normalizedWorkRequests.length - 1} onClick={() => markWorkAsRead(req.id)} cursor="pointer" opacity={req.isRead ? 0.6 : 1} spacing={3}>
+                                    <Box flexShrink={0} w="22px" display="flex" justifyContent="center">
+                                        <SurnameBadge name={req.name} badgeChar={userMetadata[req.createdBy]?.badgeChar} color={userMetadata[req.createdBy]?.color || getBadgeColor(req.category)} w="22px" h="22px" />
+                                    </Box>
+                                    <Box flexShrink={0} w="50px">
+                                        <ReportBadge colorType={getBadgeInfo(req.category).color as any}>{getBadgeInfo(req.category).text}</ReportBadge>
+                                    </Box>
+                                    <Box flexShrink={0} w="70px" overflow="hidden">
+                                        <TeasyListText color="gray.800" fontWeight="bold" w="full">{req.customer}</TeasyListText>
+                                    </Box>
+                                    <Box flex={1} overflow="hidden">
+                                        <TeasyListText color="gray.500" fontWeight="medium" isTruncated w="full">{req.title}</TeasyListText>
+                                    </Box>
+                                    <Box flexShrink={0} w="85px" textAlign="right">
+                                        <TeasyListSubText>{(req.date || '').replace(/\s+/g, "  ").replace(/\//g, "-")}</TeasyListSubText>
+                                    </Box>
                                 </TeasyListItem>
                             ))}
                         </TeasyList>
@@ -172,16 +178,22 @@ export const MainDashboard = () => {
                         <SideStatusCard title="외근 일정" count={unreadSchedules > 0 ? `+${unreadSchedules}` : 0} placeholder="해당 일자 외근 일정이 없습니다." h="full" mb={1} isEmpty={normalizedSchedules.length === 0}>
                             <TeasyList>
                                 {normalizedSchedules.map((s, idx) => (
-                                    <TeasyListItem key={s.id} isLast={idx === normalizedSchedules.length - 1} onClick={() => handleScheduleClick(s)} cursor="pointer" opacity={s.completed ? 0.6 : 1}>
-                                        <HStack spacing={3} overflow="hidden" flex={1}>
+                                    <TeasyListItem key={s.id} isLast={idx === normalizedSchedules.length - 1} onClick={() => handleScheduleClick(s)} cursor="pointer" opacity={s.completed ? 0.6 : 1} spacing={3}>
+                                        <Box flexShrink={0} w="50px">
                                             <ReportBadge colorType={getBadgeInfo(s.type).color as any} opacity={s.completed ? 0.4 : 1}>{getBadgeInfo(s.type).text}</ReportBadge>
-                                            <TeasyListText color={s.completed ? "gray.300" : "gray.700"} textDecoration={s.completed ? "line-through" : "none"} fontWeight="bold" isTruncated flex={1}>
+                                        </Box>
+                                        <Box flex={1} overflow="hidden">
+                                            <TeasyListText color={s.completed ? "gray.300" : "gray.700"} textDecoration={s.completed ? "line-through" : "none"} fontWeight="bold" isTruncated w="full">
                                                 {s.customerName || s.name}
                                                 {s.region && <Text as="span" fontWeight="normal" color={s.completed ? "gray.300" : "gray.400"} ml={1}>({s.region}시)</Text>}
                                             </TeasyListText>
-                                            <SurnameBadge name={s.managerName} badgeChar={userMetadata[s.manager]?.badgeChar} color={userMetadata[s.manager]?.color} size="22px" fontSize="10px" />
-                                        </HStack>
-                                        <TeasyListSubText ml={3} flexShrink={0} fontWeight="600" color={s.completed ? "gray.300" : "gray.500"} textDecoration={s.completed ? "line-through" : "none"}>{(s.date || '').split('  ')[1] || (s.date || '').split(' ')[1] || ''}</TeasyListSubText>
+                                        </Box>
+                                        <Box flexShrink={0} w="22px" display="flex" justifyContent="center">
+                                            <SurnameBadge name={s.managerName} badgeChar={userMetadata[s.manager]?.badgeChar} color={userMetadata[s.manager]?.color} w="22px" h="22px" fontSize="10px" />
+                                        </Box>
+                                        <Box flexShrink={0} w="45px" textAlign="right">
+                                            <TeasyListSubText fontWeight="600" color={s.completed ? "gray.300" : "gray.500"} textDecoration={s.completed ? "line-through" : "none"}>{(s.date || '').split('  ')[1] || (s.date || '').split(' ')[1] || ''}</TeasyListSubText>
+                                        </Box>
                                     </TeasyListItem>
                                 ))}
                             </TeasyList>
@@ -190,12 +202,16 @@ export const MainDashboard = () => {
                         <SideStatusCard title="최신 등록" count={unreadRecent > 0 ? `+${unreadRecent}` : 0} placeholder="등록된 보고서가 없습니다." h="full" isEmpty={visibleRecent.length === 0}>
                             <TeasyList>
                                 {visibleRecent.map((r, idx) => (
-                                    <TeasyListItem key={r.id} isLast={idx === visibleRecent.length - 1} onClick={() => handleRecentClick(r)} cursor="pointer">
-                                        <HStack spacing={3} overflow="hidden" flex={1}>
+                                    <TeasyListItem key={r.id} isLast={idx === visibleRecent.length - 1} onClick={() => handleRecentClick(r)} cursor="pointer" spacing={3}>
+                                        <Box flexShrink={0} w="50px">
                                             <ReportBadge colorType={getBadgeInfo(r.type).color as any} textAlign="center">{getBadgeInfo(r.type).text}</ReportBadge>
-                                            <TeasyListText fontWeight="bold" isTruncated>{r.customerName || '알 수 없는 고객'}</TeasyListText>
-                                        </HStack>
-                                        <TeasyListSubText>{(r.date || '').replace(/\s+/g, "  ").replace(/\//g, "-")}</TeasyListSubText>
+                                        </Box>
+                                        <Box flex={1} overflow="hidden">
+                                            <TeasyListText fontWeight="bold" isTruncated w="full">{r.customerName || '알 수 없는 고객'}</TeasyListText>
+                                        </Box>
+                                        <Box flexShrink={0} w="85px" textAlign="right">
+                                            <TeasyListSubText>{(r.date || '').replace(/\s+/g, "  ").replace(/\//g, "-")}</TeasyListSubText>
+                                        </Box>
                                     </TeasyListItem>
                                 ))}
                             </TeasyList>

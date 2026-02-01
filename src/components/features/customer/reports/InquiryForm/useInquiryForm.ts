@@ -9,6 +9,7 @@ import {
     runTransaction,
     collection
 } from "firebase/firestore";
+import { useQueryClient } from "@tanstack/react-query";
 import {
     ref as sRef,
     uploadBytes,
@@ -33,6 +34,7 @@ interface UseInquiryFormProps {
 }
 
 export const useInquiryForm = ({ customer, activityId, initialData, defaultManager, userData }: UseInquiryFormProps) => {
+    const queryClient = useQueryClient();
     const toast = useToast();
     const [isLoading, setIsLoading] = useState(false);
 
@@ -254,6 +256,7 @@ export const useInquiryForm = ({ customer, activityId, initialData, defaultManag
             });
 
             if (saveResult.success) {
+                queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 toast({ title: "보고서 저장 완료", status: "success", duration: 2000, position: "top" });
                 return true;
             }
@@ -299,6 +302,7 @@ export const useInquiryForm = ({ customer, activityId, initialData, defaultManag
 
             if (cleanupResult.success) {
                 if (cleanupResult.urls) await cleanupStorage(cleanupResult.urls);
+                queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 toast({ title: "삭제 완료", status: "info", duration: 2000, position: "top" });
                 return true;
             }

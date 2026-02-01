@@ -5,6 +5,7 @@ import { db, storage } from "@/lib/firebase";
 import { collection, serverTimestamp, doc, query, where, getDocs, runTransaction } from "firebase/firestore";
 import { ref as sRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { useAuth } from "@/context/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
 import { applyColonStandard } from "@/utils/textFormatter";
 import { DemoCompleteFormData, DemoCompleteActivity, ManagerOption, DEMO_CONSTANTS } from "./types";
 
@@ -18,6 +19,7 @@ interface UseDemoCompleteFormProps {
 
 export const useDemoCompleteForm = ({ customer, activities, activityId, initialData, defaultManager }: UseDemoCompleteFormProps) => {
     const { userData } = useAuth();
+    const queryClient = useQueryClient();
     const toast = useToast();
     const [isLoading, setIsLoading] = useState(false);
 
@@ -233,6 +235,7 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
                 }
 
                 setPendingFiles([]);
+                queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 toast({ title: "저장 완료", status: "success", duration: 3000, position: "top" });
                 return true;
             }
@@ -281,6 +284,7 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
                 if (cleanupResult.photos && cleanupResult.photos.length > 0) {
                     await cleanupOrphanedPhotos(cleanupResult.photos);
                 }
+                queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 toast({ title: "삭제 완료", status: "info", duration: 2000, position: "top" });
                 return true;
             } else {

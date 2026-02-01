@@ -29,6 +29,7 @@ import {
     ThinParen
 } from "@/components/common/UIComponents";
 import { db } from "@/lib/firebase";
+import { formatPhone } from "@/utils/formatter";
 import { doc, updateDoc } from "firebase/firestore";
 
 interface ProfileEditModalProps {
@@ -71,7 +72,7 @@ export const ProfileEditModal = ({
 
         const formattedValue = (label === "보유 상품" || label === "라이선스")
             ? `${newValue.trim()} (${count})`
-            : newValue.trim();
+            : (label === "연락처" ? formatPhone(newValue.trim()) : newValue.trim());
 
         setValues([...values, formattedValue]);
         setNewValue("");
@@ -143,7 +144,7 @@ export const ProfileEditModal = ({
                             {values.map((v, i) => (
                                 <HStack key={i} justify="space-between" bg="gray.50" p={2} borderRadius="md">
                                     <Text fontSize="sm" fontWeight="medium" color="gray.700">
-                                        <ThinParen text={v} />
+                                        <ThinParen text={label === "연락처" ? formatPhone(v) : v} />
                                     </Text>
                                     <IconButton
                                         aria-label="Remove"

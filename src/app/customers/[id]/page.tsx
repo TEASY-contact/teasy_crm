@@ -159,7 +159,7 @@ export default function CustomerDetailPage({ params: paramsPromise }: { params: 
             <ReportSelectionModal isOpen={selectionDisclosure.isOpen} onClose={selectionDisclosure.onClose} customer={customer} activities={activities} />
             <ReportDetailModal
                 isOpen={detailDisclosure.isOpen} onClose={detailDisclosure.onClose}
-                customer={customer} activity={selectedActivity} isConfirmationMode={isConfirmationMode}
+                customer={customer} activity={selectedActivity} activities={activities} isConfirmationMode={isConfirmationMode}
             />
         </Box>
     );

@@ -8,6 +8,7 @@ import { StandardReportForm } from "./reports/StandardReportForm/index";
 import { DemoScheduleForm } from "./reports/DemoScheduleForm/index";
 import { DemoCompleteForm } from "./reports/DemoCompleteForm/index";
 import { PurchaseConfirmForm } from "./reports/PurchaseConfirmForm/index";
+import { InstallScheduleForm } from "./reports/InstallScheduleForm/index";
 import { Activity, Customer } from "@/types/domain";
 import {
     TeasyButton,
@@ -26,12 +27,13 @@ interface ReportDetailModalProps {
     isOpen: boolean;
     onClose: () => void;
     customer: Customer;
-    activity: Activity;
+    activity: Activity | null;
     isDashboardView?: boolean;
     isConfirmationMode?: boolean;
+    activities?: Activity[];
 }
 
-const ReportDetailModalContent = ({ onClose, customer, activity, isDashboardView, isConfirmationMode }: { onClose: () => void, customer: Customer, activity: Activity, isDashboardView?: boolean, isConfirmationMode?: boolean }) => {
+const ReportDetailModalContent = ({ onClose, customer, activity, activities = [], isDashboardView, isConfirmationMode }: { onClose: () => void, customer: Customer, activity: Activity, activities: Activity[], isDashboardView?: boolean, isConfirmationMode?: boolean }) => {
     const { userData } = useAuth();
     const formRef = useRef<any>(null);
     const toast = useToast();
@@ -104,10 +106,11 @@ const ReportDetailModalContent = ({ onClose, customer, activity, isDashboardView
         const commonProps = {
             ref: formRef,
             customer,
+            activities, // Pass full activity list for cross-form auto-fill
             activityId: activity.id,
             reportType: activity.type,
             reportLabel: activity.typeName || activity.type,
-            initialData: activity.content || activity,
+            initialData: { ...activity, ...(activity.content || {}) },
             isReadOnly
         };
 
@@ -115,6 +118,7 @@ const ReportDetailModalContent = ({ onClose, customer, activity, isDashboardView
         if (activity.type === "demo_schedule") return <DemoScheduleForm {...commonProps} />;
         if (activity.type === "demo_complete") return <DemoCompleteForm {...commonProps} />;
         if (activity.type === "purchase_confirm") return <PurchaseConfirmForm {...commonProps} />;
+        if (activity.type === "install_schedule") return <InstallScheduleForm {...commonProps} />;
         return <StandardReportForm {...commonProps} />;
     };
 
@@ -199,7 +203,7 @@ const ReportDetailModalContent = ({ onClose, customer, activity, isDashboardView
     );
 };
 
-export const ReportDetailModal = ({ isOpen, onClose, customer, activity, isDashboardView, isConfirmationMode }: ReportDetailModalProps) => {
+export const ReportDetailModal = ({ isOpen, onClose, customer, activity, activities = [], isDashboardView, isConfirmationMode }: ReportDetailModalProps) => {
     if (!activity || !isOpen) return null;
 
     return (
@@ -209,6 +213,7 @@ export const ReportDetailModal = ({ isOpen, onClose, customer, activity, isDashb
                 onClose={onClose}
                 customer={customer}
                 activity={activity}
+                activities={activities}
                 isDashboardView={isDashboardView}
                 isConfirmationMode={isConfirmationMode}
             />

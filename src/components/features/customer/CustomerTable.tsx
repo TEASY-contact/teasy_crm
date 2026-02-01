@@ -12,6 +12,7 @@ import {
     VStack,
     Badge,
     Tooltip,
+    Text,
 } from "@chakra-ui/react";
 import { Customer } from "@/types/domain";
 import Link from "next/link";
@@ -37,18 +38,22 @@ const TruncatedTooltip = ({ label, children }: { label: string, children: React.
 };
 
 /**
- * Helper: Render parentheses with lighter weight (v123.79)
+ * Helper: Render special characters with global standards (v123.81)
  */
 const renderThinParentheses = (text: string) => {
-    if (!text || (!text.includes('(') && !text.includes(')'))) return text;
-    const parts = text.split(/([()])/g);
-    return parts.map((part, i) =>
-        (part === '(' || part === ')') ? (
-            <Box as="span" key={i} fontWeight="300">
-                {part}
-            </Box>
-        ) : part
-    );
+    if (!text) return text;
+    const parts = text.split(/([()\-×/xX])/);
+    return parts.map((part, i) => {
+        const isSpecial = part === '(' || part === ')' || part === '-' || part === '/' || part === '×' || (part && part.toLowerCase() === 'x');
+        if (isSpecial) {
+            return (
+                <Text as="span" key={i} fontWeight="300" color="gray.500">
+                    {part}
+                </Text>
+            );
+        }
+        return part;
+    });
 };
 
 /**
