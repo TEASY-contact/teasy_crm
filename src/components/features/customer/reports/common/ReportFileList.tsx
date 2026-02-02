@@ -2,12 +2,14 @@
 import React from "react";
 import { Box, VStack, HStack, Text, Badge } from "@chakra-ui/react";
 import { applyColonStandard } from "@/utils/textFormatter";
+import { ThinParen } from "@/components/common/ui/BaseAtoms";
 
 interface ReportFile {
     id: string;
     url: string;
     name?: string;
     displayName?: string;
+    ext?: string;
 }
 
 interface ReportFileListProps {
@@ -54,15 +56,19 @@ export const ReportFileList = ({
         <VStack align="stretch" spacing={2} mt={2}>
             {files.map((file) => (
                 <HStack key={file.id} spacing={3} p={1} align="center">
-                    <Box flex="0 1 auto" isTruncated fontSize="12px" color="gray.700" fontWeight="medium">
+                    <Box flex="0 1 auto" isTruncated fontSize="xs" color="gray.600" fontWeight="medium">
                         {(() => {
-                            let name = file.displayName || file.name || "파일";
-                            if (name.includes('.')) {
-                                const parts = name.split('.');
+                            const rawName = file.displayName || file.name || "파일";
+
+                            // Aggressively replace all invisible/whitespace characters with underscores (v124.71)
+                            let processed = rawName.replace(/[\s\u00A0\u1680\u180e\u2000-\u200a\u202f\u205f\u3000\ufeff]/g, '_');
+
+                            if (processed.includes('.')) {
+                                const parts = processed.split('.');
                                 parts.pop();
-                                name = parts.join('.');
+                                processed = parts.join('.');
                             }
-                            return applyColonStandard(name);
+                            return <ThinParen text={processed} />;
                         })()}
                     </Box>
                     <HStack spacing={1.5} flexShrink={0}>
@@ -76,7 +82,7 @@ export const ReportFileList = ({
                             display="flex"
                             alignItems="center"
                             justifyContent="center"
-                            borderRadius="4px"
+                            borderRadius="15%"
                             cursor="pointer"
                             transition="all 0.2s"
                             _hover={{ bg: "gray.500", color: "white" }}
@@ -84,7 +90,7 @@ export const ReportFileList = ({
                                 e.stopPropagation();
                                 onConfirm(file);
                             }}
-                            fontWeight="bold"
+                            fontWeight="600"
                             textTransform="none"
                         >
                             확인
@@ -100,7 +106,7 @@ export const ReportFileList = ({
                             display="flex"
                             alignItems="center"
                             justifyContent="center"
-                            borderRadius="4px"
+                            borderRadius="15%"
                             cursor="pointer"
                             transition="all 0.2s"
                             _hover={{ bg: "gray.500", color: "white" }}
@@ -109,7 +115,7 @@ export const ReportFileList = ({
                                 e.preventDefault();
                                 triggerDownload(file);
                             }}
-                            fontWeight="bold"
+                            fontWeight="600"
                             textTransform="none"
                         >
                             다운로드
@@ -120,14 +126,14 @@ export const ReportFileList = ({
                                 <Badge
                                     as="button"
                                     bg="gray.100"
-                                    color="red.400"
+                                    color="gray.500"
                                     fontSize="10px"
                                     px={2}
                                     h="18px"
                                     display="flex"
                                     alignItems="center"
                                     justifyContent="center"
-                                    borderRadius="4px"
+                                    borderRadius="15%"
                                     cursor="pointer"
                                     transition="all 0.2s"
                                     _hover={{ bg: "red.400", color: "white" }}
@@ -135,7 +141,7 @@ export const ReportFileList = ({
                                         e.stopPropagation();
                                         onDelete(file.id);
                                     }}
-                                    fontWeight="bold"
+                                    fontWeight="600"
                                     textTransform="none"
                                 >
                                     삭제

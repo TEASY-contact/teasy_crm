@@ -10,6 +10,7 @@ import {
     Button,
     Text,
     Flex,
+    Portal
 } from "@chakra-ui/react";
 import { ChevronDownIcon } from "@chakra-ui/icons";
 
@@ -41,21 +42,21 @@ export const CustomSelect = ({
 }: CustomSelectProps) => {
     const selectedOption = options.find((opt) => opt.value === value);
     const selectedLabel = selectedOption?.label || placeholder;
-    const isSelected = !!selectedOption;
+    const isSelected = !!selectedOption && value !== "";
 
     return (
         <Menu matchWidth>
             <MenuButton
                 w={width}
                 h="45px"
-                borderRadius="lg"
+                borderRadius="10px"
                 textAlign="left"
-                bg={isDisabled ? "gray.50" : "white"}
+                bg="white"
                 border="1px"
                 borderColor="gray.200"
                 fontWeight="normal"
-                color={isSelected ? "gray.700" : "gray.400"}
-                fontSize="13px"
+                color={isSelected ? "gray.700" : "gray.300"}
+                fontSize="sm"
                 px={4}
                 cursor={isDisabled ? "default" : "pointer"}
                 _hover={isDisabled ? {} : { borderColor: "gray.300" }}
@@ -72,28 +73,30 @@ export const CustomSelect = ({
                     {!isDisabled && <ChevronDownIcon color="gray.400" />}
                 </Flex>
             </MenuButton>
-            <MenuList borderRadius="md" shadow="lg" py={1} zIndex={1400} maxH="300px" overflowY="auto">
-                {options.map((option, idx) => (
-                    option.isDivider ? (
-                        <MenuDivider key={`div-${idx}`} borderColor="gray.100" />
-                    ) : (
-                        <MenuItem
-                            key={option.value}
-                            onClick={() => !option.isDisabled && onChange(option.value)}
-                            isDisabled={option.isDisabled}
-                            fontSize="sm"
-                            color={option.value === value ? "brand.600" : "gray.700"}
-                            bg={option.value === value ? "brand.50" : "transparent"}
-                            fontWeight={option.value === value ? "bold" : "normal"}
-                            _hover={option.isDisabled ? {} : { bg: "gray.100", color: "brand.600" }}
-                            _focus={option.isDisabled ? {} : { bg: "gray.100", color: "brand.600" }}
-                        >
-                            <Text as="span" mr={2} color={option.value === value ? "brand.400" : (option.isDisabled ? "gray.200" : "gray.300")}>·</Text>
-                            {option.label}
-                        </MenuItem>
-                    )
-                ))}
-            </MenuList>
+            <Portal>
+                <MenuList borderRadius="md" shadow="lg" py={1} zIndex={2000} maxH="300px" overflowY="auto">
+                    {options.map((option, idx) => (
+                        option.isDivider ? (
+                            <MenuDivider key={`div-${idx}`} borderColor="gray.100" />
+                        ) : (
+                            <MenuItem
+                                key={option.value}
+                                onClick={() => !option.isDisabled && onChange(option.value)}
+                                isDisabled={option.isDisabled}
+                                fontSize="sm"
+                                color={option.value === value ? "brand.600" : "gray.700"}
+                                bg={option.value === value ? "brand.50" : "transparent"}
+                                fontWeight={option.value === value ? "bold" : "normal"}
+                                _hover={option.isDisabled ? {} : { bg: "gray.100", color: "brand.600" }}
+                                _focus={option.isDisabled ? {} : { bg: "gray.100", color: "brand.600" }}
+                            >
+                                <Text as="span" mr={2} color={option.value === value ? "brand.400" : (option.isDisabled ? "gray.200" : "gray.300")}>·</Text>
+                                {option.label}
+                            </MenuItem>
+                        )
+                    ))}
+                </MenuList>
+            </Portal>
         </Menu>
     );
 };

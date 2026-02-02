@@ -157,7 +157,7 @@ const ReportSelectionModalContent = ({ onClose, customer, activities = [] }: { o
 
     const getHeaderTitle = () => {
         if (!isWriting) return "보고서 선택";
-        return `${getReportLabel(selectedReport)} 보고서`;
+        return getReportLabel(selectedReport);
     };
 
     return (

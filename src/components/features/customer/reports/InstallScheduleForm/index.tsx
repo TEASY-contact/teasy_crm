@@ -33,7 +33,7 @@ const ListItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef, colorSch
         >
             <HStack
                 justify="space-between"
-                bg="white"
+                bg={isReadOnly ? "gray.50" : "white"}
                 px={3}
                 py={1.5}
                 borderRadius="md"
@@ -66,6 +66,22 @@ const ListItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef, colorSch
                     </Text>
                 </HStack>
                 <HStack spacing={2}>
+                    {item.category && (
+                        <Badge
+                            variant="subtle"
+                            bg="gray.100"
+                            color="gray.500"
+                            fontSize="10px"
+                            px={2}
+                            h="18px"
+                            borderRadius="15%"
+                            textTransform="none"
+                            fontWeight="600"
+                            mr={3}
+                        >
+                            {item.category}
+                        </Badge>
+                    )}
                     {!isReadOnly && (
                         <IconButton
                             aria-label="decrease-qty"
@@ -79,14 +95,15 @@ const ListItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef, colorSch
                     <Badge
                         bg={`${colorScheme}.50`}
                         color={`${colorScheme}.600`}
-                        fontSize="11px"
+                        fontSize="10px"
                         px={2}
                         h="18px"
-                        minW="30px"
-                        borderRadius="4px"
+                        minW="32px"
+                        borderRadius="15%"
                         display="flex"
                         alignItems="center"
                         justifyContent="center"
+                        fontWeight="600"
                     >
                         {item.quantity}
                     </Badge>
@@ -182,14 +199,28 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
             compItems.forEach(item => {
                 const invInfo = inventoryItems.find(i => i.label === item.name);
                 if (invInfo) {
-                    newSupplies.push({
-                        id: `${rowId}_${invInfo.value}`,
-                        name: item.name,
-                        quantity: 1, // Start with 1, matching product initial qty (Absolute 1:1)
-                        category: invInfo.category,
-                        isAuto: true,
-                        linkedId: rowId
-                    });
+                    // Merging Logic: Check if an auto-supply with the same name already exists
+                    const existingIdx = newSupplies.findIndex(s => s.name === item.name && s.isAuto);
+                    if (existingIdx > -1) {
+                        const existing = newSupplies[existingIdx];
+                        const linkedIds = (existing.linkedId || "").split(",").filter(Boolean);
+                        if (!linkedIds.includes(rowId)) {
+                            newSupplies[existingIdx] = {
+                                ...existing,
+                                quantity: existing.quantity + 1,
+                                linkedId: [...linkedIds, rowId].join(",")
+                            };
+                        }
+                    } else {
+                        newSupplies.push({
+                            id: `auto_${invInfo.value}`,
+                            name: item.name,
+                            quantity: 1, // Start with 1, matching product initial qty
+                            category: invInfo.category,
+                            isAuto: true,
+                            linkedId: rowId
+                        });
+                    }
                 }
             });
         }
@@ -230,10 +261,23 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
         if (newQty <= 0) {
             if (window.confirm("항목을 삭제하시겠습니까?")) {
                 if (type === "product") {
+                    const remainingProducts = formData.selectedProducts.filter(p => p.id !== id);
+                    const updatedSupplies = formData.selectedSupplies.map(s => {
+                        if (s.isAuto && s.linkedId && s.linkedId.split(",").includes(id)) {
+                            const remainingLinks = s.linkedId.split(",").filter(lid => lid !== id);
+                            const newTotal = remainingProducts.reduce((sum, p) => {
+                                if (remainingLinks.includes(p.id)) return sum + p.quantity;
+                                return sum;
+                            }, 0);
+                            return { ...s, linkedId: remainingLinks.join(","), quantity: newTotal };
+                        }
+                        return s;
+                    }).filter(s => !s.isAuto || (s.linkedId && s.linkedId.length > 0));
+
                     setFormData(prev => ({
                         ...prev,
-                        selectedProducts: prev.selectedProducts.filter(p => p.id !== id),
-                        selectedSupplies: prev.selectedSupplies.filter(s => s.linkedId !== id)
+                        selectedProducts: remainingProducts,
+                        selectedSupplies: updatedSupplies
                     }));
                     return;
                 }
@@ -242,11 +286,16 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
         } else {
             list[idx].quantity = newQty;
 
-            // SYNC LOGIC: If product qty changes, update ONLY linked auto-supplies to MATCH newQty (Absolute 1:1)
+            // SYNC LOGIC: If product qty changes, update merged auto-supplies to reflect the new total
             if (type === "product") {
                 const updatedSupplies = formData.selectedSupplies.map(s => {
-                    if (s.linkedId === id && s.isAuto) {
-                        return { ...s, quantity: newQty }; // Identical to product current quantity
+                    if (s.isAuto && s.linkedId && s.linkedId.split(",").includes(id)) {
+                        const productIds = s.linkedId.split(",");
+                        const totalQty = list.reduce((sum, p) => {
+                            if (productIds.includes(p.id)) return sum + p.quantity;
+                            return sum;
+                        }, 0);
+                        return { ...s, quantity: totalQty };
                     }
                     return s;
                 });
@@ -272,7 +321,7 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                 >
                     <VStack spacing={4}>
                         <Spinner size="xl" color="brand.500" thickness="4px" />
-                        <Text fontWeight="bold" color="brand.600">처리 중...</Text>
+                        <Text fontWeight="medium" color="brand.600">처리 중...</Text>
                     </VStack>
                 </Flex>
             )}
@@ -284,6 +333,7 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                             value={formData.date}
                             onChange={(val: string) => !isReadOnly && setFormData({ ...formData, date: val })}
                             isDisabled={isReadOnly}
+                            limitType="past"
                         />
                     </FormControl>
                     <FormControl isRequired>

@@ -38,3 +38,17 @@ export const formatDateTime = (val: string) => {
     if (nums.length > 10) res += ":" + nums.slice(10, 12);
     return res;
 };
+export const formatTimestamp = (ts: any): string => {
+    if (!ts) return "";
+    // Handle Firestore Timestamp
+    const date = ts?.toDate ? ts.toDate() : new Date(ts);
+    if (isNaN(date.getTime())) return "";
+
+    const YYYY = date.getFullYear();
+    const MM = String(date.getMonth() + 1).padStart(2, "0");
+    const DD = String(date.getDate()).padStart(2, "0");
+    const HH = String(date.getHours()).padStart(2, "0");
+    const mm = String(date.getMinutes()).padStart(2, "0");
+
+    return `${YYYY}-${MM}-${DD} ${HH}:${mm}`;
+};

@@ -64,7 +64,7 @@ export const DemoCompleteForm = forwardRef<any, DemoCompleteFormProps>(({
                 >
                     <VStack spacing={4}>
                         <Spinner size="xl" color="brand.500" thickness="4px" />
-                        <Text fontWeight="bold" color="brand.600">보고서 처리 중...</Text>
+                        <Text fontWeight="medium" color="brand.600">처리 중...</Text>
                     </VStack>
                 </Flex>
             )}
@@ -76,6 +76,7 @@ export const DemoCompleteForm = forwardRef<any, DemoCompleteFormProps>(({
                             value={formData.date}
                             onChange={(val: string) => !isReadOnly && setFormData((prev: DemoCompleteFormData) => ({ ...prev, date: val }))}
                             isDisabled={isReadOnly}
+                            limitType="future"
                         />
                     </FormControl>
                     <FormControl isRequired>
@@ -110,27 +111,29 @@ export const DemoCompleteForm = forwardRef<any, DemoCompleteFormProps>(({
                     />
                 </FormControl>
 
-                <FormControl isRequired>
-                    <TeasyFormLabel>시연 상품</TeasyFormLabel>
-                    <CustomSelect
-                        placeholder="선택"
-                        value={formData.product}
-                        onChange={(val) => !isReadOnly && setFormData((prev: DemoCompleteFormData) => ({ ...prev, product: val }))}
-                        options={products}
-                        isDisabled={isReadOnly}
-                    />
-                </FormControl>
+                <HStack spacing={4}>
+                    <FormControl isRequired flex={1}>
+                        <TeasyFormLabel>시연 상품</TeasyFormLabel>
+                        <CustomSelect
+                            placeholder="선택"
+                            value={formData.product}
+                            onChange={(val) => !isReadOnly && setFormData((prev: DemoCompleteFormData) => ({ ...prev, product: val }))}
+                            options={products}
+                            isDisabled={isReadOnly}
+                        />
+                    </FormControl>
 
-                <FormControl isRequired>
-                    <TeasyFormLabel>시연 결과</TeasyFormLabel>
-                    <CustomSelect
-                        placeholder="선택"
-                        value={formData.result}
-                        onChange={(val) => setFormData((prev: DemoCompleteFormData) => ({ ...prev, result: val }))}
-                        options={DEMO_CONSTANTS.RESULTS as any}
-                        isDisabled={isReadOnly}
-                    />
-                </FormControl>
+                    <FormControl isRequired flex={1}>
+                        <TeasyFormLabel>시연 결과</TeasyFormLabel>
+                        <CustomSelect
+                            placeholder="선택"
+                            value={formData.result}
+                            onChange={(val) => setFormData((prev: DemoCompleteFormData) => ({ ...prev, result: val }))}
+                            options={DEMO_CONSTANTS.RESULTS as any}
+                            isDisabled={isReadOnly}
+                        />
+                    </FormControl>
+                </HStack>
 
                 <HStack spacing={4} align="flex-end">
                     <FormControl isRequired>

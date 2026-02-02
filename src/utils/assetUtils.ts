@@ -27,6 +27,7 @@ export interface AssetData {
     isDeliveryItem?: boolean;
     sourceActivityId?: string;
     lastRecipientId?: string; // Link to customer ID
+    masterId?: string;
 }
 
 /**
@@ -43,7 +44,7 @@ export const getAssetTimestamp = (createdAt: any): number => {
  * Global Self-Healing Engine (v2.0)
  * Re-calculates entire history for a specific item and syncs with asset_meta.
  */
-export const performSelfHealing = async (name: string, category: string, assets?: AssetData[], updates?: any, targetId?: string) => {
+export const performSelfHealing = async (name: string, category: string, assets?: AssetData[], updates?: any, targetId?: string, masterId?: string) => {
     let related: AssetData[] = [];
 
     const sanitizedName = name.trim();
@@ -51,22 +52,28 @@ export const performSelfHealing = async (name: string, category: string, assets?
 
     if (assets && assets.length > 0 && (updates || targetId)) {
         related = assets
-            .filter(a => (a.name || "").trim() === sanitizedName && (a.category || "").trim() === sanitizedCategory && a.type === "inventory")
+            .filter(a => {
+                if (masterId) return a.masterId === masterId;
+                return (a.name || "").trim() === sanitizedName && (a.category || "").trim() === sanitizedCategory && a.type === "inventory";
+            })
             .map(a => (targetId && a.id === targetId) ? { ...a, ...updates } : a);
     } else {
-        const q = query(
-            collection(db, "assets"),
-            where("name", "==", sanitizedName),
-            where("category", "==", sanitizedCategory),
-            where("type", "==", "inventory")
-        );
+        const q = masterId
+            ? query(collection(db, "assets"), where("masterId", "==", masterId))
+            : query(
+                collection(db, "assets"),
+                where("name", "==", sanitizedName),
+                where("category", "==", sanitizedCategory),
+                where("type", "==", "inventory")
+            );
         const snap = await getDocs(q);
         related = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AssetData[];
     }
 
+    const metaId = masterId || `meta_${sanitizedName}_${sanitizedCategory}`.replace(/\//g, "_");
+
     if (related.length === 0) {
         // If no history, clear meta too
-        const metaId = `meta_${sanitizedName}_${sanitizedCategory}`.replace(/\//g, "_");
         await updateDoc(doc(db, "asset_meta", metaId), { currentStock: 0, totalInflow: 0, totalOutflow: 0 }).catch(() => { });
         return 0;
     }
@@ -78,7 +85,6 @@ export const performSelfHealing = async (name: string, category: string, assets?
     let currentRunning = 0;
     let totalInflow = 0;
     let totalOutflow = 0;
-    let hasChanges = false;
 
     for (const item of related) {
         const inflow = Number(item.lastInflow) || 0;
@@ -89,12 +95,10 @@ export const performSelfHealing = async (name: string, category: string, assets?
 
         if (item.stock !== currentRunning) {
             batch.update(doc(db, "assets", item.id), { stock: currentRunning });
-            hasChanges = true;
         }
     }
 
     // Sync Meta Collection (Atomic Lock Point)
-    const metaId = `meta_${sanitizedName}_${sanitizedCategory}`.replace(/\//g, "_");
     const metaRef = doc(db, "asset_meta", metaId);
     batch.set(metaRef, {
         currentStock: currentRunning,
@@ -111,12 +115,13 @@ export const performSelfHealing = async (name: string, category: string, assets?
  * Real-time Stock Counter (v2.0)
  * Prioritizes asset_meta for performance, falls back to history for safety.
  */
-export const getLatestStockCount = async (name: string, category: string): Promise<number> => {
+export const getLatestStockCount = async (name: string, category: string, masterId?: string): Promise<number> => {
     const sanitizedName = name.trim();
     const sanitizedCategory = category.trim();
-    const metaId = `meta_${sanitizedName}_${sanitizedCategory}`.replace(/\//g, "_");
+    const metaId = masterId || `meta_${sanitizedName}_${sanitizedCategory}`.replace(/\//g, "_");
 
     try {
+        const metaDoc = doc(db, "asset_meta", metaId);
         const metaSnap = await getDocs(query(collection(db, "asset_meta"), where("__name__", "==", metaId)));
         if (!metaSnap.empty) {
             return Number(metaSnap.docs[0].data().currentStock) || 0;
@@ -125,12 +130,14 @@ export const getLatestStockCount = async (name: string, category: string): Promi
         console.warn("Meta read failed, falling back to history sum", e);
     }
 
-    const q = query(
-        collection(db, "assets"),
-        where("name", "==", sanitizedName),
-        where("category", "==", sanitizedCategory),
-        where("type", "==", "inventory")
-    );
+    const q = masterId
+        ? query(collection(db, "assets"), where("masterId", "==", masterId))
+        : query(
+            collection(db, "assets"),
+            where("name", "==", sanitizedName),
+            where("category", "==", sanitizedCategory),
+            where("type", "==", "inventory")
+        );
     const snap = await getDocs(q);
     return snap.docs.reduce((acc, doc) => {
         const data = doc.data();
@@ -142,13 +149,16 @@ export const getLatestStockCount = async (name: string, category: string): Promi
  * Initial Stock Calculator (v2.0)
  * Sums up current stock from memory/assets list to determine the new item's starting balance.
  */
-export const calculateInitialStock = (name: string, category: string, assets: AssetData[], newInflow: number): number => {
+export const calculateInitialStock = (name: string, category: string, assets: AssetData[], newInflow: number, masterId?: string): number => {
     const sanitizedName = name.trim();
     const sanitizedCategory = category.trim();
 
     const existingTotal = assets
         .filter(a => a.type === "inventory")
-        .filter(a => (a.name || "").trim() === sanitizedName && (a.category || "").trim() === sanitizedCategory)
+        .filter(a => {
+            if (masterId) return a.masterId === masterId;
+            return (a.name || "").trim() === sanitizedName && (a.category || "").trim() === sanitizedCategory;
+        })
         .reduce((acc, a) => acc + (Number(a.lastInflow) || 0) - (Number(a.lastOutflow) || 0), 0);
 
     return existingTotal + newInflow;

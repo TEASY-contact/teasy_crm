@@ -23,8 +23,8 @@ export const TeasyModal = ({ isOpen, onClose, children, ...props }: any) => {
 };
 
 export const TeasyModalOverlay = (props: any) => <ModalOverlay bg="blackAlpha.300" backdropFilter="blur(5px)" {...props} />;
-export const TeasyModalContent = (props: any) => <ModalContent borderRadius="lg" overflow="hidden" boxShadow="2xl" {...props} />;
-export const TeasyModalHeader = (props: any) => <ModalHeader bg="brand.500" color="white" fontSize="18px" textAlign="center" py="16px" {...props} />;
+export const TeasyModalContent = (props: any) => <ModalContent borderRadius="2xl" boxShadow="2xl" {...props} />;
+export const TeasyModalHeader = (props: any) => <ModalHeader bg="brand.500" color="white" fontSize="18px" textAlign="center" py="16px" borderTopRadius="2xl" {...props} />;
 
 export const TeasyModalBody = (props: any) => (
     <ModalBody

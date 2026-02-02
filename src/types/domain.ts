@@ -115,6 +115,7 @@ export interface Activity extends BaseDoc {
     tasksBefore?: string[];
     tasksAfter?: string[];
     deliveryInfo?: DeliveryInfo;
+    taxInvoice?: InquiryFile;
 
     // Inquiry & Demo specific
     channel?: string;

@@ -1,7 +1,8 @@
 // src/types/timeline.ts
 export type StepType =
     | 'inquiry' | 'demo_schedule' | 'demo_complete' | 'purchase_confirm'
-    | 'install_schedule' | 'install_complete' | 'as_schedule' | 'as_complete' | 'remoteas_complete';
+    | 'install_schedule' | 'install_complete' | 'as_schedule' | 'as_complete' | 'remoteas_complete'
+    | 'customer_registered';
 
 export interface TimelineItem {
     id: string;

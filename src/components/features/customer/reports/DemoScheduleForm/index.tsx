@@ -46,7 +46,7 @@ export const DemoScheduleForm = forwardRef<DemoScheduleFormHandle, DemoScheduleF
                 >
                     <VStack spacing={4}>
                         <Spinner size="xl" color="brand.500" thickness="4px" />
-                        <Text fontWeight="bold" color="brand.600">일정 처리 중...</Text>
+                        <Text fontWeight="medium" color="brand.600">처리 중...</Text>
                     </VStack>
                 </Flex>
             )}
@@ -58,6 +58,7 @@ export const DemoScheduleForm = forwardRef<DemoScheduleFormHandle, DemoScheduleF
                             value={formData.date}
                             onChange={(val: string) => !isReadOnly && setFormData((prev: DemoScheduleFormData) => ({ ...prev, date: val }))}
                             isDisabled={isReadOnly}
+                            limitType="past"
                         />
                     </FormControl>
                     <FormControl isRequired>
@@ -82,26 +83,28 @@ export const DemoScheduleForm = forwardRef<DemoScheduleFormHandle, DemoScheduleF
                     />
                 </FormControl>
 
-                <FormControl isRequired>
-                    <TeasyFormLabel>연락처</TeasyFormLabel>
-                    <TeasyPhoneInput
-                        value={formData.phone}
-                        onChange={(val: string) => !isReadOnly && setFormData((prev: DemoScheduleFormData) => ({ ...prev, phone: val }))}
-                        placeholder="000-0000-0000"
-                        isDisabled={isReadOnly}
-                    />
-                </FormControl>
+                <HStack spacing={4}>
+                    <FormControl isRequired flex={1}>
+                        <TeasyFormLabel>연락처</TeasyFormLabel>
+                        <TeasyPhoneInput
+                            value={formData.phone}
+                            onChange={(val: string) => !isReadOnly && setFormData((prev: DemoScheduleFormData) => ({ ...prev, phone: val }))}
+                            placeholder="000-0000-0000"
+                            isDisabled={isReadOnly}
+                        />
+                    </FormControl>
 
-                <FormControl isRequired>
-                    <TeasyFormLabel>시연 상품</TeasyFormLabel>
-                    <CustomSelect
-                        placeholder="선택"
-                        value={formData.product}
-                        onChange={(val) => !isReadOnly && setFormData((prev: DemoScheduleFormData) => ({ ...prev, product: val }))}
-                        options={products}
-                        isDisabled={isReadOnly}
-                    />
-                </FormControl>
+                    <FormControl isRequired flex={1}>
+                        <TeasyFormLabel>시연 상품</TeasyFormLabel>
+                        <CustomSelect
+                            placeholder="선택"
+                            value={formData.product}
+                            onChange={(val) => !isReadOnly && setFormData((prev: DemoScheduleFormData) => ({ ...prev, product: val }))}
+                            options={products}
+                            isDisabled={isReadOnly}
+                        />
+                    </FormControl>
+                </HStack>
 
                 <FormControl>
                     <TeasyFormLabel>참고 사항</TeasyFormLabel>

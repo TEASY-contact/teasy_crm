@@ -10,6 +10,7 @@ export const INVENTORY_CATEGORIES = [
     { value: "거치대", label: "거치대" },
     { value: "케이블", label: "케이블" },
     { value: "소모품", label: "소모품" },
+    { value: "기타", label: "기타" },
 ];
 
 export const PRODUCT_CATEGORIES = [

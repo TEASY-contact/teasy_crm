@@ -76,7 +76,7 @@ export const TableRowItem = ({
                     </Flex>
                 </AssetTd>
                 <AssetTd colSpan={isProduct ? 4 : 11} py={4} px={8}>
-                    <Box h="6px" bgGradient="linear(to-r, brand.50, brand.700, brand.50)" w="full" borderRadius="full" shadow="md" />
+                    <Box h="1px" bg="gray.100" w="full" />
                 </AssetTd>
                 <AssetTd textAlign="center">
                     <IconButton
@@ -311,12 +311,12 @@ export const TableRowItem = ({
                                     return (
                                         <Box key={i} w="full">
                                             <Grid templateColumns={HISTORY_GRID_RATIO} w="full" minH="34px" alignItems="center">
-                                                <GridItem borderRight="1px" borderColor="gray.50" h="full" display="flex" alignItems="center" justifyContent="center">
+                                                <GridItem h="full" display="flex" alignItems="center" justifyContent="center">
                                                     <Text fontSize="sm" color="gray.600" textAlign="center" whiteSpace="pre-wrap" w="full" letterSpacing="0.5px">
                                                         {formatAssetDate(time.trim())}
                                                     </Text>
                                                 </GridItem>
-                                                <GridItem borderRight="1px" borderColor="gray.50" h="full" display="flex" alignItems="center" justifyContent="center">
+                                                <GridItem h="full" display="flex" alignItems="center" justifyContent="center">
                                                     <Text fontSize="sm" color="gray.600" textAlign="center" w="full" letterSpacing="0.5px">
                                                         {operator}
                                                     </Text>
@@ -375,10 +375,10 @@ export const TableRowItem = ({
                                 })
                             ) : (
                                 <Grid templateColumns={HISTORY_GRID_RATIO} w="full" h="45px" alignItems="center">
-                                    <GridItem px={2} borderRight="1px" borderColor="gray.50" h="full" display="flex" alignItems="center" justifyContent="center">
+                                    <GridItem px={2} h="full" display="flex" alignItems="center" justifyContent="center">
                                         <Text fontSize="sm" color="gray.400">-</Text>
                                     </GridItem>
-                                    <GridItem px={2} borderRight="1px" borderColor="gray.50" h="full" display="flex" alignItems="center" justifyContent="center">
+                                    <GridItem px={2} h="full" display="flex" alignItems="center" justifyContent="center">
                                         <Text fontSize="xs" color="gray.400">-</Text>
                                     </GridItem>
                                     <GridItem px={3} h="full" display="flex" alignItems="center" justifyContent="center">

@@ -12,6 +12,7 @@ import { TeasyButton } from "@/components/common/UIComponents";
 import { ProfileEditModal } from "@/components/features/customer/ProfileEditModal";
 import { useCustomerDetail } from "./hooks/useCustomerDetail";
 import { CustomerProfileCard } from "./components/CustomerProfileCard";
+import { formatTimestamp } from "@/utils/formatter";
 
 export default function CustomerDetailPage({ params: paramsPromise }: { params: any }) {
     const {
@@ -59,7 +60,7 @@ export default function CustomerDetailPage({ params: paramsPromise }: { params: 
 
             <CustomerProfileCard
                 customer={customer}
-                lastActivityDate={lastActivityDate}
+                lastActivityDate={lastActivityDate || undefined}
                 onEdit={handleEditOpen}
                 onActivityClick={handleActivityClick}
                 latestActivity={activities.length > 0 ? activities[activities.length - 1] : null}
@@ -101,8 +102,8 @@ export default function CustomerDetailPage({ params: paramsPromise }: { params: 
                                             onTitleClick={() => handleActivityClick(activity, false)}
                                             item={{
                                                 id: activity.id,
-                                                stepType: activity.type,
-                                                createdAt: activity.date,
+                                                stepType: activity.type as any,
+                                                createdAt: formatTimestamp(activity.updatedAt || activity.createdAt),
                                                 createdBy: activity.createdBy || "system",
                                                 createdByName: activity.createdByName || activity.managerName || "담당자 미지정",
                                                 managerName: activity.managerName || activity.createdByName,

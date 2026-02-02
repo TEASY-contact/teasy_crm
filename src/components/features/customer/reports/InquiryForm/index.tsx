@@ -2,7 +2,7 @@
 import React, { useRef, forwardRef, useImperativeHandle, useCallback } from "react";
 import {
     VStack, FormControl, Box, Flex, Spinner,
-    HStack, Text, useToast
+    HStack, Text, useToast, Badge
 } from "@chakra-ui/react";
 import {
     TeasyDateTimeInput,
@@ -48,15 +48,15 @@ export const InquiryForm = forwardRef<InquiryFormHandle, InquiryFormProps>(({
         handleFileAdd, handleFileRemove,
         submit,
         handleDelete
-    } = useInquiryForm({ customer, activityId, initialData, defaultManager, userData });
+    } = useInquiryForm({ customer: customer as any, activityId, initialData, defaultManager, userData: userData as any });
 
     const [viewerState, setViewerState] = React.useState({ isOpen: false, files: [] as InquiryFile[], index: 0 });
     const [audioState, setAudioState] = React.useState({ isOpen: false, file: null as InquiryFile | null });
 
     useImperativeHandle(ref, () => ({
-        submit: (mOpts: any[]) => submit(mOpts),
+        submit: () => submit(managerOptions),
         delete: handleDelete
-    }), [submit, handleDelete]);
+    }), [submit, handleDelete, managerOptions]);
 
     const handleChannelChange = useCallback((val: string) => {
         if (isReadOnly) return;
@@ -79,7 +79,7 @@ export const InquiryForm = forwardRef<InquiryFormHandle, InquiryFormProps>(({
                 >
                     <VStack spacing={4}>
                         <Spinner size="xl" color="brand.500" thickness="4px" />
-                        <Text fontWeight="bold" color="brand.600">문의 처리 중...</Text>
+                        <Text fontWeight="medium" color="brand.600">처리 중...</Text>
                     </VStack>
                 </Flex>
             )}
@@ -92,6 +92,7 @@ export const InquiryForm = forwardRef<InquiryFormHandle, InquiryFormProps>(({
                             value={formData.date}
                             onChange={(val: string) => !isReadOnly && setFormData((prev: InquiryFormData) => ({ ...prev, date: val }))}
                             isDisabled={isReadOnly}
+                            limitType="future"
                         />
                     </FormControl>
                     <FormControl isRequired>
@@ -141,17 +142,25 @@ export const InquiryForm = forwardRef<InquiryFormHandle, InquiryFormProps>(({
                                             <Box>
                                                 {!isReadOnly && (
                                                     <>
-                                                        <TeasyButton
+                                                        <Badge
+                                                            as="button"
+                                                            cursor="pointer"
                                                             onClick={() => recordingInputRef.current?.click()}
                                                             bg="gray.100"
                                                             color="gray.600"
                                                             _hover={{ bg: "gray.200" }}
-                                                            h="40px"
-                                                            px={4}
-                                                            fontWeight="400"
+                                                            px={3}
+                                                            h="32px"
+                                                            borderRadius="10px"
+                                                            fontSize="xs"
+                                                            fontWeight="600"
+                                                            display="flex"
+                                                            alignItems="center"
+                                                            justifyContent="center"
+                                                            textTransform="none"
                                                         >
-                                                            통화 파일 업로드
-                                                        </TeasyButton>
+                                                            녹취 업로드
+                                                        </Badge>
                                                         <input
                                                             type="file"
                                                             hidden
@@ -168,7 +177,7 @@ export const InquiryForm = forwardRef<InquiryFormHandle, InquiryFormProps>(({
                                         files={recordings}
                                         type="recording"
                                         isReadOnly={isReadOnly}
-                                        onConfirm={(file) => setAudioState({ isOpen: true, file })}
+                                        onConfirm={(file: any) => setAudioState({ isOpen: true, file })}
                                         onDelete={(id) => handleFileRemove(id, 'recording')}
                                     />
                                 </Box>
@@ -233,18 +242,25 @@ export const InquiryForm = forwardRef<InquiryFormHandle, InquiryFormProps>(({
                         <Box>
                             {!isReadOnly && (
                                 <>
-                                    <TeasyButton
+                                    <Badge
+                                        as="button"
+                                        cursor="pointer"
                                         onClick={() => quoteInputRef.current?.click()}
                                         bg="gray.100"
                                         color="gray.600"
                                         _hover={{ bg: "gray.200" }}
-                                        h="32px"
-                                        size="sm"
                                         px={3}
-                                        fontWeight="400"
+                                        h="32px"
+                                        borderRadius="10px"
+                                        fontSize="xs"
+                                        fontWeight="600"
+                                        display="flex"
+                                        alignItems="center"
+                                        justifyContent="center"
+                                        textTransform="none"
                                     >
-                                        견적서 파일 업로드
-                                    </TeasyButton>
+                                        파일 업로드
+                                    </Badge>
                                     <input
                                         type="file"
                                         hidden
@@ -260,7 +276,7 @@ export const InquiryForm = forwardRef<InquiryFormHandle, InquiryFormProps>(({
                         files={quotes}
                         type="quote"
                         isReadOnly={isReadOnly}
-                        onConfirm={(file) => setViewerState({ isOpen: true, files: quotes, index: quotes.indexOf(file) })}
+                        onConfirm={(file: any) => setViewerState({ isOpen: true, files: quotes, index: quotes.indexOf(file) })}
                         onDelete={(id) => handleFileRemove(id, 'quote')}
                     />
                 </Box>
@@ -277,7 +293,7 @@ export const InquiryForm = forwardRef<InquiryFormHandle, InquiryFormProps>(({
                 files={viewerState.files}
                 initialIndex={viewerState.index}
             />
-        </Box>
+        </Box >
     );
 });
 

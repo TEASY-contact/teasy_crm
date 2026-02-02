@@ -23,6 +23,7 @@ import {
 import { CustomSelect } from "@/components/common/CustomSelect";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface CustomerRegistrationModalProps {
     isOpen: boolean;
@@ -37,6 +38,7 @@ const CustomerRegistrationModalContent = ({ onClose }: { onClose: () => void }) 
     const [license, setLicense] = useState("");
     const [notes, setNotes] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const queryClient = useQueryClient();
     const toast = useToast();
 
     const handleRegister = async () => {
@@ -80,6 +82,7 @@ const CustomerRegistrationModalContent = ({ onClose }: { onClose: () => void }) 
                 isClosable: true,
             });
 
+            await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
             onClose();
         } catch (error: any) {
             console.error("DEBUG - Firestore Error:", error);

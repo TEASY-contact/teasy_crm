@@ -1,6 +1,6 @@
 // src/components/features/customer/reports/InstallScheduleForm/useInstallScheduleForm.ts
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@chakra-ui/react";
 import { db, storage } from "@/lib/firebase";
 import { collection, serverTimestamp, doc, runTransaction, query, where, getDocs } from "firebase/firestore";
@@ -35,6 +35,7 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
     const { userData } = useAuth();
     const queryClient = useQueryClient();
     const toast = useToast();
+    const isSubmitting = useRef(false);
     const [isLoading, setIsLoading] = useState(false);
 
     // File upload state
@@ -101,16 +102,23 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
             const newPending: { url: string, file: File }[] = [];
             const newUrls: string[] = [];
 
+            const existingNames = pendingFiles.map(p => p.file.name + p.file.size);
+
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
                 if (!file.type.startsWith("image/")) continue;
+                if (existingNames.includes(file.name + file.size)) continue;
+
                 const localUrl = URL.createObjectURL(file);
                 newPending.push({ url: localUrl, file });
                 newUrls.push(localUrl);
             }
 
-            setPendingFiles(curr => [...curr, ...newPending]);
-            return { ...prev, photos: [...prev.photos, ...newUrls] };
+            if (newPending.length > 0) {
+                setPendingFiles(curr => [...curr, ...newPending]);
+                return { ...prev, photos: [...prev.photos, ...newUrls] };
+            }
+            return prev;
         });
     }, [toast]);
 
@@ -144,7 +152,7 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
     }, []);
 
     const submit = useCallback(async (managerOptions: any[]) => {
-        if (isLoading) return false;
+        if (isLoading || isSubmitting.current) return false;
 
         // Validation Rules
         const validations = [
@@ -162,6 +170,7 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
         }
 
         setIsLoading(true);
+        isSubmitting.current = true;
         try {
             const cleanPhone = formData.phone.replace(/[^0-9]/g, "");
             const affectedItems = new Set<string>();
@@ -169,7 +178,9 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
             // Upload Photos
             let finalPhotos = [...formData.photos];
             if (pendingFiles.length > 0) {
-                const uploadPromises = pendingFiles.map(async (p, i) => {
+                const uniquePending = Array.from(new Map(pendingFiles.map(p => [p.file.name + p.file.size, p])).values());
+
+                const uploadPromises = uniquePending.map(async (p, i) => {
                     const ext = p.file.name.split('.').pop() || 'jpg';
                     const filename = `install_${Date.now()}_${i}_${Math.random().toString(36).substring(7)}.${ext}`;
                     const storagePath = `${INSTALL_SCHEDULE_CONSTANTS.STORAGE_PATH_PREFIX}/${customer.id}/${filename}`;
@@ -180,6 +191,15 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
                 const uploadedUrls = await Promise.all(uploadPromises);
                 finalPhotos = finalPhotos.filter(url => !url.startsWith('blob:')).concat(uploadedUrls);
             }
+
+            // High-reliability deduplication by base URL (v124.76)
+            const finalSeen = new Set();
+            finalPhotos = finalPhotos.filter(url => {
+                const baseUrl = url.split('?')[0].trim();
+                if (finalSeen.has(baseUrl)) return false;
+                finalSeen.add(baseUrl);
+                return true;
+            });
 
             // --- Pre-transaction Read (Non-atomic reads for assets if needed) ---
             let existingAssets: any[] = [];
@@ -348,6 +368,7 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
             return false;
         } finally {
             setIsLoading(false);
+            isSubmitting.current = false;
         }
     }, [isLoading, formData, pendingFiles, activityId, initialData?.photos, customer.id, customer.name, userData?.name, userData?.uid, toast, cleanupOrphanedPhotos, queryClient]);
 

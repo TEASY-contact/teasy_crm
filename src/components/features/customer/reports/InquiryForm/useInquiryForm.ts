@@ -1,6 +1,6 @@
 // src/components/features/customer/reports/InquiryForm/useInquiryForm.ts
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@chakra-ui/react";
 import { db, storage } from "@/lib/firebase";
 import {
@@ -17,7 +17,8 @@ import {
     deleteObject
 } from "firebase/storage";
 import { inquirySchema } from "@/lib/validations/reportSchema";
-import { applyColonStandard } from "@/utils/textFormatter";
+import { applyColonStandard, getTeasyStandardFileName } from "@/utils/textFormatter";
+import { formatPhone } from "@/utils/formatter";
 import {
     InquiryFormData,
     InquiryFile,
@@ -26,16 +27,17 @@ import {
 import { Customer, User, ManagerOption, Activity, ActivityType } from "@/types/domain";
 
 interface UseInquiryFormProps {
-    customer: Pick<Customer, 'id' | 'name' | 'phone'>;
+    customer: Pick<Customer, 'id' | 'name'> & { phone?: string };
     activityId?: string;
     initialData?: Partial<Activity>;
     defaultManager?: string;
-    userData: User | null;
+    userData: { uid?: string; name?: string } | null;
 }
 
 export const useInquiryForm = ({ customer, activityId, initialData, defaultManager, userData }: UseInquiryFormProps) => {
     const queryClient = useQueryClient();
     const toast = useToast();
+    const isSubmitting = useRef(false);
     const [isLoading, setIsLoading] = useState(false);
 
     const [formData, setFormData] = useState<InquiryFormData>({
@@ -43,7 +45,7 @@ export const useInquiryForm = ({ customer, activityId, initialData, defaultManag
         manager: defaultManager || "",
         channel: "",
         nickname: "",
-        phone: customer?.phone || "",
+        phone: formatPhone(customer?.phone) || "",
         product: "",
         result: "",
         memo: ""
@@ -61,7 +63,7 @@ export const useInquiryForm = ({ customer, activityId, initialData, defaultManag
                 manager: initialData.manager || "",
                 channel: (initialData.channel || "") as any,
                 nickname: initialData.nickname || "",
-                phone: initialData.phone || "",
+                phone: formatPhone(initialData.phone) || "",
                 product: initialData.product || "",
                 result: (initialData.result || "") as any,
                 memo: initialData.memo || ""
@@ -75,7 +77,7 @@ export const useInquiryForm = ({ customer, activityId, initialData, defaultManag
                 ...prev,
                 date: formattedDate,
                 manager: defaultManager || "",
-                phone: customer?.phone || ""
+                phone: formatPhone(customer?.phone) || ""
             }));
         }
     }, [initialData, defaultManager, customer.phone]);
@@ -100,16 +102,22 @@ export const useInquiryForm = ({ customer, activityId, initialData, defaultManag
     const handleFileAdd = useCallback((files: FileList | null, type: 'recording' | 'quote') => {
         if (!files || files.length === 0) return;
 
+        const currentCount = type === 'recording' ? recordings.length : quotes.length;
         const newFiles = Array.from(files).map((file, index) => {
             const id = Math.random().toString(36).substring(7);
             const url = URL.createObjectURL(file);
 
             setPendingFilesMap(prev => ({ ...prev, [id]: file }));
 
-            const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+            const dateValue = formData.date || new Date().toISOString();
             const category = type === 'recording' ? '녹취' : '견적';
-            const suffix = files.length > 1 ? `_${index + 1}` : "";
-            const displayName = `${customer.name}_${category}_${dateStr}${suffix}.${file.name.split('.').pop()}`;
+            const displayName = getTeasyStandardFileName(
+                customer.name,
+                category,
+                dateValue,
+                currentCount + index,
+                currentCount + files.length
+            ) + `.${file.name.split('.').pop()}`;
 
             return {
                 id,
@@ -145,7 +153,7 @@ export const useInquiryForm = ({ customer, activityId, initialData, defaultManag
     }, [recordings, quotes]);
 
     const submit = useCallback(async (managerOptions: ManagerOption[]) => {
-        if (isLoading) return false;
+        if (isLoading || isSubmitting.current) return false;
 
         // 1. Pre-validation
         const isPhoneInquiry = formData.channel === '전화 문의';
@@ -173,6 +181,7 @@ export const useInquiryForm = ({ customer, activityId, initialData, defaultManag
         }
 
         setIsLoading(true);
+        isSubmitting.current = true;
         try {
             // 2. Parallel File Uploads (Optimized with Promise.all)
             const uploadQueue = async (fileList: InquiryFile[], folder: string) => {
@@ -267,6 +276,7 @@ export const useInquiryForm = ({ customer, activityId, initialData, defaultManag
             return false;
         } finally {
             setIsLoading(false);
+            isSubmitting.current = false;
         }
     }, [isLoading, formData, recordings, quotes, pendingFilesMap, activityId, customer, userData, toast]);
 

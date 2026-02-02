@@ -5,8 +5,10 @@ import { VStack, FormControl, Box, Spinner, HStack, useToast, Flex, Text, IconBu
 import { MdRemove, MdAdd, MdDragHandle } from "react-icons/md";
 import { Reorder, useDragControls } from "framer-motion";
 import { formatAmount } from "@/utils/formatter";
+import { applyColonStandard } from "@/utils/textFormatter";
 import { CustomSelect } from "@/components/common/CustomSelect";
-import { TeasyDateTimeInput, TeasyFormLabel, TeasyInput, TeasyTextarea } from "@/components/common/UIComponents";
+import { TeasyDateTimeInput, TeasyFormLabel, TeasyInput, TeasyTextarea, ReportBadge, ThinParen } from "@/components/common/UIComponents";
+import { TeasyUniversalViewer } from "@/components/common/ui/MediaViewer";
 import { useReportMetadata } from "@/hooks/useReportMetadata";
 import { getCircledNumber } from "@/components/features/asset/AssetModalUtils";
 import { usePurchaseForm, PurchaseFormData, SelectedProduct } from "./usePurchaseForm";
@@ -39,7 +41,8 @@ const ProductItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef }: {
         >
             <HStack
                 justify="space-between"
-                bg="white"
+                bg={isReadOnly ? "gray.50" : "white"}
+                h="45px"
                 px={3}
                 py={1.5}
                 borderRadius="md"
@@ -83,14 +86,16 @@ const ProductItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef }: {
                     <Badge
                         bg="brand.50"
                         color="brand.600"
-                        fontSize="11px"
+                        fontSize="10px"
                         px={2}
                         h="18px"
                         minW="30px"
-                        borderRadius="4px"
+                        borderRadius="15%"
                         display="flex"
                         alignItems="center"
                         justifyContent="center"
+                        textTransform="none"
+                        letterSpacing="0"
                     >
                         {item.quantity}
                     </Badge>
@@ -123,6 +128,9 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
         const { managerOptions, products, inventoryItems, rawAssets } = useReportMetadata();
         const [productCategory, setProductCategory] = useState<string>(initialData?.productCategory || "");
         const scrollContainerRef = useRef<HTMLDivElement>(null);
+        const fileInputRef = useRef<HTMLInputElement>(null);
+        const [pendingFile, setPendingFile] = useState<File | null>(null);
+        const [viewerState, setViewerState] = useState<{ isOpen: boolean, file: any | null }>({ isOpen: false, file: null });
 
         const [formData, setFormData] = useState<PurchaseFormData>({
             date: "",
@@ -159,6 +167,7 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                     discountAmount: initialData.discountAmount || "",
                     userId: initialData.userId || "",
                     memo: initialData.memo || "",
+                    taxInvoice: initialData.taxInvoice || undefined,
                     deliveryInfo: {
                         courier: initialData.deliveryInfo?.courier || "",
                         shipmentDate: initialData.deliveryInfo?.shipmentDate || formattedNow,
@@ -199,7 +208,8 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
             formData,
             productCategory: productCategory as 'product' | 'inventory',
             managerOptions,
-            inventoryItems
+            inventoryItems,
+            pendingFile
         });
 
         useImperativeHandle(ref, () => ({
@@ -261,8 +271,15 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
         return (
             <Box position="relative">
                 {isLoading && (
-                    <Flex position="absolute" top={0} left={0} right={0} bottom={0} bg="whiteAlpha.700" zIndex={10} align="center" justify="center">
-                        <Spinner size="xl" color="brand.500" thickness="4px" />
+                    <Flex
+                        position="absolute" top={0} left={0} right={0} bottom={0}
+                        bg="whiteAlpha.800" zIndex={20} align="center" justify="center"
+                        borderRadius="md"
+                    >
+                        <VStack spacing={4}>
+                            <Spinner size="xl" color="brand.500" thickness="4px" />
+                            <Text fontWeight="medium" color="brand.600">처리 중...</Text>
+                        </VStack>
                     </Flex>
                 )}
                 <VStack spacing={6} align="stretch">
@@ -273,6 +290,7 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                 value={formData.date}
                                 onChange={(val: string) => !isReadOnly && setFormData({ ...formData, date: val })}
                                 isDisabled={isReadOnly}
+                                limitType="future"
                             />
                         </FormControl>
                         <FormControl isRequired>
@@ -290,7 +308,7 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                     <FormControl isRequired>
                         <TeasyFormLabel>구매 상품</TeasyFormLabel>
                         <VStack align="stretch" spacing={3}>
-                            <HStack flex={1} spacing={2}>
+                            <HStack flex={1} spacing={4}>
                                 <Box flex={1}>
                                     <CustomSelect
                                         placeholder="선택"
@@ -303,7 +321,7 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                         isDisabled={isReadOnly || formData.selectedProducts.length > 0}
                                     />
                                 </Box>
-                                <Box flex={1}>
+                                <Box flex={2}>
                                     {(() => {
                                         const rawDelivery = inventoryItems.filter(i => i.isDeliveryItem || i.isDivider);
                                         const deliveryFiltered = rawDelivery.reduce((acc: any[], item, idx, arr) => {
@@ -311,11 +329,7 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                                 const hasFollowupItems = arr.slice(idx + 1).some(next => !next.isDivider && next.isDeliveryItem);
                                                 if (hasFollowupItems) acc.push(item);
                                             } else {
-                                                const currentStock = rawAssets
-                                                    .filter(a => (a.name || "").trim() === (item.label || "").trim() && a.type === "inventory")
-                                                    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))[0]?.stock ?? 0;
-
-                                                acc.push({ ...item, label: `${item.label} (${currentStock}개)` });
+                                                acc.push(item);
                                             }
                                             return acc;
                                         }, []);
@@ -337,7 +351,7 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                                         newSelected = [...formData.selectedProducts];
                                                         newSelected[existingIdx].quantity += 1;
                                                     } else {
-                                                        newSelected = [...formData.selectedProducts, { id: val, name: productInfo.label, quantity: 1 }];
+                                                        newSelected = [...formData.selectedProducts, { id: val, name: productInfo.label, quantity: 1, masterId: (productInfo as any).id }];
                                                     }
                                                     setFormData({ ...formData, selectedProducts: newSelected });
                                                 }}
@@ -356,7 +370,7 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                             </HStack>
 
                             {formData.selectedProducts.length > 0 && (
-                                <VStack align="stretch" spacing={2} p={3} bg="gray.50" borderRadius="md" border="1px" borderColor="gray.100" ref={scrollContainerRef}>
+                                <VStack align="stretch" spacing={2} p={3} bg="gray.50" borderRadius="10px" border="1px" borderColor="gray.100" ref={scrollContainerRef}>
                                     <Reorder.Group
                                         as="div"
                                         axis="y"
@@ -380,74 +394,233 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                         </VStack>
                     </FormControl>
 
-                    <FormControl isRequired>
-                        <TeasyFormLabel>결제 방식</TeasyFormLabel>
-                        <VStack align="stretch" spacing={3}>
+                    <HStack spacing={4} align="flex-start">
+                        <FormControl isRequired flex={1}>
+                            <TeasyFormLabel>결제 방식</TeasyFormLabel>
                             <CustomSelect
                                 placeholder="선택"
                                 value={formData.payMethod}
-                                onChange={(val) => !isReadOnly && setFormData({ ...formData, payMethod: val, amount: "", discount: "미적용", discountAmount: "", userId: "" })}
+                                onChange={(val) => {
+                                    if (isReadOnly) return;
+                                    setFormData({
+                                        ...formData,
+                                        payMethod: val,
+                                        amount: "",
+                                        discount: "미적용",
+                                        discountAmount: "",
+                                        userId: "",
+                                        taxInvoice: undefined
+                                    });
+                                    setPendingFile(null);
+                                    if (fileInputRef.current) fileInputRef.current.value = '';
+                                }}
                                 options={payMethodOptions}
                                 isDisabled={isReadOnly}
                             />
+                        </FormControl>
+                        <FormControl isRequired flex={2}>
+                            <TeasyFormLabel>결제 금액</TeasyFormLabel>
+                            <TeasyInput
+                                value={formatAmount(String(formData.amount))}
+                                onChange={(e) => !isReadOnly && setFormData({ ...formData, amount: formatAmount(e.target.value) })}
+                                placeholder="숫자 입력"
+                                isDisabled={isReadOnly}
+                            />
+                        </FormControl>
+                    </HStack>
 
-                            {formData.payMethod && (
-                                <Box p={3} bg="gray.50" borderRadius="md" border="1px" borderColor="gray.100">
-                                    <VStack spacing={4}>
-                                        <FormControl isRequired isDisabled={isReadOnly}>
-                                            <TeasyFormLabel sub>결제 금액</TeasyFormLabel>
-                                            <TeasyInput
-                                                bg="white"
-                                                value={formData.amount}
-                                                onChange={(e) => !isReadOnly && setFormData({ ...formData, amount: formatAmount(e.target.value) })}
-                                                placeholder="숫자 입력"
-                                                isDisabled={isReadOnly}
-                                                _readOnly={{ bg: "gray.50", cursor: "default", color: "gray.600" }}
-                                            />
-                                        </FormControl>
-                                        <HStack w="full" align="flex-end">
-                                            <FormControl isDisabled={isReadOnly}>
-                                                <TeasyFormLabel sub>할인 내역</TeasyFormLabel>
-                                                <CustomSelect
-                                                    value={formData.discount}
-                                                    onChange={(val) => {
-                                                        if (isReadOnly) return;
-                                                        const isNoDiscount = val === "미적용";
-                                                        setFormData({
-                                                            ...formData,
-                                                            discount: val,
-                                                            ...(isNoDiscount ? { discountAmount: "", userId: "" } : {})
-                                                        });
-                                                    }}
-                                                    options={discountOptions}
-                                                    isDisabled={isReadOnly}
-                                                />
-                                            </FormControl>
-                                            <TeasyInput
-                                                bg={formData.discount === "미적용" ? "gray.50" : "white"}
-                                                opacity={formData.discount === "미적용" ? 0.4 : 1}
-                                                value={(formData.payMethod === "입금" || formData.payMethod === "자사몰" || formData.discount === "쿠폰 할인") ? formData.discountAmount : formData.userId}
-                                                placeholder={(formData.payMethod === "자사몰" || formData.discount === "쿠폰 할인") ? "할인 금액" : (formData.payMethod === "입금" ? "숫자 입력" : "사용자 ID 입력")}
-                                                onChange={(e) => !isReadOnly && (
-                                                    (formData.payMethod === "입금" || formData.payMethod === "자사몰" || formData.discount === "쿠폰 할인")
-                                                        ? setFormData({ ...formData, discountAmount: formatAmount(e.target.value, true) })
-                                                        : setFormData({ ...formData, userId: e.target.value })
-                                                )}
-                                                isDisabled={isReadOnly || formData.discount === "미적용"}
-                                                _readOnly={{ bg: "gray.50", cursor: "default", color: "gray.600" }}
-                                                _disabled={{ bg: "gray.50", cursor: "not-allowed" }}
-                                            />
+                    {formData.payMethod && (
+                        <Box p={3} bg="gray.50" borderRadius="10px" border="1px" borderColor="gray.100">
+                            <VStack spacing={4} align="stretch">
+                                <HStack w="full" align="flex-end" spacing={4}>
+                                    <FormControl flex={1} isDisabled={isReadOnly}>
+                                        <TeasyFormLabel sub mb={1} fontSize="xs">할인 내역</TeasyFormLabel>
+                                        <CustomSelect
+                                            value={formData.discount}
+                                            onChange={(val) => {
+                                                if (isReadOnly) return;
+                                                const isNoDiscount = val === "미적용";
+                                                setFormData({
+                                                    ...formData,
+                                                    discount: val,
+                                                    ...(isNoDiscount ? { discountAmount: "", userId: "" } : {})
+                                                });
+                                            }}
+                                            options={discountOptions}
+                                            isDisabled={isReadOnly}
+                                        />
+                                    </FormControl>
+                                    <Box flex={2}>
+                                        <TeasyInput
+                                            value={(formData.payMethod === "자사몰" || formData.discount === "쿠폰 할인" || formData.payMethod === "입금" || formData.discount === "현금 할인") ? formatAmount(String(formData.discountAmount), true) : formData.userId}
+                                            placeholder={(formData.payMethod === "자사몰" || formData.discount === "쿠폰 할인" || formData.payMethod === "입금" || formData.discount === "현금 할인") ? "할인 금액" : "사용자 ID 입력"}
+                                            onChange={(e) => {
+                                                if (isReadOnly) return;
+                                                const isAmountField = (formData.payMethod === "자사몰" || formData.discount === "쿠폰 할인" || formData.payMethod === "입금" || formData.discount === "현금 할인");
+                                                if (isAmountField) {
+                                                    setFormData({ ...formData, discountAmount: formatAmount(e.target.value, true) });
+                                                } else {
+                                                    setFormData({ ...formData, userId: e.target.value });
+                                                }
+                                            }}
+                                            isDisabled={isReadOnly || formData.discount === "미적용"}
+                                        />
+                                    </Box>
+                                </HStack>
+
+                                {formData.payMethod === "입금" && (
+                                    <FormControl pt={2} borderTop="1px dashed" borderColor="gray.200">
+                                        <HStack justify="space-between" align="center" mb={2}>
+                                            <TeasyFormLabel sub mb={0}>전자세금계산서</TeasyFormLabel>
+                                            {!isReadOnly && !formData.taxInvoice && !pendingFile && (
+                                                <Box>
+                                                    <input
+                                                        type="file"
+                                                        ref={fileInputRef}
+                                                        style={{ display: 'none' }}
+                                                        accept="image/*,application/pdf"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) setPendingFile(file);
+                                                        }}
+                                                    />
+                                                    <Badge
+                                                        as="button"
+                                                        cursor="pointer"
+                                                        bg="gray.100"
+                                                        color="gray.600"
+                                                        _hover={{ bg: "gray.200" }}
+                                                        onClick={() => fileInputRef.current?.click()}
+                                                        px={3}
+                                                        h="32px"
+                                                        borderRadius="10px"
+                                                        fontSize="xs"
+                                                        fontWeight="600"
+                                                    >
+                                                        파일 업로드
+                                                    </Badge>
+                                                </Box>
+                                            )}
                                         </HStack>
-                                    </VStack>
-                                </Box>
-                            )}
-                        </VStack>
-                    </FormControl>
+
+                                        {(formData.taxInvoice || pendingFile) && (
+                                            <HStack w="full" px={1} py={1} align="center" justify="space-between">
+                                                <Box flex="0 1 auto" isTruncated fontSize="xs" color="gray.600" fontWeight="medium">
+                                                    {(() => {
+                                                        let name = "";
+                                                        if (pendingFile) {
+                                                            const today = new Date();
+                                                            const dateStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+                                                            const cleanCustomerName = customer.name.replace(/\s/g, '');
+                                                            name = `${cleanCustomerName}_전자세금계산서_${dateStr}`;
+                                                        } else {
+                                                            name = formData.taxInvoice?.displayName || formData.taxInvoice?.name || "전자세금계산서";
+                                                            const lastDotIndex = name.lastIndexOf('.');
+                                                            if (lastDotIndex !== -1) name = name.substring(0, lastDotIndex);
+                                                        }
+
+                                                        // Aggressively replace all invisible/whitespace characters with underscores (v124.71)
+                                                        const processed = name.replace(/[\s\u00A0\u1680\u180e\u2000-\u200a\u202f\u205f\u3000\ufeff]/g, '_');
+                                                        return <ThinParen text={processed} />;
+                                                    })()}
+                                                </Box>
+                                                <HStack spacing={1.5} flex="0 0 auto">
+                                                    <Box
+                                                        as="button"
+                                                        type="button"
+                                                        bg="gray.100"
+                                                        color="gray.500"
+                                                        fontSize="10px"
+                                                        px={2}
+                                                        h="18px"
+                                                        borderRadius="4px"
+                                                        cursor="pointer"
+                                                        transition="all 0.2s"
+                                                        _hover={{ bg: "gray.500", color: "white" }}
+                                                        fontWeight="bold"
+                                                        onClick={() => {
+                                                            if (pendingFile) {
+                                                                const url = URL.createObjectURL(pendingFile);
+                                                                setViewerState({ isOpen: true, file: { url, name: pendingFile.name, ext: pendingFile.name.split('.').pop()?.toUpperCase() || '' } });
+                                                            } else if (formData.taxInvoice) {
+                                                                setViewerState({ isOpen: true, file: formData.taxInvoice });
+                                                            }
+                                                        }}
+                                                    >
+                                                        확인
+                                                    </Box>
+                                                    {(formData.taxInvoice || pendingFile) && (
+                                                        <>
+                                                            <Text color="gray.300" fontWeight="bold" fontSize="10px">/</Text>
+                                                            <Box
+                                                                as="button"
+                                                                type="button"
+                                                                bg="gray.100"
+                                                                color="gray.500"
+                                                                fontSize="10px"
+                                                                px={2}
+                                                                h="18px"
+                                                                borderRadius="4px"
+                                                                cursor="pointer"
+                                                                transition="all 0.2s"
+                                                                _hover={{ bg: "gray.500", color: "white" }}
+                                                                fontWeight="bold"
+                                                                onClick={async (e: any) => {
+                                                                    const { triggerTeasyDownload } = await import("@/components/common/ui/MediaViewer");
+                                                                    if (pendingFile) {
+                                                                        const url = URL.createObjectURL(pendingFile);
+                                                                        await triggerTeasyDownload({ url, name: pendingFile.name });
+                                                                        URL.revokeObjectURL(url);
+                                                                    } else if (formData.taxInvoice) {
+                                                                        await triggerTeasyDownload(formData.taxInvoice);
+                                                                    }
+                                                                }}
+                                                            >
+                                                                다운로드
+                                                            </Box>
+                                                        </>
+                                                    )}
+                                                    {!isReadOnly && (
+                                                        <>
+                                                            <Text color="gray.300" fontWeight="bold" fontSize="10px">/</Text>
+                                                            <Box
+                                                                as="button"
+                                                                type="button"
+                                                                bg="gray.100"
+                                                                color="gray.500"
+                                                                fontSize="10px"
+                                                                px={2}
+                                                                h="18px"
+                                                                borderRadius="4px"
+                                                                cursor="pointer"
+                                                                transition="all 0.2s"
+                                                                _hover={{ bg: "red.500", color: "white" }}
+                                                                fontWeight="bold"
+                                                                onClick={() => {
+                                                                    if (window.confirm("파일을 삭제하시겠습니까?")) {
+                                                                        setPendingFile(null);
+                                                                        setFormData({ ...formData, taxInvoice: undefined });
+                                                                        if (fileInputRef.current) fileInputRef.current.value = '';
+                                                                    }
+                                                                }}
+                                                            >
+                                                                삭제
+                                                            </Box>
+                                                        </>
+                                                    )}
+                                                </HStack>
+                                            </HStack>
+                                        )}
+                                    </FormControl>
+                                )}
+                            </VStack>
+                        </Box>
+                    )}
 
                     {productCategory === "inventory" && formData.selectedProducts.length > 0 && (
                         <FormControl>
                             <TeasyFormLabel>배송 정보</TeasyFormLabel>
-                            <Box p={3} bg="gray.50" borderRadius="md" border="1px" borderColor="gray.100">
+                            <Box p={3} bg="gray.50" borderRadius="10px" border="1px" borderColor="gray.100">
                                 <VStack spacing={4}>
                                     <HStack w="full" spacing={4}>
                                         <FormControl flex={1}>
@@ -470,19 +643,19 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                         <FormControl flex={1}>
                                             <TeasyFormLabel sub fontSize="xs" mb={1}>발송 일자</TeasyFormLabel>
                                             <TeasyDateTimeInput
-                                                value={formData.deliveryInfo.shipmentDate}
+                                                value={formData.deliveryInfo.shipmentDate || ""}
                                                 onChange={(val: string) => !isReadOnly && setFormData({
                                                     ...formData,
                                                     deliveryInfo: { ...formData.deliveryInfo, shipmentDate: val }
                                                 })}
                                                 isDisabled={isReadOnly}
+                                                limitType="future"
                                             />
                                         </FormControl>
                                     </HStack>
                                     <FormControl>
                                         <TeasyFormLabel sub fontSize="xs" mb={1}>송장 번호</TeasyFormLabel>
                                         <TeasyInput
-                                            bg="white"
                                             value={formData.deliveryInfo.trackingNumber}
                                             maxLength={20}
                                             onChange={(e) => {
@@ -495,13 +668,11 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                             }}
                                             placeholder="숫자 입력"
                                             isDisabled={isReadOnly}
-                                            _readOnly={{ bg: "gray.50", cursor: "default", color: "gray.600" }}
                                         />
                                     </FormControl>
                                     <FormControl>
                                         <TeasyFormLabel sub fontSize="xs" mb={1}>발송 주소</TeasyFormLabel>
                                         <TeasyInput
-                                            bg="white"
                                             value={formData.deliveryInfo.deliveryAddress}
                                             onChange={(e) => !isReadOnly && setFormData({
                                                 ...formData,
@@ -509,7 +680,6 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                             })}
                                             placeholder="주소 입력"
                                             isDisabled={isReadOnly}
-                                            _readOnly={{ bg: "gray.50", cursor: "default", color: "gray.600" }}
                                         />
                                     </FormControl>
                                 </VStack>
@@ -524,7 +694,6 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                             onChange={(e: any) => !isReadOnly && setFormData({ ...formData, memo: e.target.value })}
                             placeholder="입력"
                             isDisabled={isReadOnly}
-                            _readOnly={{ bg: "gray.50", cursor: "default", color: "gray.600" }}
                         />
                     </FormControl>
                 </VStack>

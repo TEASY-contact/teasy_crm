@@ -6,7 +6,7 @@ import {
     Box, HStack, InputGroup, InputLeftElement, Input,
     useDisclosure, Flex, Spinner, Spacer, Text, useToast
 } from "@chakra-ui/react";
-import { MdSearch, MdAdd, MdHorizontalRule, MdOpenInNew } from "react-icons/md";
+import { MdSearch, MdAdd, MdHorizontalRule, MdOpenInNew, MdSettings } from "react-icons/md";
 import { PageHeader, TeasyButton, TeasyPlaceholderText } from "@/components/common/UIComponents";
 import { db } from "@/lib/firebase";
 import {
@@ -18,6 +18,7 @@ import { CustomSelect } from "@/components/common/CustomSelect";
 import { AssetData, getAssetTimestamp } from "@/utils/assetUtils";
 import { AssetTable } from "@/components/features/asset/AssetTable";
 import { AssetModal } from "@/components/features/asset/AssetModal";
+import { InventoryMasterModal } from "@/components/features/asset/InventoryMasterModal";
 
 export default function AssetManagementPage() {
     const [search, setSearch] = useState("");
@@ -27,6 +28,7 @@ export default function AssetManagementPage() {
     const toast = useToast();
 
     const createDisclosure = useDisclosure();
+    const masterDisclosure = useDisclosure();
 
     const queryClient = useQueryClient();
 
@@ -198,7 +200,8 @@ export default function AssetManagementPage() {
                         <MdSearch color="gray.400" size="20px" />
                     </InputLeftElement>
                     <Input
-                        h="45px" borderRadius="lg" placeholder="카테고리 또는 품목명 검색"
+                        h="45px" borderRadius="lg" placeholder="카테고리 또는 물품명 검색"
+                        _placeholder={{ color: "gray.300", fontSize: "14px" }}
                         focusBorderColor="brand.500" fontSize="sm" value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
@@ -223,45 +226,61 @@ export default function AssetManagementPage() {
                 <Spacer />
                 <HStack spacing={3}>
                     {viewMode === "inventory" && (
-                        <TeasyButton
-                            variant="outline"
-                            borderColor="brand.500"
-                            color="brand.500"
-                            bg="transparent"
-                            _hover={{ bg: "brand.50", borderColor: "brand.600" }}
-                            leftIcon={<MdOpenInNew size={18} />}
-                            isDisabled={!selectedAssetId}
-                            onClick={() => {
-                                const asset = assets.find(a => a.id === selectedAssetId);
-                                if (asset?.lastOutflow) {
-                                    toast({
-                                        title: "수정 불가",
-                                        description: "출고 데이터는 고객 관리 페이지에서만 수정 가능합니다.",
-                                        status: "warning",
-                                        duration: 3000,
-                                        isClosable: true,
-                                        position: "top"
-                                    });
-                                    return;
-                                }
-                                createDisclosure.onOpen();
-                            }}
-                        >
-                            내용수정
-                        </TeasyButton>
+                        <>
+                            <TeasyButton
+                                variant="outline"
+                                borderColor="brand.500"
+                                color="brand.500"
+                                bg="transparent"
+                                _hover={{ bg: "brand.50", borderColor: "brand.600" }}
+                                leftIcon={<MdOpenInNew size={18} />}
+                                isDisabled={!selectedAssetId}
+                                onClick={() => {
+                                    const asset = assets.find(a => a.id === selectedAssetId);
+                                    if (asset?.lastOutflow) {
+                                        toast({
+                                            title: "수정 불가",
+                                            description: "출고 데이터는 고객 관리 페이지에서만 수정 가능합니다.",
+                                            status: "warning",
+                                            duration: 3000,
+                                            isClosable: true,
+                                            position: "top"
+                                        });
+                                        return;
+                                    }
+                                    createDisclosure.onOpen();
+                                }}
+                            >
+                                내용수정
+                            </TeasyButton>
+                            <TeasyButton
+                                version="secondary"
+                                borderColor="brand.500"
+                                color="brand.500"
+                                leftIcon={<MdSettings />}
+                                onClick={masterDisclosure.onOpen}
+                            >
+                                물품 등록
+                            </TeasyButton>
+                            <TeasyButton shadow="sm" leftIcon={<MdAdd />} onClick={() => { setSelectedAssetId(null); createDisclosure.onOpen(); }}>
+                                재고 추가
+                            </TeasyButton>
+                        </>
                     )}
                     {viewMode === "product" && (
-                        <TeasyButton
-                            version="secondary"
-                            leftIcon={<MdHorizontalRule />}
-                            onClick={handleAddDivider}
-                        >
-                            구분선 추가
-                        </TeasyButton>
+                        <>
+                            <TeasyButton
+                                version="secondary"
+                                leftIcon={<MdHorizontalRule />}
+                                onClick={handleAddDivider}
+                            >
+                                구별선 추가
+                            </TeasyButton>
+                            <TeasyButton shadow="sm" leftIcon={<MdAdd />} onClick={() => { setSelectedAssetId(null); createDisclosure.onOpen(); }}>
+                                상품 등록
+                            </TeasyButton>
+                        </>
                     )}
-                    <TeasyButton shadow="sm" leftIcon={<MdAdd />} onClick={() => { setSelectedAssetId(null); createDisclosure.onOpen(); }}>
-                        {viewMode === "inventory" ? "재고" : "상품"} 추가
-                    </TeasyButton>
                 </HStack>
             </Flex>
 
@@ -312,6 +331,11 @@ export default function AssetManagementPage() {
                 assets={assets}
                 viewMode={viewMode}
                 onDelete={handleDeleteDivider}
+            />
+
+            <InventoryMasterModal
+                isOpen={masterDisclosure.isOpen}
+                onClose={masterDisclosure.onClose}
             />
         </Box>
     );

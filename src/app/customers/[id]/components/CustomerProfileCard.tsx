@@ -1,7 +1,7 @@
 // src/app/customers/[id]/components/CustomerProfileCard.tsx
 import React from "react";
 import { Box, Flex, Heading, Badge, Grid, VStack } from "@chakra-ui/react";
-import { Customer } from "@/types/customer";
+import { Customer } from "@/types/domain";
 import { ProfileItem } from "@/components/features/customer/ProfileItem";
 import { DISTRIBUTOR_COLORS } from "@/utils/constants";
 import { getOnlyDate } from "./CustomerDetailUtils";

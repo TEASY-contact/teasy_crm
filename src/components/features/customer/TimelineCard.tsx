@@ -2,14 +2,16 @@ import React from "react";
 import { Box, Flex, Text, VStack, HStack, Badge } from "@chakra-ui/react";
 import { TimelineItem } from "@/types/timeline";
 import { TimelineBadge, TimelineInfoItem, TimelineFileList, ThinParen, TeasyButton, TeasyUniversalViewer } from "@/components/common/UIComponents";
-import { formatPhone } from "@/utils/formatter";
+import { formatPhone, formatAmount } from "@/utils/formatter";
 import { useDisclosure } from "@chakra-ui/react";
 
 const STEP_LABELS: Record<string, string> = {
     inquiry: "신규 문의", demo_schedule: "시연 확정", demo_complete: "시연 완료",
     purchase_confirm: "구매 확정", install_schedule: "시공 확정", install_complete: "시공 완료",
-    as_schedule: "방문 A/S 확정", as_complete: "방문 A/S 완료", remoteas_complete: "원격 A/S 완료"
+    as_schedule: "방문 A/S 확정", as_complete: "방문 A/S 완료", remoteas_complete: "원격 A/S 완료",
+    customer_registered: "고객 등록"
 };
+
 
 /**
  * Utility: Color mapping rule identical to MainDashboard.tsx (v123.70)
@@ -31,15 +33,11 @@ const getBadgeColor = (type: string) => {
     return "purple";
 };
 
+import { getTeasyStandardFileName } from "@/utils/textFormatter";
+
 /**
- * Utility: Standardized file display names (v123.70)
+ * Utility: Color mapping rule identical to MainDashboard.tsx (v123.70)
  */
-const getTeasyTimelineFileName = (customerName: string, category: string, date: string, index?: number, total?: number) => {
-    const reportDate = (date || "").split(" ")[0].replace(/[-\/]/g, "");
-    const cleanCustomer = (customerName || "고객").split('_')[0];
-    const suffix = (total && total > 1 && index !== undefined) ? `_${index + 1}` : "";
-    return `${cleanCustomer}_${category}_${reportDate}${suffix}`;
-};
 
 interface ContentItem {
     label: string;
@@ -47,6 +45,7 @@ interface ContentItem {
     isHighlight?: boolean;
     isSubItem?: boolean;
     isFirstSubItem?: boolean;
+    isCustomValue?: boolean;
 }
 
 export const TimelineCard = ({
@@ -60,7 +59,24 @@ export const TimelineCard = ({
 }) => {
     const { isOpen: isPhotosOpen, onOpen: onPhotosOpen, onClose: onPhotosClose } = useDisclosure();
     const content = { ...item, ...(item.content || {}) };
-    const sitePhotos = content.photos || [];
+
+    // Aggressive deduplication by base URL to ignore token differences (v124.75)
+    const deduplicate = (list: any[]) => {
+        const seen = new Set();
+        return (list || []).filter(f => {
+            const url = typeof f === 'string' ? f : f?.url;
+            if (!url) return false;
+            // Normalize by removing query params (tokens)
+            const baseUrl = url.split('?')[0].trim();
+            if (seen.has(baseUrl)) return false;
+            seen.add(baseUrl);
+            return true;
+        });
+    };
+
+    const sitePhotos = deduplicate(content.photos);
+    const quotes = deduplicate(content.quotes);
+    const recordings = deduplicate(content.recordings);
 
     const prepareFiles = (rawFiles: any[], typeLabel: string) => {
         const isWorkReport = (item.stepType || "").includes("install") || (item.stepType || "").includes("as");
@@ -70,12 +86,13 @@ export const TimelineCard = ({
 
         return rawFiles.map((f: any, i: number) => ({
             ...(typeof f === 'string' ? { url: f } : f),
-            displayName: getTeasyTimelineFileName(item.customerName || "고객", category, item.createdAt || "", i, rawFiles.length)
+            displayName: getTeasyStandardFileName(item.customerName || "고객", category, content.date || "", i, rawFiles.length)
         }));
     };
 
-    const otherFiles = prepareFiles(content.quotes || [], "견적");
+    const otherFiles = prepareFiles(quotes, "견적");
     const photosFiles = prepareFiles(sitePhotos, "사진");
+    const taxInvoiceFiles = prepareFiles(content.taxInvoice ? [content.taxInvoice] : [], "전자세금계산서");
 
     const renderContent = () => {
         const stepType = item.stepType;
@@ -184,16 +201,17 @@ export const TimelineCard = ({
                 specificItems.push({ label: "결제", value: content.payMethod });
             }
             if (content.amount) {
-                specificItems.push({ label: "금액", value: content.amount ? `${content.amount}원` : "-", isSubItem: true, isFirstSubItem: true });
+                specificItems.push({ label: "금액", value: content.amount ? `${formatAmount(String(content.amount))}원` : "-", isSubItem: true, isFirstSubItem: true });
             }
 
             // Integrated discount and ID display logic for better data consistency
             const hasDiscount = content.discount && content.discount !== "미적용";
 
             if (content.discountAmount) {
+                const formattedVal = formatAmount(String(content.discountAmount), true);
                 const displayValue = hasDiscount
-                    ? `${content.discount} (${content.discountAmount}원)`
-                    : `${content.discountAmount}원`;
+                    ? `${content.discount} (${formattedVal}원)`
+                    : `${formattedVal}원`;
 
                 specificItems.push({
                     label: "할인",
@@ -216,6 +234,27 @@ export const TimelineCard = ({
 
             if (hasDiscount && !content.discountAmount && !content.userId) {
                 specificItems.push({ label: "할인", value: content.discount, isSubItem: true });
+            }
+
+            const isAmountPresent = !!content.amount;
+            const isDiscountPresent = hasDiscount || !!content.discountAmount || !!content.userId;
+
+            // Move Tax Invoice (증빙) below Discount (할인)
+            if (taxInvoiceFiles.length > 0 && content.payMethod === '입금') {
+                specificItems.push({
+                    label: "증빙",
+                    value: (
+                        <TimelineFileList
+                            files={taxInvoiceFiles}
+                            label="증빙"
+                            isSubItem={true}
+                            isFirstSubItem={!isAmountPresent && !isDiscountPresent}
+                            uploader={item.createdByName}
+                            timestamp={item.createdAt}
+                        />
+                    ),
+                    isCustomValue: true
+                });
             }
 
             // 배송 정보 (고도화 반영: 계층 구조 적용)
@@ -390,9 +429,9 @@ export const TimelineCard = ({
         }
 
         const allItems = [...commonItems, ...specificItems];
-        const recordingFiles = (content.recordings || []).map((f: any, i: number) => ({
+        const recordingFiles = recordings.map((f: any, i: number) => ({
             url: typeof f === 'string' ? f : (f.url || ""),
-            displayName: getTeasyTimelineFileName(item.customerName || "고객", "녹취", item.createdAt || "", i, (content.recordings || []).length)
+            displayName: getTeasyStandardFileName(item.customerName || "고객", "녹취", content.date || "", i, recordings.length)
         }));
 
 
@@ -417,41 +456,45 @@ export const TimelineCard = ({
 
                             return (
                                 <Box key={idx} w="full">
-                                    <TimelineInfoItem
-                                        label={itm.label}
-                                        value={
-                                            <HStack spacing={2} display="inline-flex" align="center">
-                                                <Text as="span" color={isBanned ? "gray.400" : "gray.600"}>
-                                                    {typeof itm.value === 'string' ? <ThinParen text={itm.value} /> : itm.value}
-                                                    {isBanned && <Text as="span" ml={1}><ThinParen text="(퇴)" /></Text>}
-                                                </Text>
-                                                {isPartner && !isBanned && (
-                                                    <Badge
-                                                        bg="yellow.400"
-                                                        color="white"
-                                                        fontSize="10px"
-                                                        px={1.5}
-                                                        borderRadius="full"
-                                                        variant="solid"
-                                                    >
-                                                        협력사
-                                                    </Badge>
-                                                )}
-                                            </HStack>
-                                        }
-                                        isHighlight={itm.isHighlight && !isBanned}
-                                        isSubItem={itm.isSubItem}
-                                        isFirstSubItem={itm.isFirstSubItem}
-                                    />
-                                    {isPhone && isPhoneInquiry && (
-                                        <TimelineFileList
-                                            files={recordingFiles}
-                                            label="녹취"
-                                            isSubItem={true}
-                                            isFirstSubItem={false}
-                                            uploader={item.createdByName}
-                                            timestamp={item.createdAt}
-                                        />
+                                    {itm.isCustomValue ? itm.value : (
+                                        <>
+                                            <TimelineInfoItem
+                                                label={itm.label}
+                                                value={
+                                                    <HStack spacing={2} display="inline-flex" align="center">
+                                                        <Text as="span" color={isBanned ? "gray.400" : "gray.600"}>
+                                                            {typeof itm.value === 'string' ? <ThinParen text={itm.value} /> : itm.value}
+                                                            {isBanned && <Text as="span" ml={1}><ThinParen text="(퇴)" /></Text>}
+                                                        </Text>
+                                                        {isPartner && !isBanned && (
+                                                            <Badge
+                                                                bg="yellow.400"
+                                                                color="white"
+                                                                fontSize="10px"
+                                                                px={1.5}
+                                                                borderRadius="full"
+                                                                variant="solid"
+                                                            >
+                                                                협력사
+                                                            </Badge>
+                                                        )}
+                                                    </HStack>
+                                                }
+                                                isHighlight={itm.isHighlight && !isBanned}
+                                                isSubItem={itm.isSubItem}
+                                                isFirstSubItem={itm.isFirstSubItem}
+                                            />
+                                            {isPhone && isPhoneInquiry && (
+                                                <TimelineFileList
+                                                    files={recordingFiles}
+                                                    label="녹취"
+                                                    isSubItem={true}
+                                                    isFirstSubItem={false}
+                                                    uploader={item.createdByName}
+                                                    timestamp={item.createdAt}
+                                                />
+                                            )}
+                                        </>
                                     )}
                                 </Box>
                             );

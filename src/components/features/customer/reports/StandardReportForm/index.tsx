@@ -1,6 +1,6 @@
 "use client";
 import React, { forwardRef, useImperativeHandle, useState, useEffect } from "react";
-import { VStack, FormControl, Box, Spinner, HStack, useToast, Flex } from "@chakra-ui/react";
+import { VStack, FormControl, Box, Spinner, HStack, useToast, Flex, Text } from "@chakra-ui/react";
 import { CustomSelect } from "@/components/common/CustomSelect";
 import {
     TeasyDateTimeInput, TeasyFormLabel, TeasyInput, TeasyTextarea, TeasyPhoneInput
@@ -189,7 +189,14 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
         }
     }));
 
-    if (isLoading) return <Flex justify="center" align="center" py={10}><Spinner color="brand.500" /></Flex>;
+    if (isLoading) return (
+        <Flex justify="center" align="center" py={10}>
+            <VStack spacing={4}>
+                <Spinner color="brand.500" />
+                <Text fontWeight="medium" color="brand.600">처리 중...</Text>
+            </VStack>
+        </Flex>
+    );
 
     return (
         <VStack spacing={6} align="stretch">
@@ -200,6 +207,7 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
                         value={formData.date}
                         onChange={(val: string) => setFormData({ ...formData, date: val })}
                         isDisabled={isReadOnly}
+                        limitType={reportType.includes("schedule") ? "past" : (reportType.includes("complete") ? "future" : undefined)}
                     />
                 </FormControl>
 
@@ -223,7 +231,6 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
                         onChange={(e: any) => setFormData({ ...formData, location: e.target.value })}
                         placeholder="장소 또는 상세 주소 입력"
                         isDisabled={isReadOnly}
-                        _readOnly={{ bg: "gray.50", cursor: "default", color: "gray.600" }}
                     />
                 </FormControl>
             )}
@@ -249,7 +256,6 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
                             onChange={(e: any) => setFormData({ ...formData, product: e.target.value })}
                             placeholder="예: Teasy CRM, 스마트 도어락"
                             isDisabled={isReadOnly}
-                            _readOnly={{ bg: "gray.50", cursor: "default", color: "gray.600" }}
                         />
                     </FormControl>
                 )}
@@ -263,7 +269,6 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
                     placeholder="업무 상세 내용을 입력하세요."
                     minH="150px"
                     isDisabled={isReadOnly}
-                    _readOnly={{ bg: "gray.50", cursor: "default", color: "gray.600" }}
                 />
             </FormControl>
         </VStack>

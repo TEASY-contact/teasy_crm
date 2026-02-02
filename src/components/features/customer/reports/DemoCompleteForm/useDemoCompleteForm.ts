@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@chakra-ui/react";
 import { db, storage } from "@/lib/firebase";
 import { collection, serverTimestamp, doc, query, where, getDocs, runTransaction } from "firebase/firestore";
@@ -21,6 +21,7 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
     const { userData } = useAuth();
     const queryClient = useQueryClient();
     const toast = useToast();
+    const isSubmitting = useRef(false);
     const [isLoading, setIsLoading] = useState(false);
 
     // File upload state for UI only
@@ -42,11 +43,23 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
     // Populate Initial Data
     useEffect(() => {
         if (initialData) {
+            const deduplicate = (list: any[]) => {
+                const seen = new Set();
+                return (list || []).filter(item => {
+                    const val = typeof item === 'string' ? item : item?.url;
+                    if (!val) return false;
+                    const baseUrl = val.split('?')[0].trim();
+                    if (seen.has(baseUrl)) return false;
+                    seen.add(baseUrl);
+                    return true;
+                });
+            };
+
             setFormData(prev => ({
                 ...prev,
                 ...initialData,
                 manager: initialData.manager || defaultManager || "",
-                photos: initialData.photos || []
+                photos: deduplicate(initialData.photos || [])
             }));
         } else {
             // New report: Auto-fill current date
@@ -83,16 +96,24 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
             const newPending: { url: string, file: File }[] = [];
             const newUrls: string[] = [];
 
+            // Ignore already pending files by name and size to prevent double-selection duplication (v124.77)
+            const existingNames = pendingFiles.map(p => p.file.name + p.file.size);
+
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
                 if (!file.type.startsWith("image/")) continue;
+                if (existingNames.includes(file.name + file.size)) continue;
+
                 const localUrl = URL.createObjectURL(file);
                 newPending.push({ url: localUrl, file });
                 newUrls.push(localUrl);
             }
 
-            setPendingFiles(curr => [...curr, ...newPending]);
-            return { ...prev, photos: [...prev.photos, ...newUrls] };
+            if (newPending.length > 0) {
+                setPendingFiles(curr => [...curr, ...newPending]);
+                return { ...prev, photos: [...prev.photos, ...newUrls] };
+            }
+            return prev;
         });
     }, [toast]);
 
@@ -128,9 +149,8 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
         }));
     }, []);
 
-    // --- Main Actions ---
     const submit = useCallback(async (managerOptions: ManagerOption[]) => {
-        if (isLoading) return false;
+        if (isLoading || isSubmitting.current) return false;
 
         // Validation Rule Object
         const validations = [
@@ -147,6 +167,7 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
         }
 
         setIsLoading(true);
+        isSubmitting.current = true;
         try {
             // 1. Data Sanitization
             const cleanPhone = formData.phone.replace(/[^0-9]/g, "");
@@ -154,7 +175,10 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
             // 2. Parallel Photo Processing
             let finalPhotos = [...formData.photos];
             if (pendingFiles.length > 0) {
-                const uploadPromises = pendingFiles.map(async (p, i) => {
+                // Deduplicate pending files before upload to prevent accidental multi-upload (v124.78)
+                const uniquePending = Array.from(new Map(pendingFiles.map(p => [p.file.name + p.file.size, p])).values());
+
+                const uploadPromises = uniquePending.map(async (p, i) => {
                     const ext = p.file.name.split('.').pop() || 'jpg';
                     const filename = `site_${Date.now()}_${i}_${Math.random().toString(36).substring(7)}.${ext}`;
                     const storagePath = `${DEMO_CONSTANTS.STORAGE_PATH_PREFIX}/${customer.id}/${filename}`;
@@ -166,6 +190,15 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
                 const uploadedUrls = await Promise.all(uploadPromises);
                 finalPhotos = finalPhotos.filter(url => !url.startsWith('blob:')).concat(uploadedUrls);
             }
+
+            // High-reliability deduplication by base URL (v124.76)
+            const finalSeen = new Set();
+            finalPhotos = finalPhotos.filter(url => {
+                const baseUrl = url.split('?')[0].trim();
+                if (finalSeen.has(baseUrl)) return false;
+                finalSeen.add(baseUrl);
+                return true;
+            });
 
             // 3. Transactional Persistence with Meta-Lock
             const saveResult = await runTransaction(db, async (transaction) => {
@@ -246,6 +279,7 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
             return false;
         } finally {
             setIsLoading(false);
+            isSubmitting.current = false;
         }
     }, [isLoading, formData, pendingFiles, activityId, initialData?.photos, customer.id, customer.name, userData?.name, userData?.uid, toast, cleanupOrphanedPhotos]);
 

@@ -4,6 +4,7 @@ import { Box, HStack, Text, Badge, IconButton } from "@chakra-ui/react";
 import { MdRemove } from "react-icons/md";
 import { Reorder, useDragControls } from "framer-motion";
 import { AssetData } from "@/utils/assetUtils";
+import { useInventoryMaster } from "../hooks/useInventoryMaster";
 
 interface CompositionItemProps {
     comp: string;
@@ -20,10 +21,14 @@ export const CompositionItem: React.FC<CompositionItemProps> = ({
     assets,
     realNum
 }) => {
+    const { masterItems } = useInventoryMaster();
     const controls = useDragControls();
     const isDivider = comp.startsWith("__DIVIDER__") || comp === "-----";
     const itemName = isDivider ? "" : comp;
-    const itemCategory = assets.find(a => a.name === itemName)?.category || "재고";
+    const itemCategory = masterItems.find(m => m.name === itemName)?.category ||
+        assets.find(a => a.name === itemName)?.category ||
+        "재고";
+
 
     return (
         <Reorder.Item
@@ -70,7 +75,7 @@ export const CompositionItem: React.FC<CompositionItemProps> = ({
                     </Box>
 
                     {isDivider ? (
-                        <Box flex={1} height="6px" bgGradient="linear(to-r, brand.50, brand.700, brand.50)" my={3} borderRadius="full" shadow="md" />
+                        <Box flex={1} height="1px" bg="gray.100" my={3} />
                     ) : (
                         <Text fontSize="sm" color="gray.700" fontWeight="medium" userSelect="none" isTruncated>
                             <Text as="span" color="brand.500" mr={2} fontWeight="bold">{realNum}</Text>

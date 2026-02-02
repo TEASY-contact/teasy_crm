@@ -10,7 +10,6 @@ export const HISTORY_GRID_RATIO = "8fr 4fr 14fr";
 export const TABLE_CELL_DEFAULTS = {
     py: 2,
     px: 4,
-    borderRight: "1px",
     borderColor: "gray.50",
     fontSize: "sm",
     letterSpacing: "0.5px",
@@ -22,7 +21,6 @@ export const TABLE_HEADER_DEFAULTS = {
     fontWeight: "800",
     bg: "gray.50",
     borderBottom: "1px",
-    borderRight: "1px",
     borderColor: "gray.100",
     verticalAlign: "middle",
     whiteSpace: "nowrap" as const, // For TS literal

@@ -58,3 +58,29 @@ export const formatAssetDisplay = (text: string | null | undefined): string => {
     if (!text || text === "-") return "-";
     return applyColonStandard(text.replace(/\r/g, "\n"));
 };
+/**
+ * Standardizes filename based on the underscored convention (v124.70)
+ * Format: {CleanCustomer}_{Category}_{YYYYMMDD}_{Suffix}
+ */
+export const getTeasyStandardFileName = (
+    customerName: string,
+    category: string,
+    dateValue: string,
+    index?: number,
+    total?: number
+): string => {
+    // 1. Clean Customer Name (Take first part before underscore, remove spaces)
+    const cleanCustomer = (customerName || "고객").split('_')[0].replace(/\s/g, '');
+
+    // 2. Format Date (Extract YYYYMMDD from YYYY-MM-DD HH:mm or raw string)
+    const rawDate = (dateValue || "").split(" ")[0].replace(/[-\/]/g, "");
+    const reportDate = rawDate.length >= 8 ? rawDate.substring(0, 8) : rawDate;
+
+    // 3. Category (Ensure no spaces)
+    const cleanCategory = category.replace(/\s/g, '');
+
+    // 4. Suffix (Only if more than one file)
+    const suffix = (total && total > 1 && index !== undefined) ? `_${index + 1}` : "";
+
+    return `${cleanCustomer}_${cleanCategory}_${reportDate}${suffix}`;
+};

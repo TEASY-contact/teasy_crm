@@ -5,6 +5,7 @@ import { MAX_QTY_LIMIT } from "./AssetModalUtils";
 import { useAssetFormState } from "./hooks/useAssetFormState";
 import { useAssetSuggestions } from "./hooks/useAssetSuggestions";
 import { useAssetSubmitAction } from "./hooks/useAssetSubmitAction";
+import { useInventoryMaster } from "./hooks/useInventoryMaster";
 
 export const useAssetModal = (isOpen: boolean, onClose: () => void, assets: AssetData[], selectedAsset?: AssetData, viewMode: "inventory" | "product" = "inventory") => {
     const { userData } = useAuth();
@@ -29,24 +30,29 @@ export const useAssetModal = (isOpen: boolean, onClose: () => void, assets: Asse
         getSuggestions, selectSuggestion
     } = useAssetSuggestions(assets, isProduct, isEdit);
 
-    // 3. Action Layer
+    // 3. Master Data Layer (for Inventory Names)
+    const { masterItems } = useInventoryMaster();
+    const nameOptions = useMemo(() => {
+        return masterItems
+            .filter(item => !category || item.category === category)
+            .map(item => ({
+                value: item.name,
+                label: item.name,
+                category: item.category,
+                isDeliveryItem: item.isDeliveryItem
+            }));
+    }, [masterItems, category]);
+
+    // 4. Action Layer
     const { isSubmitting, submitAsset } = useAssetSubmitAction(assets, selectedAsset, isProduct, userData);
 
-    // Composition Options
+    // Composition Options: Use masterItems as the source (v123.88 fix for empty list after reset)
     const compositionOptions = useMemo(() => {
-        const oneYearAgo = new Date();
-        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-        const oneYearAgoTs = oneYearAgo.getTime();
+        return masterItems
+            .map(item => ({ value: item.name, label: item.name }));
+    }, [masterItems]);
 
-        return Array.from(new Set(
-            assets
-                .filter(a => a.type === "inventory" && a.name && a.name !== "-")
-                .filter(a => (getAssetTimestamp(a.createdAt) * 1000) >= oneYearAgoTs)
-                .map(a => a.name)
-        ))
-            .sort()
-            .map(n => ({ value: n as string, label: n as string }));
-    }, [assets]);
+
 
     const handleQtyChange = useCallback((val: string) => {
         const numeric = val.replace(/\D/g, "");
@@ -71,6 +77,15 @@ export const useAssetModal = (isOpen: boolean, onClose: () => void, assets: Asse
         selectSuggestion(item, setName, setCategory, setSelectedComponents);
     };
 
+    const handleMasterSelect = (val: string) => {
+        setName(val);
+        const master = masterItems.find(m => m.name === val);
+        if (master) {
+            setCategory(master.category);
+            setIsDeliveryItem(master.isDeliveryItem);
+        }
+    };
+
     const handleSubmit = () => {
         submitAsset(form, isQtyChanged, onClose);
     };
@@ -82,7 +97,7 @@ export const useAssetModal = (isOpen: boolean, onClose: () => void, assets: Asse
         isEdit, isProduct, compositionOptions,
         isCategoryChanged, isNameChanged, isQtyChanged,
         handleClose: onClose, handleQtyChange, handlePriceChange, handleSubmit,
-        handleNameChange, handleSuggestionSelect
+        handleNameChange, handleSuggestionSelect, handleMasterSelect, nameOptions
     }), [
         form, isSubmitting, suggestions, showSuggestions, isEdit, isProduct,
         compositionOptions, isCategoryChanged, isNameChanged, isQtyChanged,

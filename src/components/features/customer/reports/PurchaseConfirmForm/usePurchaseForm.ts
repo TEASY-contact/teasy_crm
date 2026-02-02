@@ -2,7 +2,7 @@
 "use client";
 import { useState, useCallback } from "react";
 import { useToast } from "@chakra-ui/react";
-import { db } from "@/lib/firebase";
+import { db, storage } from "@/lib/firebase";
 import {
     doc,
     collection,
@@ -12,9 +12,15 @@ import {
     getDocs,
     runTransaction
 } from "firebase/firestore";
+import {
+    ref as sRef,
+    uploadBytes,
+    getDownloadURL,
+    deleteObject
+} from "firebase/storage";
 import { useAuth } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { applyColonStandard } from "@/utils/textFormatter";
+import { applyColonStandard, getTeasyStandardFileName } from "@/utils/textFormatter";
 import { getCircledNumber } from "@/components/features/asset/AssetModalUtils";
 import { performSelfHealing } from "@/utils/assetUtils";
 import {
@@ -22,7 +28,8 @@ import {
     ManagerOption,
     ProductOption,
     Activity,
-    DeliveryInfo
+    DeliveryInfo,
+    InquiryFile as TaxInvoiceFile
 } from "@/types/domain";
 
 // --- Type Definitions ---
@@ -30,6 +37,7 @@ export interface SelectedProduct {
     id: string;
     name: string;
     quantity: number;
+    masterId?: string;
 }
 
 export interface PurchaseFormData {
@@ -43,6 +51,7 @@ export interface PurchaseFormData {
     userId: string;
     memo: string;
     deliveryInfo: DeliveryInfo;
+    taxInvoice?: TaxInvoiceFile;
 }
 
 interface UsePurchaseFormProps {
@@ -52,6 +61,7 @@ interface UsePurchaseFormProps {
     productCategory: 'product' | 'inventory';
     managerOptions: ManagerOption[];
     inventoryItems: ProductOption[];
+    pendingFile?: File | null;
 }
 
 /**
@@ -64,7 +74,8 @@ export const usePurchaseForm = ({
     formData,
     productCategory,
     managerOptions,
-    inventoryItems
+    inventoryItems,
+    pendingFile
 }: UsePurchaseFormProps) => {
     const { userData } = useAuth();
     const queryClient = useQueryClient();
@@ -95,6 +106,11 @@ export const usePurchaseForm = ({
 
     // --- Submit Logic (Atomic Transaction) ---
     const handleSubmit = async () => {
+        if (!customer?.id) {
+            toast({ title: "고객 정보 오류", description: "고객 ID를 찾을 수 없습니다.", status: "error", position: "top" });
+            return false;
+        }
+
         const validation = validate();
         if (!validation.isValid) {
             toast({ title: validation.message, status: "warning", duration: 3000, position: "top" });
@@ -103,19 +119,39 @@ export const usePurchaseForm = ({
 
         setIsLoading(true);
         try {
-            // --- PRE-TRANSACTION READS (Non-atomic or for logic preparation) ---
+            // --- FILE UPLOAD (if any) ---
+            let finalTaxInvoice = formData.taxInvoice;
+            if (pendingFile) {
+                const ext = pendingFile.name.split('.').pop()?.toLowerCase() || 'file';
+                const filename = `tax_invoice_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+                const storagePath = `tax_invoices/${customer.id}/${filename}`;
+                const storageRef = sRef(storage, storagePath);
+
+                await uploadBytes(storageRef, pendingFile);
+                const url = await getDownloadURL(storageRef);
+
+                const dateValue = formData.date || new Date().toISOString();
+                const displayName = getTeasyStandardFileName(
+                    customer.name,
+                    "전자세금계산서",
+                    dateValue
+                ) + `.${ext}`;
+
+                finalTaxInvoice = {
+                    id: Math.random().toString(36).substring(7),
+                    url,
+                    name: filename,
+                    displayName,
+                    ext: ext.toUpperCase()
+                };
+            }
+
+            // --- PRE-TRANSACTION READS ---
             let existingAssets: any[] = [];
             if (activityId) {
                 const assetQuery = query(collection(db, "assets"), where("sourceActivityId", "==", activityId));
                 const assetSnap = await getDocs(assetQuery);
                 existingAssets = assetSnap.docs.map(d => ({ ref: d.ref, data: d.data() }));
-            }
-
-            let maxSeq = 0;
-            if (!activityId) {
-                const q = query(collection(db, "activities"), where("customerId", "==", customer.id), where("type", "==", "purchase_confirm"));
-                const snapshot = await getDocs(q);
-                maxSeq = snapshot.docs.reduce((max, d) => Math.max(max, (d.data() as any).sequenceNumber || 0), 0);
             }
 
             const result = await runTransaction(db, async (transaction) => {
@@ -132,13 +168,14 @@ export const usePurchaseForm = ({
                 const customerSnap = await transaction.get(customerRef);
                 const metaInquirySnap = await transaction.get(metaInquiryRef);
 
-                const aggregatedProductsMap = new Map<string, { id: string, name: string, quantity: number }>();
+                const aggregatedProductsMap = new Map<string, { id: string, name: string, quantity: number, masterId?: string }>();
                 formData.selectedProducts.forEach(p => {
                     const qty = Number(p.quantity) || 0;
-                    if (aggregatedProductsMap.has(p.id)) {
-                        aggregatedProductsMap.get(p.id)!.quantity += qty;
+                    const key = p.masterId || p.id;
+                    if (aggregatedProductsMap.has(key)) {
+                        aggregatedProductsMap.get(key)!.quantity += qty;
                     } else {
-                        aggregatedProductsMap.set(p.id, { ...p, quantity: qty });
+                        aggregatedProductsMap.set(key, { ...p, quantity: qty });
                     }
                 });
 
@@ -146,7 +183,7 @@ export const usePurchaseForm = ({
                     (productCategory === "inventory" ? Array.from(aggregatedProductsMap.values()) : []).map(async (p) => {
                         const productInfo = inventoryItems.find(item => item.value === p.id);
                         if (!productInfo) return null;
-                        const metaId = `meta_${p.name.trim()}_${(productInfo.category || "").trim()}`.replace(/\//g, "_");
+                        const metaId = p.masterId || `meta_${p.name.trim()}_${(productInfo.category || "").trim()}`.replace(/\//g, "_");
                         const ref = doc(db, "asset_meta", metaId);
                         const snap = await transaction.get(ref);
                         return { p, productInfo, ref, snap };
@@ -159,7 +196,7 @@ export const usePurchaseForm = ({
 
                 const validProducts = formData.selectedProducts.filter(p => p.name && p.name.trim() !== "");
 
-                const dataToSave: Partial<Activity> = {
+                const rawData: any = {
                     customerId: customer.id,
                     customerName: customer?.name || "",
                     type: "purchase_confirm",
@@ -174,28 +211,35 @@ export const usePurchaseForm = ({
                     product: validProducts.map((p, idx) => {
                         const prefix = validProducts.length > 1 ? getCircledNumber(idx + 1) : "";
                         const rawName = p.name || "";
-                        const cleanName = rawName.toLowerCase() === "crm" ? "CRM" : rawName;
-                        return `${prefix}${cleanName} × ${p.quantity}`;
+                        return `${prefix}${rawName} × ${p.quantity}`;
                     }).join(", "),
                     memo: applyColonStandard(formData.memo || ""),
                     date: formData.date,
-                    selectedProducts: validProducts,
+                    selectedProducts: validProducts.map(p => ({
+                        ...p,
+                        masterId: p.masterId || null
+                    })),
                     manager: formData.manager,
                     managerName: selectedManager?.label || formData.manager,
                     managerRole: (selectedManager?.role || "employee") as any,
+                    taxInvoice: finalTaxInvoice || null,
                     updatedAt: serverTimestamp(),
                     createdByName: userData?.name || ""
                 };
+
+                // Remove undefined values to prevent Firestore errors
+                const dataToSave = Object.fromEntries(
+                    Object.entries(rawData).filter(([_, v]) => v !== undefined)
+                );
 
                 const newProducts = formData.selectedProducts.map(p => p.name.trim());
                 const existingOwned = currentCustomer.ownedProducts || [];
                 const updatedOwned = Array.from(new Set([...existingOwned, ...newProducts]));
 
                 // 3. ALL WRITES
-                // Activities & Meta
                 if (activityId) {
                     existingAssets.forEach(asset => {
-                        affectedItems.add(`${asset.data.name}|${asset.data.category}`);
+                        affectedItems.add(`${asset.data.name}|${asset.data.category}|${asset.data.masterId || ""}`);
                         transaction.delete(asset.ref);
                     });
                     transaction.update(activityRef, dataToSave as any);
@@ -232,7 +276,7 @@ export const usePurchaseForm = ({
                         const name = p.name.trim();
                         const category = (productInfo.category || "").trim();
                         const quantity = Number(p.quantity) || 0;
-                        affectedItems.add(`${name}|${category}`);
+                        affectedItems.add(`${name}|${category}|${p.masterId || ""}`);
 
                         let currentMeta = metaSnap.exists() ? metaSnap.data() : { totalInflow: 0, totalOutflow: 0, currentStock: 0 };
                         const finalStock = (Number(currentMeta.currentStock) || 0) - quantity;
@@ -258,6 +302,7 @@ export const usePurchaseForm = ({
                             lastOutflow: quantity,
                             lastRecipient: customer.name || "-",
                             lastRecipientId: customer.id,
+                            masterId: p.masterId || null,
                             createdAt: serverTimestamp(),
                             editLog: `구매 확정 차감 (${customer.name}) [Lock-Verified]`,
                             sourceActivityId: targetActivityId
@@ -270,8 +315,8 @@ export const usePurchaseForm = ({
 
             if (result.success) {
                 Promise.all((result.affectedItems || []).map(itemKey => {
-                    const [name, category] = itemKey.split("|");
-                    return performSelfHealing(name, category);
+                    const [name, category, masterId] = itemKey.split("|");
+                    return performSelfHealing(name, category, undefined, undefined, undefined, masterId || undefined);
                 })).catch(err => console.error("Self-healing background error:", err));
 
                 queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
@@ -307,13 +352,16 @@ export const usePurchaseForm = ({
                 const activitySnap = await transaction.get(activityRef);
 
                 if (!activitySnap.exists()) return { success: false };
-                const customerId = activitySnap.data().customerId;
+                const activityData = activitySnap.data();
+                const taxInvoiceUrl = activityData.taxInvoice?.url;
+
+                const customerId = activityData.customerId;
                 const metaRef = doc(db, "customer_meta", `${customerId}_purchase`);
                 const metaSnap = await transaction.get(metaRef);
 
                 // 1. ALL READS FOR ASSETS
                 const metaSnapshots = await Promise.all(assetsToRestores.map(async (asset) => {
-                    const metaId = `meta_${asset.data.name}_${asset.data.category}`.replace(/\//g, "_");
+                    const metaId = asset.data.masterId || `meta_${asset.data.name}_${asset.data.category}`.replace(/\//g, "_");
                     const assetMetaRef = doc(db, "asset_meta", metaId);
                     const snap = await transaction.get(assetMetaRef);
                     return { asset, ref: assetMetaRef, snap };
@@ -322,7 +370,7 @@ export const usePurchaseForm = ({
                 // 2. ALL WRITES
                 for (const item of metaSnapshots) {
                     const { asset, ref: assetMetaRef, snap: assetMetaSnap } = item;
-                    affectedItems.add(`${asset.data.name}|${asset.data.category}`);
+                    affectedItems.add(`${asset.data.name}|${asset.data.category}|${asset.data.masterId || ""}`);
                     if (assetMetaSnap.exists()) {
                         const metaData = assetMetaSnap.data();
                         const restoredInflow = Number(asset.data.lastInflow) || 0;
@@ -347,13 +395,21 @@ export const usePurchaseForm = ({
                 }
                 transaction.delete(activityRef);
 
-                return { success: true, affectedItems: Array.from(affectedItems) };
+                return { success: true, affectedItems: Array.from(affectedItems), taxInvoiceUrl };
             });
 
             if (result.success) {
+                if (result.taxInvoiceUrl) {
+                    try {
+                        const fileRef = sRef(storage, result.taxInvoiceUrl);
+                        await deleteObject(fileRef);
+                    } catch (e) {
+                        console.warn("Tax Invoice cleanup failed:", e);
+                    }
+                }
                 await Promise.all((result.affectedItems || []).map(async (itemKey: string) => {
-                    const [name, category] = itemKey.split("|");
-                    await performSelfHealing(name, category);
+                    const [name, category, masterId] = itemKey.split("|");
+                    await performSelfHealing(name, category, undefined, undefined, undefined, masterId || undefined);
                 }));
                 queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 queryClient.invalidateQueries({ queryKey: ["assets", "management"] });

@@ -66,16 +66,20 @@ export const TimelineFileList = ({ files, label, isSubItem, isFirstSubItem, uplo
                     <Box color="gray.400" fontWeight="medium" display="inline-flex" w="8px" flexShrink={0}>·</Box>
                     <Text color="gray.400" fontWeight="medium" flexShrink={0}>{label}&nbsp;:&nbsp;&nbsp;</Text>
                 </Flex>
-                <Box
-                    color="gray.600" fontWeight="medium" cursor="pointer"
-                    _hover={{ color: "brand.500", textDecoration: "underline" }}
-                    onClick={(e) => { e.stopPropagation(); handleConfirm(0); }}
-                >
-                    {files.length === 1 ? filesWithUploader[0].displayName : `총 ${files.length}개`}
+                <Box color="gray.600" fontWeight="medium">
+                    {(() => {
+                        let name = files.length === 1 ? filesWithUploader[0].displayName : `총 ${files.length}개`;
+                        if (files.length === 1 && name.includes('.')) {
+                            const parts = name.split('.');
+                            parts.pop();
+                            name = parts.join('.');
+                        }
+                        return <ThinParen text={name} />;
+                    })()}
                 </Box>
                 <HStack spacing={1.5} ml={4}>
-                    <Box as="button" type="button" bg="gray.100" color="gray.500" fontSize="10px" px={2} h="18px" borderRadius="4px" cursor="pointer" transition="all 0.2s" _hover={{ bg: "gray.500", color: "white" }} onClick={(e) => { e.stopPropagation(); handleConfirm(0); }} fontWeight="bold" textTransform="none">확인</Box>
-                    <Text color="gray.500" fontWeight="500">/</Text>
+                    <Box as="button" type="button" bg="gray.100" color="gray.500" fontSize="10px" px={2} h="18px" borderRadius="4px" cursor="pointer" transition="all 0.2s" _hover={{ bg: "gray.500", color: "white" }} onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleConfirm(0); }} fontWeight="bold" textTransform="none">확인</Box>
+                    <Text color="gray.300" fontSize="10px" fontWeight="bold">/</Text>
                     <Box as="button" type="button" bg="gray.100" color="gray.500" fontSize="10px" px={2} h="18px" borderRadius="4px" cursor="pointer" transition="all 0.2s" _hover={{ bg: "gray.500", color: "white" }} onClick={async (e: any) => { e.stopPropagation(); for (let i = 0; i < filesWithUploader.length; i++) { await triggerTeasyDownload(filesWithUploader[i]); if (i < filesWithUploader.length - 1) await new Promise(r => setTimeout(r, 200)); } }} fontWeight="bold" textTransform="none">다운로드</Box>
                 </HStack>
             </HStack>

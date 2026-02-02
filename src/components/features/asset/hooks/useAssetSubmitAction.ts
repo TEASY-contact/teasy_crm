@@ -126,6 +126,10 @@ export const useAssetSubmitAction = (assets: AssetData[], selectedAsset: AssetDa
             }
 
             toast({ title: selectedAsset ? "수정 완료" : "등록 완료", status: "success", position: "top" });
+
+            // Invalidate queries to refresh the list immediately
+            await queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
+
             handleClose();
         } catch (e: any) {
             console.error("Asset Submission Logic Failure:", e);

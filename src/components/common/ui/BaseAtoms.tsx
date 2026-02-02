@@ -8,13 +8,13 @@ import {
  * Utility to make parentheses thin as requested by user
  */
 export const ThinParen = ({ text }: { text: string }) => {
-    const parts = text.split(/([()\-×/xX])/);
+    const parts = text.split(/([()\-×/_])/);
     return (
         <>
             {parts.map((part, i) => {
-                const isSpecial = part === '(' || part === ')' || part === '-' || part === '/' || part === '×' || (part && part.toLowerCase() === 'x');
+                const isSpecial = part === '(' || part === ')' || part === '-' || part === '/' || part === '×' || part === '_';
                 if (isSpecial) {
-                    return <Text key={i} as="span" color="gray.500" fontWeight="500">{part}</Text>;
+                    return <Text key={i} as="span" color="gray.500" fontWeight="300" display="inline-block">{part}</Text>;
                 }
                 return part;
             })}

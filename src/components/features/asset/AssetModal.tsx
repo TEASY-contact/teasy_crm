@@ -41,7 +41,7 @@ export const AssetModal: React.FC<AssetModalProps> = ({
         isEdit, isProduct, compositionOptions,
         isCategoryChanged, isNameChanged, isQtyChanged,
         handleClose, handleQtyChange, handlePriceChange, handleSubmit,
-        handleNameChange, handleSuggestionSelect
+        handleNameChange, handleSuggestionSelect, handleMasterSelect, nameOptions
     } = useAssetModal(isOpen, onClose, assets, selectedAsset, viewMode);
 
     const toast = useToast();
@@ -53,46 +53,57 @@ export const AssetModal: React.FC<AssetModalProps> = ({
                 <TeasyModalHeader>{isProduct ? (isEdit ? "상품 정보 수정" : "상품 등록") : (isEdit ? "재고 물품 상세/수정" : "재고 물품 등록")}</TeasyModalHeader>
                 <TeasyModalBody>
                     <VStack spacing={6} align="stretch" minH="300px">
-                        <FormControl isRequired>
-                            <TeasyFormLabel>카테고리</TeasyFormLabel>
-                            <CustomSelect
-                                options={isProduct ? PRODUCT_CATEGORIES : INVENTORY_CATEGORIES}
-                                value={category}
-                                onChange={setCategory}
-                                placeholder="선택"
-                                isDisabled={!isProduct && (isNameChanged || isQtyChanged)}
-                            />
-                        </FormControl>
+                        <HStack spacing={4} align="flex-start">
+                            <FormControl isRequired flex={1.2}>
+                                <TeasyFormLabel>카테고리</TeasyFormLabel>
+                                <CustomSelect
+                                    options={isProduct ? PRODUCT_CATEGORIES : INVENTORY_CATEGORIES}
+                                    value={category}
+                                    onChange={setCategory}
+                                    placeholder="선택"
+                                    isDisabled={!isProduct && (isNameChanged || isQtyChanged)}
+                                />
+                            </FormControl>
 
-                        <FormControl isRequired position="relative">
-                            <TeasyFormLabel>{isProduct ? "상품명" : "물품명"}</TeasyFormLabel>
-                            <TeasyInput
-                                value={name}
-                                onChange={(e) => handleNameChange(e.target.value)}
-                                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                                placeholder="입력"
-                                isDisabled={!isProduct && (isCategoryChanged || isQtyChanged)}
-                            />
-                            {showSuggestions && (
-                                <Box position="absolute" top="100%" left={0} right={0} bg="white" boxShadow="lg" borderRadius="md" zIndex={10} mt={1} maxH="200px" overflowY="auto" border="1px" borderColor="gray.200">
-                                    {suggestions.map((item: any, idx) => (
-                                        <Box
-                                            key={idx}
-                                            px={4}
-                                            py={2}
-                                            cursor="pointer"
-                                            _hover={{ bg: "brand.50" }}
-                                            onClick={() => handleSuggestionSelect(item)}
-                                        >
-                                            <Flex justify="space-between" align="center">
-                                                <Text fontSize="sm" fontWeight="semibold" color="gray.700">{item.name}</Text>
-                                                <Badge size="xs" colorScheme="gray">{item.category}</Badge>
-                                            </Flex>
-                                        </Box>
-                                    ))}
-                                </Box>
-                            )}
-                        </FormControl>
+                            <FormControl isRequired position="relative" flex={2}>
+                                <TeasyFormLabel>{isProduct ? "상품명" : "물품명"}</TeasyFormLabel>
+                                {isProduct ? (
+                                    <TeasyInput
+                                        value={name}
+                                        onChange={(e) => handleNameChange(e.target.value)}
+                                        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                                        placeholder="입력"
+                                    />
+                                ) : (
+                                    <CustomSelect
+                                        options={nameOptions}
+                                        value={name}
+                                        onChange={handleMasterSelect}
+                                        placeholder="선택"
+                                        isDisabled={isEdit && (isCategoryChanged || isQtyChanged)}
+                                    />
+                                )}
+                                {isProduct && showSuggestions && (
+                                    <Box position="absolute" top="100%" left={0} right={0} bg="white" boxShadow="lg" borderRadius="md" zIndex={10} mt={1} maxH="200px" overflowY="auto" border="1px" borderColor="gray.200">
+                                        {suggestions.map((item: any, idx) => (
+                                            <Box
+                                                key={idx}
+                                                px={4}
+                                                py={2}
+                                                cursor="pointer"
+                                                _hover={{ bg: "brand.50" }}
+                                                onClick={() => handleSuggestionSelect(item)}
+                                            >
+                                                <Flex justify="space-between" align="center">
+                                                    <Text fontSize="sm" fontWeight="semibold" color="gray.700">{item.name}</Text>
+                                                    <Badge size="xs" colorScheme="gray">{item.category}</Badge>
+                                                </Flex>
+                                            </Box>
+                                        ))}
+                                    </Box>
+                                )}
+                            </FormControl>
+                        </HStack>
 
                         {isProduct ? (
                             <>
@@ -159,17 +170,6 @@ export const AssetModal: React.FC<AssetModalProps> = ({
                                                 });
                                             }
                                         }}
-                                    />
-                                </FormControl>
-
-                                <FormControl isRequired display="flex" alignItems="center" justifyContent="space-between">
-                                    <TeasyFormLabel mb="0" cursor="pointer" onClick={() => !isProduct && setIsDeliveryItem(!isDeliveryItem)}>
-                                        배송 물품 등록
-                                    </TeasyFormLabel>
-                                    <Switch
-                                        colorScheme="brand"
-                                        isChecked={isDeliveryItem}
-                                        onChange={(e) => setIsDeliveryItem(e.target.checked)}
                                     />
                                 </FormControl>
 

@@ -125,7 +125,7 @@ const ReportDetailModalContent = ({ onClose, customer, activity, activities = []
     return (
         <TeasyModalContent>
             <TeasyModalHeader>
-                {activity.typeName || "업무 요청"} 보고서
+                {activity.typeName || "업무 요청"}
                 <span style={{ fontWeight: 300, marginLeft: '4px' }}>(</span>{isReadOnly ? "확인" : "수정"}<span style={{ fontWeight: 300 }}>)</span>
             </TeasyModalHeader>
             <TeasyModalBody
@@ -162,10 +162,10 @@ const ReportDetailModalContent = ({ onClose, customer, activity, activities = []
                             </TeasyButton>
                         )}
                         {!isWorkRequest && (
-                            <TeasyButton version="secondary" onClick={() => { }} w="130px" h="45px">업무 요청서 작성</TeasyButton>
+                            <TeasyButton onClick={() => { }} w="130px" h="45px">업무 요청서 작성</TeasyButton>
                         )}
                         <Spacer />
-                        <TeasyButton onClick={onClose} w="108px" h="45px">닫기</TeasyButton>
+                        <TeasyButton version="secondary" onClick={onClose} w="108px" h="45px">닫기</TeasyButton>
                     </>
                 ) : (
                     <>
@@ -173,15 +173,9 @@ const ReportDetailModalContent = ({ onClose, customer, activity, activities = []
                             <>
                                 <TeasyButton
                                     version="danger"
-                                    variant="outline"
-                                    fontWeight="400"
-                                    borderColor="rgba(229, 62, 62, 0.3)"
-                                    bg="rgba(229, 62, 62, 0.02)"
-                                    _hover={{
-                                        bg: "rgba(229, 62, 62, 0.08)",
-                                        borderColor: "red.500"
-                                    }}
                                     onClick={handleDelete}
+                                    w="108px"
+                                    h="45px"
                                 >
                                     삭제
                                 </TeasyButton>
