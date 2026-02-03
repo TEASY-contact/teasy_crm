@@ -9,6 +9,8 @@ import { DemoScheduleForm } from "./reports/DemoScheduleForm/index";
 import { DemoCompleteForm } from "./reports/DemoCompleteForm/index";
 import { PurchaseConfirmForm } from "./reports/PurchaseConfirmForm/index";
 import { InstallScheduleForm } from "./reports/InstallScheduleForm/index";
+import { InstallCompleteForm } from "./reports/InstallCompleteForm/index";
+import { AsScheduleForm } from "./reports/AsScheduleForm/index";
 import { Activity, Customer } from "@/types/domain";
 import {
     TeasyButton,
@@ -33,8 +35,11 @@ interface ReportDetailModalProps {
     activities?: Activity[];
 }
 
+import { useReportMetadata } from "@/hooks/useReportMetadata";
+
 const ReportDetailModalContent = ({ onClose, customer, activity, activities = [], isDashboardView, isConfirmationMode }: { onClose: () => void, customer: Customer, activity: Activity, activities: Activity[], isDashboardView?: boolean, isConfirmationMode?: boolean }) => {
     const { userData } = useAuth();
+    const { holidayMap } = useReportMetadata();
     const formRef = useRef<any>(null);
     const toast = useToast();
     const isProcessing = useRef(false);
@@ -42,26 +47,19 @@ const ReportDetailModalContent = ({ onClose, customer, activity, activities = []
     // Permissions Logic
     const isAuthor = userData?.uid === activity.createdBy;
     const isMaster = userData?.role === 'master';
+    const isAdmin = userData?.role === 'admin';
 
-    // Business Day Logic (Author can edit within 3 days)
+    // Business Day Logic (Author/Admin can edit within 3 days)
     const createdAt = activity.createdAt?.toDate ? activity.createdAt.toDate() : new Date(activity.createdAt || Date.now());
-    const isWithinEditTime = isWithinBusinessDays(createdAt, 3);
+    const isWithinEditTime = isWithinBusinessDays(createdAt, 3, holidayMap);
 
-    // Forced read-only if it's dashboard view or explicit confirmation mode
-    // Master can always edit. Author can edit only within 3 business days. Others cannot edit.
-    let canEdit = false;
-
-    if (isDashboardView || isConfirmationMode) {
-        canEdit = false;
-    } else if (isMaster) {
-        canEdit = true;
-    } else if (isAuthor) {
-        canEdit = isWithinEditTime;
-    } else {
-        canEdit = false;
-    }
-
+    // Permissions Logic (v124.83)
+    // Master: Always edit. Author or Admin: Within 3 business days.
+    const canEdit = !isDashboardView && !isConfirmationMode && (
+        isMaster || ((isAuthor || isAdmin) && isWithinEditTime)
+    );
     const isReadOnly = !canEdit;
+    const canDelete = isMaster; // Only Super Admin can delete (v124.82)
 
     // Check if this modal is being opened from a Work Request
     const isWorkRequest = activity.category !== undefined; // work_requests documents usually have 'category'
@@ -74,6 +72,10 @@ const ReportDetailModalContent = ({ onClose, customer, activity, activities = []
     };
 
     const handleDelete = async () => {
+        if (!canDelete) {
+            toast({ title: "권한 없음", description: "삭제 권한이 없습니다.", status: "error", position: "top" });
+            return;
+        }
         if (window.confirm("정말 이 보고서를 삭제하시겠습니까?")) {
             if (formRef.current) {
                 const success = await formRef.current.delete();
@@ -119,6 +121,8 @@ const ReportDetailModalContent = ({ onClose, customer, activity, activities = []
         if (activity.type === "demo_complete") return <DemoCompleteForm {...commonProps} />;
         if (activity.type === "purchase_confirm") return <PurchaseConfirmForm {...commonProps} />;
         if (activity.type === "install_schedule") return <InstallScheduleForm {...commonProps} />;
+        if (activity.type === "install_complete") return <InstallCompleteForm {...commonProps} />;
+        if (activity.type === "as_schedule") return <AsScheduleForm {...commonProps} />;
         return <StandardReportForm {...commonProps} />;
     };
 
@@ -169,26 +173,25 @@ const ReportDetailModalContent = ({ onClose, customer, activity, activities = []
                     </>
                 ) : (
                     <>
-                        {canEdit && (
+                        {canDelete && (
+                            <TeasyButton
+                                version="danger"
+                                onClick={handleDelete}
+                                w="108px"
+                                h="45px"
+                                mr={canEdit ? 0 : 4}
+                            >
+                                삭제
+                            </TeasyButton>
+                        )}
+                        <Spacer />
+                        {canEdit ? (
                             <>
-                                <TeasyButton
-                                    version="danger"
-                                    onClick={handleDelete}
-                                    w="108px"
-                                    h="45px"
-                                >
-                                    삭제
-                                </TeasyButton>
-                                <Spacer />
                                 <TeasyButton version="secondary" onClick={onClose} w="108px" h="45px">취소</TeasyButton>
                                 <TeasyButton onClick={handleSave} w="108px" h="45px">저장</TeasyButton>
                             </>
-                        )}
-                        {!canEdit && (
-                            <>
-                                <Spacer />
-                                <TeasyButton onClick={onClose} w="108px" h="45px">닫기</TeasyButton>
-                            </>
+                        ) : (
+                            <TeasyButton onClick={onClose} w="108px" h="45px">닫기</TeasyButton>
                         )}
                     </>
                 )}

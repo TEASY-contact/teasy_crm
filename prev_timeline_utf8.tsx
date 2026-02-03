@@ -1,16 +1,15 @@
-import React from "react";
+﻿import React from "react";
 import { Box, Flex, Text, VStack, HStack, Badge } from "@chakra-ui/react";
 import { TimelineItem } from "@/types/timeline";
-import { TimelineBadge, TimelineInfoItem, TimelineFileList, ThinParen, TeasyButton, TeasyUniversalViewer, triggerTeasyDownload } from "@/components/common/UIComponents";
+import { TimelineBadge, TimelineInfoItem, TimelineFileList, ThinParen, TeasyButton, TeasyUniversalViewer } from "@/components/common/UIComponents";
 import { formatPhone, formatAmount } from "@/utils/formatter";
 import { useDisclosure } from "@chakra-ui/react";
-import { useState } from "react";
 
 const STEP_LABELS: Record<string, string> = {
-    inquiry: "신규 문의", demo_schedule: "시연 확정", demo_complete: "시연 완료",
-    purchase_confirm: "구매 확정", install_schedule: "시공 확정", install_complete: "시공 완료",
-    as_schedule: "방문 A/S 확정", as_complete: "방문 A/S 완료", remoteas_complete: "원격 A/S 완료",
-    customer_registered: "고객 등록"
+    inquiry: "?좉퇋 臾몄쓽", demo_schedule: "?쒖뿰 ?뺤젙", demo_complete: "?쒖뿰 ?꾨즺",
+    purchase_confirm: "援щℓ ?뺤젙", install_schedule: "?쒓났 ?뺤젙", install_complete: "?쒓났 ?꾨즺",
+    as_schedule: "諛⑸Ц A/S ?뺤젙", as_complete: "諛⑸Ц A/S ?꾨즺", remoteas_complete: "?먭꺽 A/S ?꾨즺",
+    customer_registered: "怨좉컼 ?깅줉"
 };
 
 
@@ -25,12 +24,12 @@ const getBadgeColor = (type: string) => {
         'as_schedule': "pink", 'as_complete': "purple", 'remoteas_complete': "purple"
     };
     if (mapping[t]) return mapping[t];
-    if (t.includes("원격") && t.includes("완료")) return "purple";
-    if (t.includes("A/S") || t.includes("AS")) return t.includes("완료") ? "purple" : "pink";
-    if (t.includes("시공") || t.includes("설치")) return t.includes("완료") ? "purple" : "green";
-    if (t.includes("구매")) return "purple";
-    if (t.includes("시연")) return t.includes("완료") ? "purple" : "blue";
-    if (t.includes("문의")) return "purple";
+    if (t.includes("?먭꺽") && t.includes("?꾨즺")) return "purple";
+    if (t.includes("A/S") || t.includes("AS")) return t.includes("?꾨즺") ? "purple" : "pink";
+    if (t.includes("?쒓났") || t.includes("?ㅼ튂")) return t.includes("?꾨즺") ? "purple" : "green";
+    if (t.includes("援щℓ")) return "purple";
+    if (t.includes("?쒖뿰")) return t.includes("?꾨즺") ? "purple" : "blue";
+    if (t.includes("臾몄쓽")) return "purple";
     return "purple";
 };
 
@@ -59,7 +58,6 @@ export const TimelineCard = ({
     onTitleClick?: () => void;
 }) => {
     const { isOpen: isPhotosOpen, onOpen: onPhotosOpen, onClose: onPhotosClose } = useDisclosure();
-    const [isTaxInvoiceViewerOpen, setTaxInvoiceViewerOpen] = useState(false);
     const content = { ...item, ...(item.content || {}) };
 
     // Aggressive deduplication by base URL to ignore token differences (v124.75)
@@ -82,54 +80,54 @@ export const TimelineCard = ({
 
     const prepareFiles = (rawFiles: any[], typeLabel: string) => {
         const isWorkReport = (item.stepType || "").includes("install") || (item.stepType || "").includes("as");
-        const category = typeLabel === '사진'
-            ? (isWorkReport ? '시공사진' : '현장사진')
-            : (typeLabel === '견적' ? '견적서' : typeLabel);
+        const category = typeLabel === '?ъ쭊'
+            ? (isWorkReport ? '?쒓났?ъ쭊' : '?꾩옣?ъ쭊')
+            : (typeLabel === '寃ъ쟻' ? '寃ъ쟻?? : typeLabel);
 
         return rawFiles.map((f: any, i: number) => ({
             ...(typeof f === 'string' ? { url: f } : f),
-            displayName: getTeasyStandardFileName(item.customerName || "고객", category, content.date || "", i, rawFiles.length)
+            displayName: getTeasyStandardFileName(item.customerName || "怨좉컼", category, content.date || "", i, rawFiles.length)
         }));
     };
 
-    const otherFiles = prepareFiles(quotes, "견적");
-    const photosFiles = prepareFiles(sitePhotos, "사진");
-    const taxInvoiceFiles = prepareFiles(content.taxInvoice ? [content.taxInvoice] : [], "전자세금계산서");
+    const otherFiles = prepareFiles(quotes, "寃ъ쟻");
+    const photosFiles = prepareFiles(sitePhotos, "?ъ쭊");
+    const taxInvoiceFiles = prepareFiles(content.taxInvoice ? [content.taxInvoice] : [], "?꾩옄?멸툑怨꾩궛??);
 
     const renderContent = () => {
         const stepType = item.stepType;
 
         // Common items for all cards - Ordered by form top-to-bottom
         const commonItems: ContentItem[] = [
-            { label: "일시", value: content.date || "-" },
-            { label: "담당", value: item.managerName || item.createdByName }
+            { label: "?쇱떆", value: content.date || "-" },
+            { label: "?대떦", value: item.managerName || item.createdByName }
         ];
 
         // Type specific items
         const specificItems: ContentItem[] = [];
 
         if (stepType === 'inquiry') {
-            const hasNickname = content.nickname && content.channel !== "전화 문의";
+            const hasNickname = content.nickname && content.channel !== "?꾪솕 臾몄쓽";
             if (content.channel) {
                 specificItems.push({
-                    label: "채널",
+                    label: "梨꾨꼸",
                     value: `${content.channel}${hasNickname ? ` (${content.nickname})` : ""}`
                 });
             }
 
-            if (content.channel === "전화 문의" && content.phone) {
-                specificItems.push({ label: "전화", value: formatPhone(content.phone), isSubItem: true, isFirstSubItem: true });
+            if (content.channel === "?꾪솕 臾몄쓽" && content.phone) {
+                specificItems.push({ label: "?꾪솕", value: content.phone, isSubItem: true, isFirstSubItem: true });
             }
 
             if (content.product) {
                 const displayProduct = (content.product || "").toString().toLowerCase() === "crm" ? "CRM" : content.product;
-                specificItems.push({ label: "상품", value: displayProduct });
+                specificItems.push({ label: "?곹뭹", value: displayProduct });
             }
             if (content.result) {
-                specificItems.push({ label: "결과", value: content.result });
+                specificItems.push({ label: "寃곌낵", value: content.result });
             }
         } else if (stepType === 'purchase_confirm') {
-            const categoryLabel = content.productCategory === "product" ? "시공" : (content.productCategory === "inventory" ? "배송" : "");
+            const categoryLabel = content.productCategory === "product" ? "?쒓났" : (content.productCategory === "inventory" ? "諛곗넚" : "");
 
             const validProducts = (content.selectedProducts || []).filter((p: any) => p.name && p.name.trim() !== "");
             if (validProducts.length > 0) {
@@ -137,11 +135,11 @@ export const TimelineCard = ({
                     const circle = validProducts.length > 1 ? String.fromCharCode(9312 + idx) : "";
                     const rawName = p.name || "";
                     const cleanName = rawName.toLowerCase() === "crm" ? "CRM" : rawName;
-                    return `${circle}${cleanName} × ${p.quantity}`;
+                    return `${circle}${cleanName} 횞 ${p.quantity}`;
                 }).join("\n");
 
                 specificItems.push({
-                    label: "상품",
+                    label: "?곹뭹",
                     value: (
                         <HStack spacing={2} display="inline-flex" align="top">
                             {categoryLabel && (
@@ -169,11 +167,11 @@ export const TimelineCard = ({
             } else if (content.product) {
                 let displayProduct = (content.product || "").toString().toLowerCase() === "crm" ? "CRM" : content.product;
                 // Clean legacy single-item circle if it's the only one
-                if (displayProduct.startsWith("①") && !displayProduct.includes("②")) {
+                if (displayProduct.startsWith("??) && !displayProduct.includes("??)) {
                     displayProduct = displayProduct.substring(1).trim();
                 }
                 specificItems.push({
-                    label: "상품",
+                    label: "?곹뭹",
                     value: (
                         <HStack spacing={2} display="inline-flex" align="center">
                             {categoryLabel && (
@@ -200,31 +198,25 @@ export const TimelineCard = ({
             }
 
             if (content.payMethod) {
-                specificItems.push({ label: "결제", value: content.payMethod });
+                specificItems.push({ label: "寃곗젣", value: content.payMethod });
             }
             if (content.amount) {
-                specificItems.push({
-                    label: "금액",
-                    value: `${formatAmount(String(content.amount))}원`,
-                    isSubItem: true,
-                    isFirstSubItem: true
-                });
+                specificItems.push({ label: "湲덉븸", value: content.amount ? `${formatAmount(String(content.amount))}?? : "-", isSubItem: true, isFirstSubItem: true });
             }
 
             // Integrated discount and ID display logic for better data consistency
-            const hasDiscount = content.discount && content.discount !== "미적용";
+            const hasDiscount = content.discount && content.discount !== "誘몄쟻??;
 
             if (content.discountAmount) {
                 const formattedVal = formatAmount(String(content.discountAmount), true);
                 const displayValue = hasDiscount
-                    ? `${content.discount} (${formattedVal}원)`
-                    : `${formattedVal}원`;
+                    ? `${content.discount} (${formattedVal}??`
+                    : `${formattedVal}??;
 
                 specificItems.push({
-                    label: "할인",
+                    label: "?좎씤",
                     value: displayValue,
-                    isSubItem: true,
-                    isFirstSubItem: !content.amount
+                    isSubItem: true
                 });
             }
 
@@ -234,33 +226,27 @@ export const TimelineCard = ({
                     : `(${content.userId})`;
 
                 specificItems.push({
-                    label: "할인",
+                    label: "?좎씤",
                     value: displayValue,
-                    isSubItem: true,
-                    isFirstSubItem: !content.amount && !content.discountAmount
+                    isSubItem: true
                 });
             }
 
             if (hasDiscount && !content.discountAmount && !content.userId) {
-                specificItems.push({
-                    label: "할인",
-                    value: content.discount,
-                    isSubItem: true,
-                    isFirstSubItem: !content.amount
-                });
+                specificItems.push({ label: "?좎씤", value: content.discount, isSubItem: true });
             }
 
             const isAmountPresent = !!content.amount;
             const isDiscountPresent = hasDiscount || !!content.discountAmount || !!content.userId;
 
-            // Move Tax Invoice (증빙) below Discount (할인)
-            if (taxInvoiceFiles.length > 0 && content.payMethod === '입금') {
+            // Move Tax Invoice (利앸튃) below Discount (?좎씤)
+            if (taxInvoiceFiles.length > 0 && content.payMethod === '?낃툑') {
                 specificItems.push({
-                    label: "증빙",
+                    label: "利앸튃",
                     value: (
                         <TimelineFileList
                             files={taxInvoiceFiles}
-                            label="증빙"
+                            label="利앸튃"
                             isSubItem={true}
                             isFirstSubItem={!isAmountPresent && !isDiscountPresent}
                             uploader={item.createdByName}
@@ -271,34 +257,34 @@ export const TimelineCard = ({
                 });
             }
 
-            // 배송 정보 (고도화 반영: 계층 구조 적용)
+            // 諛곗넚 ?뺣낫 (怨좊룄??諛섏쁺: 怨꾩링 援ъ“ ?곸슜)
             if (content.productCategory === 'inventory' && content.deliveryInfo) {
                 const { courier, trackingNumber, shipmentDate, deliveryAddress } = content.deliveryInfo;
                 const datePart = (shipmentDate || "").split(" ")[0];
 
-                // 1. 주요 배송 정보 (날짜 + 주소)
+                // 1. 二쇱슂 諛곗넚 ?뺣낫 (?좎쭨 + 二쇱냼)
                 if (datePart || deliveryAddress) {
                     const separator = (datePart && deliveryAddress) ? "  /  " : "";
                     specificItems.push({
-                        label: "배송",
+                        label: "諛곗넚",
                         value: `${datePart}${separator}${deliveryAddress || ""}`
                     });
                 }
 
-                // 2. 상세 정보 (업체)
+                // 2. ?곸꽭 ?뺣낫 (?낆껜)
                 if (courier) {
                     specificItems.push({
-                        label: "업체",
+                        label: "?낆껜",
                         value: courier,
                         isSubItem: true,
                         isFirstSubItem: true
                     });
                 }
 
-                // 3. 상세 정보 (송장)
+                // 3. ?곸꽭 ?뺣낫 (?≪옣)
                 if (trackingNumber) {
                     specificItems.push({
-                        label: "송장",
+                        label: "?≪옣",
                         value: trackingNumber,
                         isSubItem: true,
                         isFirstSubItem: !courier
@@ -309,105 +295,75 @@ export const TimelineCard = ({
             // Standard report types (Visits: Demo, Install, AS)
             // Only push items if they have valid values to prevent UI noise and crashes
             if (content.location && stepType !== 'remoteas_complete') {
-                const locationLabel = (stepType === 'install_complete' || stepType === 'demo_schedule' || stepType === 'demo_complete') ? "주소" : ((stepType || "").includes("schedule") ? "장소" : "방문처");
+                const locationLabel = (stepType === 'demo_schedule' || stepType === 'demo_complete') ? "二쇱냼" : ((stepType || "").includes("schedule") ? "?μ냼" : "諛⑸Ц泥?);
                 specificItems.push({ label: locationLabel, value: content.location });
             }
 
             // Phone and Product
             if (content.phone) {
-                specificItems.push({ label: "전화", value: formatPhone(content.phone) });
+                specificItems.push({ label: "?꾪솕", value: formatPhone(content.phone) });
             }
             const validProducts = (content.selectedProducts || []).filter((p: any) => p.name && p.name.trim() !== "");
             if (validProducts.length > 0) {
                 const productList = validProducts.map((p: any, idx: number) => {
                     const circle = validProducts.length > 1 ? String.fromCharCode(9312 + idx) : "";
-                    return `${circle}${p.name} × ${p.quantity}`;
+                    return `${circle}${p.name} 횞 ${p.quantity}`;
                 }).join("\n");
 
                 specificItems.push({
-                    label: "상품",
+                    label: "?곹뭹",
                     value: <Text whiteSpace="pre-wrap" lineHeight="1.6" verticalAlign="top"><ThinParen text={productList} /></Text>
                 });
             } else if (content.product) {
                 let displayProduct = (content.product || "").toString().toLowerCase() === "crm" ? "CRM" : content.product;
                 // Clean legacy single-item circle
-                if (displayProduct.startsWith("①") && !displayProduct.includes("②")) {
+                if (displayProduct.startsWith("??) && !displayProduct.includes("??)) {
                     displayProduct = displayProduct.substring(1).trim();
                 }
-                specificItems.push({ label: "상품", value: displayProduct });
+                specificItems.push({ label: "?곹뭹", value: displayProduct });
             }
 
-            // 시공/AS 물품 (v124.2 고도화: 원형 숫자 조건부 표시 및 줄바꿈 적용)
+            // ?쒓났/AS 臾쇳뭹 (v124.2 怨좊룄?? ?먰삎 ?レ옄 議곌굔遺 ?쒖떆 諛?以꾨컮轅??곸슜)
             const supplies = content.content?.selectedSupplies || content.selectedSupplies;
             const validSupplies = (Array.isArray(supplies) ? supplies : []).filter((s: any) => s.name && s.name.trim() !== "");
             if (validSupplies.length > 0) {
                 const displaySupplies = validSupplies.map((s: any, idx: number) => {
                     const circle = validSupplies.length > 1 ? String.fromCharCode(9312 + idx) : "";
-                    return `${circle}${s.name} × ${s.quantity}`;
+                    return `${circle}${s.name} 횞 ${s.quantity}`;
                 }).join("\n");
 
                 specificItems.push({
-                    label: stepType === 'install_complete' ? "사용" : (stepType === 'install_schedule' ? "준비" : "물품"),
+                    label: "臾쇳뭹",
                     value: <Text whiteSpace="pre-wrap" lineHeight="1.6" verticalAlign="top"><ThinParen text={displaySupplies} /></Text>
                 });
             }
 
             // Results
             if (content.result) {
-                specificItems.push({ label: "결과", value: content.result });
+                specificItems.push({ label: "寃곌낵", value: content.result });
             }
 
-            // 시공 Task (표준 그레이 배지 적용)
-            if (stepType === 'install_schedule' || stepType === 'install_complete') {
-                const isCompleteMode = stepType === 'install_complete';
-                const mapTask = (t: any) => typeof t === 'string' ? t : (t?.text || "");
+            // ?쒓났 Task (?쒖? 洹몃젅??諛곗? ?곸슜)
+            if (stepType === 'install_schedule') {
+                const before = (content.tasksBefore || []).filter((t: string) => t.trim() !== "");
+                const after = (content.tasksAfter || []).filter((t: string) => t.trim() !== "");
 
-                // For complete mode, we need the raw individual status
-                const rawBefore = (content.tasksBefore || []);
-                const rawAfter = (content.tasksAfter || []);
-
-                const beforeTexts = rawBefore.map(mapTask).filter((t: string) => t.trim() !== "");
-                const afterTexts = rawAfter.map(mapTask).filter((t: string) => t.trim() !== "");
-                const totalTaskCount = beforeTexts.length + afterTexts.length;
-
-                if (totalTaskCount > 0) {
+                if (before.length > 0 || after.length > 0) {
                     const taskLines: React.ReactNode[] = [];
 
                     // Render Before Tasks
-                    beforeTexts.forEach((t: string, i: number) => {
+                    before.forEach((t: string, i: number) => {
                         let taskText = t;
-                        if (totalTaskCount === 1 && taskText.startsWith("①") && !taskText.includes("②")) {
+                        if (before.length === 1 && taskText.startsWith("??) && !taskText.includes("??)) {
                             taskText = taskText.substring(1).trim();
                         }
-                        const circle = totalTaskCount > 1 ? String.fromCharCode(9312 + i) : "";
-
-                        const completed = isCompleteMode ? (rawBefore[i]?.completed ?? false) : false;
-
+                        const circle = before.length > 1 ? String.fromCharCode(9312 + i) : "";
                         taskLines.push(
-                            <HStack key={`before-${i}`} align="start" spacing={1.5} w="full">
-                                <Box w={isCompleteMode ? "20px" : "46px"} flexShrink={0} display="flex" justifyContent={isCompleteMode ? "center" : "center"}>
-                                    {isCompleteMode ? (
-                                        <Box
-                                            bg={completed ? "blue.50" : "red.50"}
-                                            color={completed ? "blue.500" : "red.500"}
-                                            fontSize="10px"
-                                            fontWeight="900"
-                                            w="15px"
-                                            h="15px"
-                                            borderRadius="3px"
-                                            display="flex"
-                                            alignItems="center"
-                                            justifyContent="center"
-                                            mt="4px"
-                                        >
-                                            {completed ? "✓" : "✕"}
-                                        </Box>
-                                    ) : (
-                                        i === 0 && (
-                                            <Box bg="gray.100" color="gray.500" fontSize="10px" px={1.5} h="18px" borderRadius="4px" display="flex" alignItems="center" justifyContent="center" fontWeight="bold">
-                                                시공 전
-                                            </Box>
-                                        )
+                            <HStack key={`before-${i}`} align="start" spacing={2} w="full">
+                                <Box w="46px" flexShrink={0}>
+                                    {i === 0 && (
+                                        <Box bg="gray.100" color="gray.500" fontSize="10px" px={1.5} h="18px" borderRadius="4px" display="flex" alignItems="center" justifyContent="center" fontWeight="bold">
+                                            ?쒓났 ??                                        </Box>
                                     )}
                                 </Box>
                                 <Text fontSize="sm" whiteSpace="pre-wrap" lineHeight="1.6" flex={1}>
@@ -418,45 +374,23 @@ export const TimelineCard = ({
                     });
 
                     // Spacer between Before and After groups
-                    if (beforeTexts.length > 0 && afterTexts.length > 0) {
-                        taskLines.push(<Box key="spacer" h={1} />);
+                    if (before.length > 0 && after.length > 0) {
+                        taskLines.push(<Box key="spacer" h={0} />);
                     }
 
                     // Render After Tasks
-                    afterTexts.forEach((t: string, i: number) => {
+                    after.forEach((t: string, i: number) => {
                         let taskText = t;
-                        if (totalTaskCount === 1 && taskText.startsWith("①") && !taskText.includes("②")) {
+                        if (after.length === 1 && taskText.startsWith("??) && !taskText.includes("??)) {
                             taskText = taskText.substring(1).trim();
                         }
-                        const circle = totalTaskCount > 1 ? String.fromCharCode(9312 + beforeTexts.length + i) : "";
-
-                        const completed = isCompleteMode ? (rawAfter[i]?.completed ?? false) : false;
-
+                        const circle = after.length > 1 ? String.fromCharCode(9312 + i) : "";
                         taskLines.push(
-                            <HStack key={`after-${i}`} align="start" spacing={1.5} w="full">
-                                <Box w={isCompleteMode ? "20px" : "46px"} flexShrink={0} display="flex" justifyContent={isCompleteMode ? "center" : "center"}>
-                                    {isCompleteMode ? (
-                                        <Box
-                                            bg={completed ? "blue.50" : "red.50"}
-                                            color={completed ? "blue.500" : "red.500"}
-                                            fontSize="10px"
-                                            fontWeight="900"
-                                            w="15px"
-                                            h="15px"
-                                            borderRadius="3px"
-                                            display="flex"
-                                            alignItems="center"
-                                            justifyContent="center"
-                                            mt="4px"
-                                        >
-                                            {completed ? "✓" : "✕"}
-                                        </Box>
-                                    ) : (
-                                        i === 0 && (
-                                            <Box bg="gray.100" color="gray.500" fontSize="10px" px={1.5} h="18px" borderRadius="4px" display="flex" alignItems="center" justifyContent="center" fontWeight="bold">
-                                                시공 후
-                                            </Box>
-                                        )
+                            <HStack key={`after-${i}`} align="start" spacing={2} w="full">
+                                <Box w="46px" flexShrink={0}>
+                                    {i === 0 && (
+                                        <Box bg="gray.100" color="gray.500" fontSize="10px" px={1.5} h="18px" borderRadius="4px" display="flex" alignItems="center" justifyContent="center" fontWeight="bold">
+                                            ?쒓났 ??                                        </Box>
                                     )}
                                 </Box>
                                 <Text fontSize="sm" whiteSpace="pre-wrap" lineHeight="1.6" flex={1}>
@@ -467,7 +401,7 @@ export const TimelineCard = ({
                     });
 
                     specificItems.push({
-                        label: isCompleteMode ? "결과" : "업무",
+                        label: "?낅Т",
                         value: (
                             <VStack align="start" spacing={0} w="full" mt="1px">
                                 {taskLines}
@@ -475,45 +409,17 @@ export const TimelineCard = ({
                         )
                     });
                 }
-
-                // 수행불가 사유 신설 (업무 항목 바로 아래)
-                if (isCompleteMode && content.incompleteReason) {
-                    specificItems.push({
-                        label: (
-                            <Box
-                                bg="red.50"
-                                color="red.500"
-                                fontSize="10px"
-                                px={1.5}
-                                h="18px"
-                                borderRadius="4px"
-                                display="inline-flex"
-                                alignItems="center"
-                                justifyContent="center"
-                                fontWeight="bold"
-                                mt="-2px"
-                                verticalAlign="middle"
-                            >
-                                사유
-                            </Box>
-                        ) as any,
-                        value: content.incompleteReason,
-                        isSubItem: true,
-                        isFirstSubItem: true, // Exception: Branch centered under emoji
-                        pl: "56px"
-                    } as any);
-                }
             }
 
-            // 시연 완료(demo_complete) 특화: 괄호(Parentheses) 방식 복구
+            // ?쒖뿰 ?꾨즺(demo_complete) ?뱁솕: 愿꾪샇(Parentheses) 諛⑹떇 蹂듦뎄
             if (stepType === 'demo_complete') {
                 if (content.discountType) {
-                    const displayValue = (content.discountType === "할인 없음" || content.discountType === "할인 제안하지 않음" || content.discountType === "해당 없음")
-                        ? "할인 없음"
+                    const displayValue = (content.discountType === "?좎씤 ?놁쓬" || content.discountType === "?좎씤 ?쒖븞?섏? ?딆쓬" || content.discountType === "?대떦 ?놁쓬")
+                        ? "?좎씤 ?놁쓬"
                         : `${content.discountType}${content.discountValue ? ` (${content.discountValue})` : ""}`;
 
                     specificItems.push({
-                        label: "제안",
+                        label: "?쒖븞",
                         value: displayValue
                     });
                 }
@@ -523,7 +429,7 @@ export const TimelineCard = ({
         const allItems = [...commonItems, ...specificItems];
         const recordingFiles = recordings.map((f: any, i: number) => ({
             url: typeof f === 'string' ? f : (f.url || ""),
-            displayName: getTeasyStandardFileName(item.customerName || "고객", "녹취", content.date || "", i, recordings.length)
+            displayName: getTeasyStandardFileName(item.customerName || "怨좉컼", "?뱀랬", content.date || "", i, recordings.length)
         }));
 
 
@@ -540,9 +446,9 @@ export const TimelineCard = ({
                         lineHeight="1.6"
                     >
                         {allItems.map((itm: any, idx) => {
-                            const isPhone = itm.label === "전화";
-                            const isPhoneInquiry = content.channel === "전화 문의";
-                            const isManager = itm.label === "담당";
+                            const isPhone = itm.label === "?꾪솕";
+                            const isPhoneInquiry = content.channel === "?꾪솕 臾몄쓽";
+                            const isManager = itm.label === "?대떦";
                             const isPartner = isManager && item.managerRole === "partner";
                             const isBanned = isManager && item.managerRole === "banned";
 
@@ -556,7 +462,7 @@ export const TimelineCard = ({
                                                     <HStack spacing={2} display="inline-flex" align="center">
                                                         <Text as="span" color={isBanned ? "gray.400" : "gray.600"}>
                                                             {typeof itm.value === 'string' ? <ThinParen text={itm.value} /> : itm.value}
-                                                            {isBanned && <Text as="span" ml={1}><ThinParen text="(퇴)" /></Text>}
+                                                            {isBanned && <Text as="span" ml={1}><ThinParen text="(??" /></Text>}
                                                         </Text>
                                                         {isPartner && !isBanned && (
                                                             <Badge
@@ -567,20 +473,18 @@ export const TimelineCard = ({
                                                                 borderRadius="full"
                                                                 variant="solid"
                                                             >
-                                                                협력사
-                                                            </Badge>
+                                                                ?묐젰??                                                            </Badge>
                                                         )}
                                                     </HStack>
                                                 }
                                                 isHighlight={itm.isHighlight && !isBanned}
                                                 isSubItem={itm.isSubItem}
                                                 isFirstSubItem={itm.isFirstSubItem}
-                                                pl={itm.pl}
                                             />
                                             {isPhone && isPhoneInquiry && (
                                                 <TimelineFileList
                                                     files={recordingFiles}
-                                                    label="녹취"
+                                                    label="?뱀랬"
                                                     isSubItem={true}
                                                     isFirstSubItem={false}
                                                     uploader={item.createdByName}
@@ -597,7 +501,7 @@ export const TimelineCard = ({
                         {otherFiles.length > 0 && (
                             <TimelineFileList
                                 files={otherFiles}
-                                label="견적"
+                                label="寃ъ쟻"
                                 isSubItem={false}
                                 uploader={item.createdByName}
                                 timestamp={item.createdAt}
@@ -607,7 +511,7 @@ export const TimelineCard = ({
                         {photosFiles.length > 0 && (
                             <TimelineFileList
                                 files={photosFiles}
-                                label="사진"
+                                label="?ъ쭊"
                                 isSubItem={false}
                                 uploader={item.createdByName}
                                 timestamp={item.createdAt}
@@ -629,7 +533,7 @@ export const TimelineCard = ({
                         >
                             <Box px={4} py={2.5} bg="gray.50">
                                 <Text fontSize="xs" color="gray.500" fontWeight="bold">
-                                    · 참고사항
+                                    쨌 李멸퀬?ы빆
                                 </Text>
                             </Box>
                             <Box
@@ -705,15 +609,6 @@ export const TimelineCard = ({
                     isOpen={isPhotosOpen}
                     onClose={onPhotosClose}
                     files={photosFiles}
-                />
-            )}
-
-            {taxInvoiceFiles.length > 0 && (
-                <TeasyUniversalViewer
-                    isOpen={isTaxInvoiceViewerOpen}
-                    onClose={() => setTaxInvoiceViewerOpen(false)}
-                    files={taxInvoiceFiles}
-                    title="증빙"
                 />
             )}
         </Box>

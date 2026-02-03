@@ -15,6 +15,7 @@ import { UserData } from "@/types/auth";
 import { MdBlock, MdRefresh } from "react-icons/md";
 import { CustomSelect } from "@/components/common/CustomSelect";
 import { useAuth } from "@/context/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
 
 const ALL_CANDIDATE_COLORS = [
     // 1-50
@@ -87,6 +88,7 @@ interface UserEditModalProps {
 const UserEditModalContent = ({ onClose, user, existingUsers = [], hideAdminFields = false }: Omit<UserEditModalProps, 'isOpen'>) => {
     const { userData: currentUserData } = useAuth();
     const toast = useToast();
+    const queryClient = useQueryClient();
     const [isLoading, setIsLoading] = useState(false);
 
     const usedColors = existingUsers
@@ -178,6 +180,9 @@ const UserEditModalContent = ({ onClose, user, existingUsers = [], hideAdminFiel
 
             await updateDoc(doc(db, "users", user.uid), updateData);
             toast({ title: "수정 완료", status: "success" });
+            // Delay for Firestore indexing (v123.05)
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await queryClient.invalidateQueries({ queryKey: ["users", "list"] });
             onClose();
         } catch (e) {
             console.error(e);
@@ -194,6 +199,9 @@ const UserEditModalContent = ({ onClose, user, existingUsers = [], hideAdminFiel
         try {
             await deleteDoc(doc(db, "users", user.uid));
             toast({ title: "계정 삭제 완료", status: "success" });
+            // Delay for Firestore indexing (v123.05)
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await queryClient.invalidateQueries({ queryKey: ["users", "list"] });
             onClose();
         } catch (e) {
             console.error(e);

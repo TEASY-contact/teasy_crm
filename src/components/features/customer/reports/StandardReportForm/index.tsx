@@ -13,7 +13,7 @@ import {
     doc, updateDoc, deleteDoc, collection, addDoc,
     serverTimestamp, query, where, getDocs, runTransaction
 } from "firebase/firestore";
-import { applyColonStandard } from "@/utils/textFormatter";
+import { applyColonStandard, normalizeText } from "@/utils/textFormatter";
 import { Activity, Customer, ManagerOption } from "@/types/domain";
 
 export interface StandardReportFormData {
@@ -56,6 +56,12 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
     const toast = useToast();
     const { managerOptions } = useReportMetadata();
     const [isLoading, setIsLoading] = useState(false);
+    const silentRef = React.useRef<HTMLDivElement>(null);
+
+    // Silent Focus Guard (v126.3)
+    useEffect(() => {
+        if (silentRef.current) silentRef.current.focus();
+    }, []);
 
     // Dynamic field check
     const isVisitType = reportType.includes("schedule") || reportType.includes("complete") || reportType.includes("install") || reportType.includes("as");
@@ -132,9 +138,9 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
                         createdByName: userData?.name || "알 수 없음"
                     };
 
-                    if (hasLocation) dataToSave.location = formData.location;
-                    if (hasPhone) dataToSave.phone = formData.phone;
-                    if (hasProduct) dataToSave.product = formData.product;
+                    if (hasLocation) dataToSave.location = normalizeText(formData.location);
+                    if (hasPhone) dataToSave.phone = formData.phone.replace(/[^0-9]/g, "");
+                    if (hasProduct) dataToSave.product = normalizeText(formData.product);
 
                     // Sync Customer Last Consult Date
                     const customerRef = doc(db, "customers", customer.id);
@@ -170,8 +176,11 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
                         }, { merge: true });
                     }
                 });
-
-                queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
+                // Delay for Firestore indexing (v123.03)
+                await new Promise(resolve => setTimeout(resolve, 500));
+                await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
+                await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
+                await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
                 toast({ title: "저장 성공", status: "success", duration: 2000, position: "top" });
                 return true;
             } catch (error: any) {
@@ -199,7 +208,11 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
                     }
                     transaction.delete(activityRef);
                 });
-                queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
+                // Delay for Firestore indexing
+                await new Promise(resolve => setTimeout(resolve, 500));
+                await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
+                await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
+                await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
                 toast({ title: "삭제 성공", status: "info", duration: 2000, position: "top" });
                 return true;
             } catch (error) { return false; } finally { setIsLoading(false); }
@@ -216,86 +229,90 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
     );
 
     return (
-        <VStack spacing={6} align="stretch">
-            <HStack spacing={4}>
-                <FormControl isRequired isReadOnly={isReadOnly} flex={1}>
-                    <TeasyFormLabel>날짜 및 시간</TeasyFormLabel>
-                    <TeasyDateTimeInput
-                        value={formData.date}
-                        onChange={(val: string) => setFormData({ ...formData, date: val })}
-                        isDisabled={isReadOnly}
-                        limitType={reportType.includes("schedule") ? "past" : (reportType.includes("complete") ? "future" : undefined)}
-                    />
-                </FormControl>
-
-                <FormControl isRequired isReadOnly={isReadOnly} flex={1}>
-                    <TeasyFormLabel>담당자</TeasyFormLabel>
-                    {isReadOnly ? (
-                        <TeasyInput
-                            value={managerOptions.find(o => o.value === formData.manager)?.label || formData.manager}
-                            isReadOnly
+        <Box position="relative">
+            {/* Focus Guard */}
+            <Box ref={silentRef} tabIndex={0} position="absolute" top="-100px" left="-100px" opacity={0} pointerEvents="none" />
+            <VStack spacing={6} align="stretch">
+                <HStack spacing={4}>
+                    <FormControl isRequired isReadOnly={isReadOnly} flex={1}>
+                        <TeasyFormLabel>날짜 및 시간</TeasyFormLabel>
+                        <TeasyDateTimeInput
+                            value={formData.date}
+                            onChange={(val: string) => setFormData({ ...formData, date: val })}
+                            isDisabled={isReadOnly}
+                            limitType={reportType.includes("schedule") ? "past" : (reportType.includes("complete") ? "future" : undefined)}
                         />
-                    ) : (
-                        <CustomSelect
-                            options={managerOptions}
-                            value={formData.manager}
-                            onChange={(val) => setFormData({ ...formData, manager: val })}
-                            placeholder="담당자 선택"
+                    </FormControl>
+
+                    <FormControl isRequired isReadOnly={isReadOnly} flex={1}>
+                        <TeasyFormLabel>담당자</TeasyFormLabel>
+                        {isReadOnly ? (
+                            <TeasyInput
+                                value={managerOptions.find(o => o.value === formData.manager)?.label || formData.manager}
+                                isReadOnly
+                            />
+                        ) : (
+                            <CustomSelect
+                                options={managerOptions}
+                                value={formData.manager}
+                                onChange={(val) => setFormData({ ...formData, manager: val })}
+                                placeholder="담당자 선택"
+                                isDisabled={isReadOnly}
+                            />
+                        )}
+                    </FormControl>
+                </HStack>
+
+                {hasLocation && (
+                    <FormControl isReadOnly={isReadOnly}>
+                        <TeasyFormLabel>{reportType.includes("schedule") ? "장소" : "방문처"}</TeasyFormLabel>
+                        <TeasyInput
+                            value={formData.location}
+                            onChange={(e: any) => setFormData({ ...formData, location: e.target.value })}
+                            placeholder="장소 또는 상세 주소 입력"
                             isDisabled={isReadOnly}
                         />
+                    </FormControl>
+                )}
+
+                <HStack spacing={4}>
+                    {hasPhone && (
+                        <FormControl isReadOnly={isReadOnly} flex={1}>
+                            <TeasyFormLabel>현장 연락처</TeasyFormLabel>
+                            <TeasyPhoneInput
+                                value={formData.phone}
+                                onChange={(val: string) => setFormData({ ...formData, phone: val })}
+                                placeholder="010-0000-0000"
+                                isDisabled={isReadOnly}
+                            />
+                        </FormControl>
                     )}
-                </FormControl>
-            </HStack>
 
-            {hasLocation && (
-                <FormControl isReadOnly={isReadOnly}>
-                    <TeasyFormLabel>{reportType.includes("schedule") ? "장소" : "방문처"}</TeasyFormLabel>
-                    <TeasyInput
-                        value={formData.location}
-                        onChange={(e: any) => setFormData({ ...formData, location: e.target.value })}
-                        placeholder="장소 또는 상세 주소 입력"
+                    {hasProduct && (
+                        <FormControl isReadOnly={isReadOnly} flex={1}>
+                            <TeasyFormLabel>관련 상품</TeasyFormLabel>
+                            <TeasyInput
+                                value={formData.product}
+                                onChange={(e: any) => setFormData({ ...formData, product: e.target.value })}
+                                placeholder="예: Teasy CRM, 스마트 도어락"
+                                isDisabled={isReadOnly}
+                            />
+                        </FormControl>
+                    )}
+                </HStack>
+
+                <FormControl isRequired isReadOnly={isReadOnly}>
+                    <TeasyFormLabel>보고 내용</TeasyFormLabel>
+                    <TeasyTextarea
+                        value={formData.memo}
+                        onChange={(e: any) => setFormData({ ...formData, memo: e.target.value })}
+                        placeholder="업무 상세 내용을 입력하세요."
+                        minH="150px"
                         isDisabled={isReadOnly}
                     />
                 </FormControl>
-            )}
-
-            <HStack spacing={4}>
-                {hasPhone && (
-                    <FormControl isReadOnly={isReadOnly} flex={1}>
-                        <TeasyFormLabel>현장 연락처</TeasyFormLabel>
-                        <TeasyPhoneInput
-                            value={formData.phone}
-                            onChange={(val: string) => setFormData({ ...formData, phone: val })}
-                            placeholder="010-0000-0000"
-                            isDisabled={isReadOnly}
-                        />
-                    </FormControl>
-                )}
-
-                {hasProduct && (
-                    <FormControl isReadOnly={isReadOnly} flex={1}>
-                        <TeasyFormLabel>관련 상품</TeasyFormLabel>
-                        <TeasyInput
-                            value={formData.product}
-                            onChange={(e: any) => setFormData({ ...formData, product: e.target.value })}
-                            placeholder="예: Teasy CRM, 스마트 도어락"
-                            isDisabled={isReadOnly}
-                        />
-                    </FormControl>
-                )}
-            </HStack>
-
-            <FormControl isRequired isReadOnly={isReadOnly}>
-                <TeasyFormLabel>보고 내용</TeasyFormLabel>
-                <TeasyTextarea
-                    value={formData.memo}
-                    onChange={(e: any) => setFormData({ ...formData, memo: e.target.value })}
-                    placeholder="업무 상세 내용을 입력하세요."
-                    minH="150px"
-                    isDisabled={isReadOnly}
-                />
-            </FormControl>
-        </VStack>
+            </VStack>
+        </Box>
     );
 });
 

@@ -125,8 +125,8 @@ export const useAssetSubmitAction = (assets: AssetData[], selectedAsset: AssetDa
                 await performSelfHealing(sanitizedName, sanitizedCategory);
             }
 
-            toast({ title: selectedAsset ? "수정 완료" : "등록 완료", status: "success", position: "top" });
-
+            // Delay for Firestore indexing (v123.05)
+            await new Promise(resolve => setTimeout(resolve, 500));
             // Invalidate queries to refresh the list immediately
             await queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
 

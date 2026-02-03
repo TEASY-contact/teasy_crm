@@ -4,6 +4,7 @@ import { Box, Flex, Spacer, useDisclosure, HStack, Badge, Text, VStack, useToast
 import { FilterBar } from "@/components/features/customer/FilterBar";
 import { CustomerTable } from "@/components/features/customer/CustomerTable";
 import { PageHeader, TeasyButton, TeasyInput, TeasyModal, TeasyModalBody, TeasyModalContent, TeasyModalFooter, TeasyModalHeader, TeasyModalOverlay } from "@/components/common/UIComponents";
+import { ThinParen } from "@/components/common/ui/BaseAtoms";
 import { useState } from "react";
 import { Customer } from "@/types/domain";
 import { CustomerRegistrationModal } from "@/components/features/customer/CustomerRegistrationModal";
@@ -58,7 +59,10 @@ export default function CustomersPage() {
     const [delConfirmInput, setDelConfirmInput] = useState("");
     const isMaster = userData?.role === 'master';
 
-    const refreshCustomers = () => queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
+    const refreshCustomers = async () => {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
+    };
 
     // 1. Filter Logic (v123.78)
     const filtered = customers.filter(c => {
@@ -101,7 +105,7 @@ export default function CustomersPage() {
         try {
             const promises = selectedIds.map(id => deleteDoc(doc(db, "customers", id)));
             await Promise.all(promises);
-            refreshCustomers();
+            await refreshCustomers();
             toast({ title: "삭제 완료", description: `${selectedIds.length}명의 고객 정보가 삭제되었습니다.`, status: "success" });
             setSelectedIds([]);
             onDelClose();
@@ -138,7 +142,7 @@ export default function CustomersPage() {
                                 isDisabled={selectedIds.length === 0}
                                 fontWeight="500"
                             >
-                                선택 삭제 <Box as="span" ml={1}><Box as="span" fontWeight="300">(</Box>{selectedIds.length}<Box as="span" fontWeight="300">)</Box></Box>
+                                선택 삭제 <Box as="span" ml={1}><ThinParen text={`(${selectedIds.length})`} /></Box>
                             </TeasyButton>
                             <TeasyButton
                                 version="secondary"
@@ -149,7 +153,7 @@ export default function CustomersPage() {
                                 onClick={() => { /* TODO: Implement download */ }}
                                 fontWeight="500"
                             >
-                                선택 다운로드 <Box as="span" ml={1}><Box as="span" fontWeight="300">(</Box>{selectedIds.length}<Box as="span" fontWeight="300">)</Box></Box>
+                                선택 다운로드 <Box as="span" ml={1}><ThinParen text={`(${selectedIds.length})`} /></Box>
                             </TeasyButton>
                         </HStack>
                     )}

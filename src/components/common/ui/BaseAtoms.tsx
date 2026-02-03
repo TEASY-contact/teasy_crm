@@ -7,12 +7,13 @@ import {
 /**
  * Utility to make parentheses thin as requested by user
  */
-export const ThinParen = ({ text }: { text: string }) => {
-    const parts = text.split(/([()\-×/_])/);
+export const ThinParen = ({ text }: { text?: string }) => {
+    if (!text) return null;
+    const parts = text.split(/([()\-×/_xX])/);
     return (
         <>
             {parts.map((part, i) => {
-                const isSpecial = part === '(' || part === ')' || part === '-' || part === '/' || part === '×' || part === '_';
+                const isSpecial = part === '(' || part === ')' || part === '-' || part === '/' || part === '×' || part === '_' || (part && part.toLowerCase() === 'x');
                 if (isSpecial) {
                     return <Text key={i} as="span" color="gray.500" fontWeight="300" display="inline-block">{part}</Text>;
                 }

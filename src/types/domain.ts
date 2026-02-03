@@ -127,6 +127,10 @@ export interface Activity extends BaseDoc {
     discountType?: string;
     discountValue?: string;
 
+    // A/S specific
+    symptoms?: string[];
+    actions?: string[];
+
     // Compatibility for work_requests or nested content
     category?: string;
     content?: any;

@@ -24,6 +24,7 @@ import { CustomSelect } from "@/components/common/CustomSelect";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/context/AuthContext";
 
 interface CustomerRegistrationModalProps {
     isOpen: boolean;
@@ -31,6 +32,7 @@ interface CustomerRegistrationModalProps {
 }
 
 const CustomerRegistrationModalContent = ({ onClose }: { onClose: () => void }) => {
+    const { userData } = useAuth();
     const [name, setName] = useState("");
     const [phone, setPhone] = useState("");
     const [address, setAddress] = useState("");
@@ -66,7 +68,7 @@ const CustomerRegistrationModalContent = ({ onClose }: { onClose: () => void }) 
                 sub_phones: [],
                 sub_addresses: [],
                 ownedProducts: [],
-                manager: "정민권", // default manager
+                manager: userData?.name || "알 수 없음",
                 registeredDate: new Date().toISOString().split('T')[0],
                 createdAt: serverTimestamp(),
                 lastConsultDate: null,
@@ -82,6 +84,8 @@ const CustomerRegistrationModalContent = ({ onClose }: { onClose: () => void }) 
                 isClosable: true,
             });
 
+            // Delay for Firestore indexing (v123.02)
+            await new Promise(resolve => setTimeout(resolve, 500));
             await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
             onClose();
         } catch (error: any) {

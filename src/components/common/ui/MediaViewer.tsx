@@ -5,6 +5,7 @@ import {
 } from "@chakra-ui/react";
 import { MdFileDownload, MdChevronLeft, MdChevronRight } from "react-icons/md";
 import { TeasyButton } from "@/components/common/ui/TeasyButton";
+import { ThinParen } from "@/components/common/ui/BaseAtoms";
 
 /**
  * 4. Media Viewing Components (Audio / Video / Image / PDF)
@@ -240,11 +241,7 @@ export const TeasyUniversalViewer = ({ isOpen, onClose, files = [], initialIndex
                                 <Text color="gray.500" fontWeight="bold" fontSize="md" isTruncated whiteSpace="pre-wrap">{getTeasyBaseFileName(currentFile)}</Text>
                                 {files.length > 1 && (
                                     <HStack spacing={0} ml={3} color="gray.400" fontWeight="semibold" fontSize="sm" flexShrink={0}>
-                                        <Text as="span" fontWeight="200" fontSize="md">(</Text>
-                                        <Text as="span" mx={0.5}>{currentIndex + 1}</Text>
-                                        <Text as="span" fontWeight="200" fontSize="md">/</Text>
-                                        <Text as="span" mx={0.5}>{files.length}</Text>
-                                        <Text as="span" fontWeight="200" fontSize="md">)</Text>
+                                        <ThinParen text={`(${currentIndex + 1}/${files.length})`} />
                                     </HStack>
                                 )}
                             </HStack>

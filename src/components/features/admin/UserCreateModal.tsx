@@ -5,6 +5,7 @@ import {
     VStack, FormControl, useToast, Box, Grid,
     Flex, HStack, Switch, Divider, IconButton, Center
 } from "@chakra-ui/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { CustomSelect } from "@/components/common/CustomSelect";
 import {
     TeasyModal, TeasyModalOverlay, TeasyModalContent, TeasyModalHeader,
@@ -85,6 +86,7 @@ interface UserCreateModalProps {
  */
 const UserCreateModalContent = ({ onClose, existingUsers }: { onClose: () => void; existingUsers: UserData[] }) => {
     const toast = useToast();
+    const queryClient = useQueryClient();
     const [isLoading, setIsLoading] = useState(false);
 
     const usedColors = existingUsers
@@ -199,6 +201,9 @@ const UserCreateModalContent = ({ onClose, existingUsers }: { onClose: () => voi
                 description: `${formData.name}님의 계정이 생성되었습니다.`,
                 status: "success"
             });
+            // Delay for Firestore indexing (v123.05)
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await queryClient.invalidateQueries({ queryKey: ["users", "list"] });
             onClose();
         } catch (e: any) {
             console.error(e);

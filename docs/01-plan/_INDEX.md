@@ -20,6 +20,8 @@ variables:
 |----------|--------|---------------|-------|-------------|
 | [features/inventory-management.plan.md](./features/inventory-management.plan.md) | ✅ Approved | 2026-02-01 | TEASY | inventory-management Planning Document |
 | [features/product-management.plan.md](./features/product-management.plan.md) | ✅ Approved | 2026-02-01 | Antigravity | product-management Planning Document |
+| [features/customer-management.baseline.md](./features/customer-management.baseline.md) | 👀 In Review | 2026-02-04 | Antigravity | Customer Management & Timeline Baseline |
+| [features/customer-realtime.plan.md](./features/customer-realtime.plan.md) | 👀 In Review | 2026-02-04 | Antigravity | Real-time Refactoring Implementation Plan |
 
 ---
 

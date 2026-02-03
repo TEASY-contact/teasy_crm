@@ -58,7 +58,10 @@ export default function AssetManagementPage() {
         }
     });
 
-    const refreshAssets = () => queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
+    const refreshAssets = async () => {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
+    };
 
     /**
      * Reorder Mutation with Optimistic Update & Rollback (v123.86)
@@ -101,9 +104,9 @@ export default function AssetManagementPage() {
             }
             toast({ title: "순서 저장 실패", description: "네트워크 오류로 인해 순서가 원복되었습니다.", status: "error", duration: 3000 });
         },
-        onSettled: () => {
+        onSettled: async () => {
             // Always refetch after error or success to keep server/client in sync
-            refreshAssets();
+            await refreshAssets();
         },
         onSuccess: () => {
             const toastId = "reorder-success";
@@ -129,7 +132,7 @@ export default function AssetManagementPage() {
                 createdAt: serverTimestamp(),
                 orderIndex: assets.length
             });
-            refreshAssets();
+            await refreshAssets();
         } catch (err) {
             console.error(err);
         }
@@ -138,7 +141,7 @@ export default function AssetManagementPage() {
     const handleDeleteDivider = async (id: string) => {
         try {
             await deleteDoc(doc(db, "assets", id));
-            refreshAssets();
+            await refreshAssets();
         } catch (err) {
             console.error(err);
         }

@@ -54,7 +54,10 @@ export default function UserManagementPage() {
         }
     });
 
-    const refreshUsers = () => queryClient.invalidateQueries({ queryKey: ["users", "list"] });
+    const refreshUsers = async () => {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await queryClient.invalidateQueries({ queryKey: ["users", "list"] });
+    };
 
     const [search, setSearch] = useState("");
     const createDisclosure = useDisclosure();
@@ -81,7 +84,7 @@ export default function UserManagementPage() {
                 updateData[field] = !currentVal;
             }
             await updateDoc(doc(db, "users", userId), updateData);
-            refreshUsers();
+            await refreshUsers();
         } catch (e) {
             console.error(e);
         }

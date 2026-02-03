@@ -1,102 +1,112 @@
+// src/components/features/customer/reports/AsScheduleForm/useAsScheduleForm.ts
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@chakra-ui/react";
 import { db, storage } from "@/lib/firebase";
-import { collection, serverTimestamp, doc, query, where, getDocs, runTransaction } from "firebase/firestore";
-import { ref as sRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import {
+    doc,
+    serverTimestamp,
+    runTransaction,
+    collection,
+    query,
+    where,
+    getDocs
+} from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { applyColonStandard } from "@/utils/textFormatter";
-import { DemoCompleteFormData, DemoCompleteActivity, ManagerOption, DEMO_CONSTANTS } from "./types";
+import {
+    ref as sRef,
+    uploadBytes,
+    getDownloadURL,
+    deleteObject
+} from "firebase/storage";
+import { applyColonStandard, normalizeText } from "@/utils/textFormatter";
+import { formatPhone } from "@/utils/formatter";
+import { AsScheduleFormData, AS_SCHEDULE_CONSTANTS } from "./types";
+import { Activity, ActivityType, ManagerOption } from "@/types/domain";
 
-interface UseDemoCompleteFormProps {
-    customer: { id: string, name: string };
-    activities?: any[]; // Assuming activities can be of various types, or a more specific type if available
+interface UseAsScheduleFormProps {
+    customer: { id: string, name: string, address?: string, phone?: string };
+    activities?: any[];
     activityId?: string;
-    initialData?: Partial<DemoCompleteFormData>;
+    initialData?: Partial<AsScheduleFormData>;
     defaultManager?: string;
 }
 
-export const useDemoCompleteForm = ({ customer, activities, activityId, initialData, defaultManager }: UseDemoCompleteFormProps) => {
+export const useAsScheduleForm = ({
+    customer,
+    activities = [],
+    activityId,
+    initialData,
+    defaultManager
+}: UseAsScheduleFormProps) => {
     const { userData } = useAuth();
     const queryClient = useQueryClient();
     const toast = useToast();
     const isSubmitting = useRef(false);
     const [isLoading, setIsLoading] = useState(false);
 
-    // File upload state for UI only
+    // File upload state
     const [pendingFiles, setPendingFiles] = useState<{ url: string, file: File }[]>([]);
 
-    const [formData, setFormData] = useState<DemoCompleteFormData>({
+    const [formData, setFormData] = useState<AsScheduleFormData>({
         date: "",
         manager: defaultManager || "",
-        location: "",
-        phone: "",
+        location: customer?.address || "",
+        phone: formatPhone(customer?.phone || ""),
         product: "",
-        result: "",
-        discountType: "",
-        discountValue: "",
-        memo: "",
-        photos: []
+        symptoms: [""],
+        photos: [],
+        memo: ""
     });
 
     // Populate Initial Data
     useEffect(() => {
         if (initialData) {
-            const deduplicate = (list: any[]) => {
-                const seen = new Set();
-                return (list || []).filter(item => {
-                    const val = typeof item === 'string' ? item : item?.url;
-                    if (!val) return false;
-                    const baseUrl = val.split('?')[0].trim();
-                    if (seen.has(baseUrl)) return false;
-                    seen.add(baseUrl);
-                    return true;
-                });
-            };
-
             setFormData(prev => ({
                 ...prev,
                 ...initialData,
                 manager: initialData.manager || defaultManager || "",
-                photos: deduplicate(initialData.photos || [])
+                symptoms: initialData.symptoms || [""],
+                photos: initialData.photos || []
             }));
         } else {
-            // New report: Auto-fill current date
             const now = new Date();
             const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}  ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-            setFormData(prev => ({ ...prev, date: formattedDate }));
+            // Auto-fill from last reports if applicable (e.g. last install product)
+            const sortedActivities = [...(activities || [])].sort((a, b) => {
+                const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.date || 0);
+                const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.date || 0);
+                return dateA.getTime() - dateB.getTime();
+            });
 
-            // Auto-fill from last schedule if available
-            const lastSchedule = [...(activities || [])].reverse().find(a => a.type === "demo_schedule");
-            if (lastSchedule) {
-                setFormData(prev => ({
-                    ...prev,
-                    manager: lastSchedule.manager || prev.manager,
-                    location: lastSchedule.location || prev.location,
-                    phone: lastSchedule.phone || prev.phone,
-                    product: lastSchedule.product || prev.product,
-                    date: formattedDate // Ensure date is set logic order
-                }));
-            }
+            const lastInstall = [...sortedActivities].reverse().find(a => a.type === "install_complete");
+
+            setFormData(prev => ({
+                ...prev,
+                date: formattedDate,
+                location: customer?.address || "",
+                phone: formatPhone(customer?.phone || ""),
+                manager: defaultManager || prev.manager,
+                product: lastInstall?.product || "",
+                symptoms: [""],
+                photos: []
+            }));
         }
-    }, [initialData, activities, defaultManager]);
+    }, [initialData, defaultManager, customer.address, customer.phone, activities]);
 
-    // --- Auxiliary Functions (Resource UI) ---
     const handleFileUpload = useCallback((files: FileList | null) => {
         if (!files || files.length === 0) return;
 
         setFormData(prev => {
-            if (prev.photos.length + files.length > DEMO_CONSTANTS.MAX_PHOTOS) {
-                toast({ title: "한도 초과", description: `사진은 최대 ${DEMO_CONSTANTS.MAX_PHOTOS}장까지 업로드 가능합니다.`, status: "warning", position: "top" });
+            if (prev.photos.length + files.length > AS_SCHEDULE_CONSTANTS.MAX_PHOTOS) {
+                toast({ title: "한도 초과", description: `사진은 최대 ${AS_SCHEDULE_CONSTANTS.MAX_PHOTOS}장까지 업로드 가능합니다.`, status: "warning", position: "top" });
                 return prev;
             }
 
             const newPending: { url: string, file: File }[] = [];
             const newUrls: string[] = [];
-
-            // Ignore already pending files by name and size to prevent double-selection duplication (v124.77)
             const existingNames = pendingFiles.map(p => p.file.name + p.file.size);
 
             for (let i = 0; i < files.length; i++) {
@@ -115,7 +125,7 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
             }
             return prev;
         });
-    }, [toast]);
+    }, [toast, pendingFiles]);
 
     const removePhoto = useCallback((index: number) => {
         setFormData(prev => {
@@ -131,11 +141,8 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
         });
     }, []);
 
-    // --- Core Resource Management (Physics) ---
     const cleanupOrphanedPhotos = useCallback(async (urlsToDelete: string[]) => {
         if (!urlsToDelete || urlsToDelete.length === 0) return;
-
-        // Final protection: only delete if they are real cloud URLs
         const cloudUrls = urlsToDelete.filter(url => url.startsWith('https://firebasestorage.googleapis.com'));
         if (cloudUrls.length === 0) return;
 
@@ -149,49 +156,64 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
         }));
     }, []);
 
+    const addSymptom = useCallback(() => {
+        setFormData(prev => ({ ...prev, symptoms: [...prev.symptoms, ""] }));
+    }, []);
+
+    const updateSymptom = useCallback((index: number, value: string) => {
+        setFormData(prev => {
+            const newList = [...prev.symptoms];
+            newList[index] = value;
+            return { ...prev, symptoms: newList };
+        });
+    }, []);
+
+    const removeSymptom = useCallback((index: number) => {
+        setFormData(prev => {
+            if (prev.symptoms.length <= 1) return { ...prev, symptoms: [""] };
+            return {
+                ...prev,
+                symptoms: prev.symptoms.filter((_, i) => i !== index)
+            };
+        });
+    }, []);
+
     const submit = useCallback(async (managerOptions: ManagerOption[]) => {
         if (isLoading || isSubmitting.current) return false;
 
-        // Validation Rule Object
-        const validations = [
-            { cond: !formData.manager, msg: "담당자를 선택해주세요." },
-            { cond: !formData.product, msg: "상품을 선택해주세요." },
-            { cond: !formData.result, msg: "결과를 선택해주세요." },
-            { cond: !formData.discountType, msg: "할인 종류를 선택해주세요." }
-        ];
-
-        const error = validations.find(v => v.cond);
-        if (error) {
-            toast({ title: error.msg, status: "warning", duration: 2000, position: "top" });
+        // 1. Pre-validation & UI Standard: Paint Guard (100ms)
+        if (!formData.date || !formData.manager) {
+            toast({ title: "필수 항목 누락", status: "warning", duration: 2000, position: "top" });
             return false;
         }
 
         setIsLoading(true);
         isSubmitting.current = true;
-        try {
-            // 1. Data Sanitization
-            const cleanPhone = formData.phone.replace(/[^0-9]/g, "");
 
-            // 2. Parallel Photo Processing
+        // UI Paint Delay (v126.3)
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        try {
+            // 2. ID Pre-allocation (Surgical standard)
+            const targetActivityId = activityId || doc(collection(db, "activities")).id;
+
+            // 3. Parallel Photo Processing
             let finalPhotos = [...formData.photos];
             if (pendingFiles.length > 0) {
-                // Deduplicate pending files before upload to prevent accidental multi-upload (v124.78)
                 const uniquePending = Array.from(new Map(pendingFiles.map(p => [p.file.name + p.file.size, p])).values());
-
                 const uploadPromises = uniquePending.map(async (p, i) => {
                     const ext = p.file.name.split('.').pop() || 'jpg';
-                    const filename = `site_${Date.now()}_${i}_${Math.random().toString(36).substring(7)}.${ext}`;
-                    const storagePath = `${DEMO_CONSTANTS.STORAGE_PATH_PREFIX}/${customer.id}/${filename}`;
+                    const filename = `as_sch_${Date.now()}_${i}_${Math.random().toString(36).substring(7)}.${ext}`;
+                    const storagePath = `${AS_SCHEDULE_CONSTANTS.STORAGE_PATH_PREFIX}/${customer.id}/${filename}`;
                     const storageRef = sRef(storage, storagePath);
                     await uploadBytes(storageRef, p.file);
                     return await getDownloadURL(storageRef);
                 });
-
                 const uploadedUrls = await Promise.all(uploadPromises);
                 finalPhotos = finalPhotos.filter(url => !url.startsWith('blob:')).concat(uploadedUrls);
             }
 
-            // High-reliability deduplication by base URL (v124.76)
+            // Photo Deduplication
             const finalSeen = new Set();
             finalPhotos = finalPhotos.filter(url => {
                 const baseUrl = url.split('?')[0].trim();
@@ -200,58 +222,53 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
                 return true;
             });
 
-            // 3. Transactional Persistence with Meta-Lock
+            // 4. Atomic Transaction (Meta-Locking)
             const saveResult = await runTransaction(db, async (transaction) => {
                 const selectedManager = managerOptions.find(o => o.value === formData.manager);
-                const targetActivityId = activityId || doc(collection(db, "activities")).id;
                 const activityRef = doc(db, "activities", targetActivityId);
+                const metaRef = doc(db, "customer_meta", `${customer.id}_${AS_SCHEDULE_CONSTANTS.META_PREFIX}`);
+                const customerRef = doc(db, "customers", customer.id);
 
-                const metaRef = doc(db, "customer_meta", `${customer.id}_demo`);
+                // READS FIRST
                 const metaSnap = await transaction.get(metaRef);
                 let currentMeta = metaSnap.exists() ? metaSnap.data() : { lastSequence: 0, totalCount: 0 };
 
-                const dataToSave: DemoCompleteActivity = {
+                // LOGIC & SANITIZATION
+                const dataToSave: Partial<Activity> = {
                     customerId: customer.id,
                     customerName: customer.name,
-                    type: DEMO_CONSTANTS.TYPE,
-                    typeName: DEMO_CONSTANTS.TYPE_NAME,
+                    type: AS_SCHEDULE_CONSTANTS.TYPE,
+                    typeName: AS_SCHEDULE_CONSTANTS.TYPE_NAME,
                     date: formData.date,
                     manager: formData.manager,
                     managerName: selectedManager?.label || formData.manager,
                     managerRole: selectedManager?.role || "employee",
-                    location: formData.location,
-                    phone: cleanPhone,
-                    product: formData.product,
-                    result: formData.result,
-                    discountType: formData.discountType,
-                    discountValue: formData.discountValue,
-                    memo: applyColonStandard(formData.memo || ""),
+                    location: normalizeText(formData.location),
+                    phone: formData.phone.replace(/[^0-9]/g, ""),
+                    product: normalizeText(formData.product),
+                    symptoms: formData.symptoms.filter(s => s && s.trim() !== "").map(s => normalizeText(s)),
                     photos: finalPhotos,
+                    memo: applyColonStandard(formData.memo || ""),
                     updatedAt: serverTimestamp(),
                     createdByName: userData?.name || "알 수 없음"
                 };
 
-                // Sync with Customer Document (Last Consult Date)
-                const customerRef = doc(db, "customers", customer.id);
+                // WRITES
                 transaction.update(customerRef, {
                     lastConsultDate: formData.date,
                     updatedAt: serverTimestamp()
                 });
 
                 if (activityId) {
-                    transaction.update(activityRef, dataToSave as any); // Cast to any for updateDoc flexibility
+                    transaction.update(activityRef, dataToSave as any);
                 } else {
-                    // Sync sequence number with the authorizing schedule (v124.81)
-                    const lastSchedule = [...(activities || [])].reverse().find(a => a.type === "demo_schedule");
-                    const nextSeq = lastSchedule?.sequenceNumber || (Number(currentMeta.lastSequence) || 0) + 1;
-
+                    const nextSeq = (Number(currentMeta.lastSequence) || 0) + 1;
                     transaction.set(activityRef, {
                         ...dataToSave,
                         sequenceNumber: nextSeq,
                         createdAt: serverTimestamp(),
                         createdBy: userData?.uid || "system",
                     });
-
                     transaction.set(metaRef, {
                         lastSequence: nextSeq,
                         totalCount: (Number(currentMeta.totalCount) || 0) + 1,
@@ -263,7 +280,7 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
             });
 
             if (saveResult.success) {
-                // 4. POST-DB Resource Cleanup (Safe transition) (v123.04)
+                // Background Resource Cleanup
                 if (activityId && initialData?.photos) {
                     const removedPhotos = initialData.photos.filter((oldUrl: string) => !finalPhotos.includes(oldUrl));
                     await cleanupOrphanedPhotos(removedPhotos);
@@ -275,79 +292,71 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
                 await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
                 await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
-                toast({ title: "저장 완료", status: "success", duration: 3000, position: "top" });
+                toast({ title: "A/S 예약 완료", status: "success", duration: 2000, position: "top" });
                 return true;
             }
             return false;
         } catch (error: any) {
-            console.error("Demo Complete Submit Failure:", error);
+            console.error("AS Schedule Submit Failure:", error);
             toast({ title: "저장 실패", description: error.message, status: "error", position: "top" });
             return false;
         } finally {
             setIsLoading(false);
             isSubmitting.current = false;
         }
-    }, [isLoading, formData, pendingFiles, activityId, initialData?.photos, customer.id, customer.name, userData?.name, userData?.uid, toast, cleanupOrphanedPhotos]);
+    }, [isLoading, formData, pendingFiles, activityId, initialData, customer.id, customer.name, userData, toast, queryClient, cleanupOrphanedPhotos]);
 
     const handleDelete = useCallback(async () => {
         if (!activityId) return false;
-        if (!window.confirm(`정말 이 [${DEMO_CONSTANTS.TYPE_NAME}] 보고서를 삭제하시겠습니까?\n첨부된 모든 사진 데이터도 영구히 삭제됩니다.`)) return false;
-
+        if (!window.confirm("보고서와 연결된 데이터 및 사진이 모두 삭제됩니다. 정말 삭제하시겠습니까?")) return false;
         setIsLoading(true);
         try {
-            const cleanupResult = await runTransaction(db, async (transaction) => {
+            const result = await runTransaction(db, async (transaction) => {
                 const activityRef = doc(db, "activities", activityId);
                 const activitySnap = await transaction.get(activityRef);
+                const metaRef = doc(db, "customer_meta", `${customer.id}_${AS_SCHEDULE_CONSTANTS.META_PREFIX}`);
+                const custMetaSnap = await transaction.get(metaRef);
 
-                if (!activitySnap.exists()) return { success: false, msg: "데이터가 존재하지 않습니다." };
+                let photosToDelete: string[] = [];
+                if (activitySnap.exists()) {
+                    photosToDelete = activitySnap.data().photos || [];
+                }
 
-                const activityData = activitySnap.data() as DemoCompleteActivity;
-                const photosToDelete = activityData.photos || [];
-
-                const metaRef = doc(db, "customer_meta", `${customer.id}_demo`);
-                const metaSnap = await transaction.get(metaRef);
-
-                if (metaSnap.exists()) {
-                    const currentMeta = metaSnap.data();
+                if (custMetaSnap.exists()) {
                     transaction.update(metaRef, {
-                        totalCount: Math.max(0, (Number(currentMeta.totalCount) || 0) - 1),
+                        totalCount: Math.max(0, (Number(custMetaSnap.data().totalCount) || 0) - 1),
                         lastDeletedAt: serverTimestamp()
                     });
                 }
 
                 transaction.delete(activityRef);
-                return { success: true, photos: photosToDelete };
+                return { success: true, photosToDelete };
             });
 
-            if (cleanupResult.success) {
-                // Physical Cleanup after successful DB deletion
-                if (cleanupResult.photos && cleanupResult.photos.length > 0) {
-                    await cleanupOrphanedPhotos(cleanupResult.photos);
-                }
-                // Delay for Firestore indexing
+            if (result.success) {
+                if (result.photosToDelete.length > 0) await cleanupOrphanedPhotos(result.photosToDelete);
                 await new Promise(resolve => setTimeout(resolve, 500));
                 await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
                 await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
                 toast({ title: "삭제 완료", status: "info", duration: 2000, position: "top" });
                 return true;
-            } else {
-                toast({ title: "삭제 실패", description: cleanupResult.msg, status: "error", position: "top" });
-                return false;
             }
+            return false;
         } catch (error) {
-            console.error("Demo Delete Failure:", error);
+            console.error("AS Schedule Delete Failure:", error);
             toast({ title: "삭제 실패", status: "error", position: "top" });
             return false;
         } finally {
             setIsLoading(false);
         }
-    }, [activityId, customer.id, toast, cleanupOrphanedPhotos]);
+    }, [activityId, customer.id, toast, queryClient, cleanupOrphanedPhotos]);
 
     return {
         formData, setFormData,
         isLoading,
         handleFileUpload, removePhoto,
+        addSymptom, updateSymptom, removeSymptom,
         submit,
         handleDelete
     };

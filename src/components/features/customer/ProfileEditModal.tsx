@@ -15,6 +15,7 @@ import {
     NumberIncrementStepper,
     NumberDecrementStepper,
 } from "@chakra-ui/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { MdRemoveCircleOutline } from "react-icons/md";
 import {
     TeasyButton,
@@ -54,6 +55,7 @@ export const ProfileEditModal = ({
     const [count, setCount] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
     const toast = useToast();
+    const queryClient = useQueryClient();
 
     useEffect(() => {
         if (isOpen) {
@@ -119,6 +121,12 @@ export const ProfileEditModal = ({
                 status: "success",
                 duration: 2000,
             });
+
+            // Delay for Firestore indexing (v123.05)
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await queryClient.invalidateQueries({ queryKey: ["customer", customerId] });
+            await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
+
             onClose();
         } catch (error) {
             console.error("Save Error:", error);

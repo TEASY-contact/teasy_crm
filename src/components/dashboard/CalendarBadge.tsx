@@ -1,5 +1,5 @@
-// src/components/dashboard/CalendarBadge.tsx
 import { Badge, Text } from "@chakra-ui/react";
+import { ThinParen } from "@/components/common/ui/BaseAtoms";
 
 const STEP_COLORS: Record<string, string> = {
     demo_schedule: "blue", demo_complete: "blue",
@@ -43,16 +43,12 @@ export const CalendarBadge = ({ type, region, isCompleted, isSingle }: any) => {
         >
             <Text display="inline-block">
                 {label === "A/S" ? (
-                    <>A<Text as="span" fontWeight="300">/</Text>S</>
+                    <><ThinParen text="A/S" /></>
                 ) : (
                     label
                 )}
                 {region && (
-                    <>
-                        <Text as="span" fontWeight="400" ml="2px" opacity={0.8}>(</Text>
-                        {region}
-                        <Text as="span" fontWeight="400" opacity={0.8}>)</Text>
-                    </>
+                    <><ThinParen text={`(${region})`} /></>
                 )}
             </Text>
         </Badge>

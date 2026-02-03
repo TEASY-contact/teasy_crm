@@ -376,8 +376,12 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
                 })).catch(e => console.error("Self-healing error:", e));
 
                 setPendingFiles([]);
-                queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
-                queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
+                // Delay for Firestore indexing (v123.03)
+                await new Promise(resolve => setTimeout(resolve, 500));
+                await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
+                await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
+                await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
+                await queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
                 toast({ title: "시공 예약 완료", status: "success", duration: 2000, position: "top" });
                 return true;
             }
@@ -478,14 +482,19 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
                 transaction.delete(activityRef);
                 return { success: true, affectedItems: Array.from(affectedItems), photosToDelete };
             });
+
             if (result.success) {
                 if (result.photosToDelete.length > 0) await cleanupOrphanedPhotos(result.photosToDelete);
                 Promise.all(result.affectedItems.map(itemKey => {
                     const [name, category] = itemKey.split("|");
                     return performSelfHealing(name, category);
                 })).catch(e => console.error("Self-healing error:", e));
-                queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
-                queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
+                // Delay for Firestore indexing
+                await new Promise(resolve => setTimeout(resolve, 500));
+                await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
+                await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
+                await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
+                await queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
                 toast({ title: "삭제 완료", status: "info", duration: 2000, position: "top" });
                 return true;
             }

@@ -5,7 +5,7 @@ import { db } from "@/lib/firebase";
 import { collection, serverTimestamp, doc, runTransaction } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { applyColonStandard } from "@/utils/textFormatter";
+import { applyColonStandard, normalizeText } from "@/utils/textFormatter";
 import { DemoScheduleFormData, DemoScheduleActivity, SCHEDULE_CONSTANTS } from "./types";
 import { ManagerOption } from "../DemoCompleteForm/types";
 
@@ -74,6 +74,9 @@ export const useDemoScheduleForm = ({ customer, activityId, initialData, default
         try {
             const cleanPhone = formData.phone.replace(/[^0-9]/g, "");
 
+            // Paint Guard (v126.3): Ensure UI loading state is painted before heavy transactions
+            await new Promise(resolve => setTimeout(resolve, 100));
+
             const saveResult = await runTransaction(db, async (transaction) => {
                 const selectedManager = managerOptions.find(o => o.value === formData.manager);
                 const targetActivityId = activityId || doc(collection(db, "activities")).id;
@@ -93,9 +96,9 @@ export const useDemoScheduleForm = ({ customer, activityId, initialData, default
                     manager: formData.manager,
                     managerName: selectedManager?.label || formData.manager,
                     managerRole: selectedManager?.role || "employee",
-                    location: formData.location,
+                    location: normalizeText(formData.location),
                     phone: cleanPhone,
-                    product: formData.product,
+                    product: normalizeText(formData.product),
                     memo: applyColonStandard(formData.memo || ""),
                     updatedAt: serverTimestamp(),
                     createdByName: userData?.name || "알 수 없음"
@@ -130,7 +133,11 @@ export const useDemoScheduleForm = ({ customer, activityId, initialData, default
             });
 
             if (saveResult.success) {
-                queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
+                // Delay for Firestore indexing (v123.03)
+                await new Promise(resolve => setTimeout(resolve, 500));
+                await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
+                await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
+                await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
                 toast({ title: "예약 완료", status: "success", duration: 2000, position: "top" });
                 return true;
             }
@@ -172,7 +179,11 @@ export const useDemoScheduleForm = ({ customer, activityId, initialData, default
             });
 
             if (result.success) {
-                queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
+                // Delay for Firestore indexing
+                await new Promise(resolve => setTimeout(resolve, 500));
+                await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
+                await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
+                await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
                 toast({ title: "삭제 완료", status: "info", duration: 2000, position: "top" });
                 return true;
             }

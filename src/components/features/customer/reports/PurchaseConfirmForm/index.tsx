@@ -213,10 +213,17 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
             pendingFile
         });
 
+        const silentRef = useRef<HTMLDivElement>(null);
+
         useImperativeHandle(ref, () => ({
             submit: handleSubmit,
             delete: handleDelete
-        }));
+        }), [handleSubmit, handleDelete]);
+
+        // Silent Focus Guard (v126.3)
+        useEffect(() => {
+            if (silentRef.current) silentRef.current.focus();
+        }, []);
 
         const handleUpdateQty = (id: string, delta: number) => {
             const targetIdx = formData.selectedProducts.findIndex((p: any) => p.id === id);
@@ -271,6 +278,8 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
 
         return (
             <Box position="relative">
+                {/* Focus Guard */}
+                <Box ref={silentRef} tabIndex={0} position="absolute" top="-100px" left="-100px" opacity={0} pointerEvents="none" />
                 {isLoading && (
                     <Flex
                         position="absolute" top={0} left={0} right={0} bottom={0}

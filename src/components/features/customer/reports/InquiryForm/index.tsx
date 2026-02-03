@@ -54,10 +54,17 @@ export const InquiryForm = forwardRef<InquiryFormHandle, InquiryFormProps>(({
     const [viewerState, setViewerState] = React.useState({ isOpen: false, files: [] as InquiryFile[], index: 0 });
     const [audioState, setAudioState] = React.useState({ isOpen: false, file: null as InquiryFile | null });
 
+    const silentRef = useRef<HTMLDivElement>(null);
+
     useImperativeHandle(ref, () => ({
         submit: () => submit(managerOptions),
         delete: handleDelete
     }), [submit, handleDelete, managerOptions]);
+
+    // Silent Focus Guard (v126.3)
+    React.useEffect(() => {
+        if (silentRef.current) silentRef.current.focus();
+    }, []);
 
     const handleChannelChange = useCallback((val: string) => {
         if (isReadOnly) return;
@@ -72,6 +79,8 @@ export const InquiryForm = forwardRef<InquiryFormHandle, InquiryFormProps>(({
 
     return (
         <Box position="relative">
+            {/* Focus Guard */}
+            <Box ref={silentRef} tabIndex={0} position="absolute" top="-100px" left="-100px" opacity={0} pointerEvents="none" />
             {isLoading && (
                 <Flex
                     position="absolute" top={0} left={0} right={0} bottom={0}

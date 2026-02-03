@@ -20,7 +20,7 @@ import {
 } from "firebase/storage";
 import { useAuth } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { applyColonStandard, getTeasyStandardFileName } from "@/utils/textFormatter";
+import { applyColonStandard, getTeasyStandardFileName, normalizeText } from "@/utils/textFormatter";
 import { getCircledNumber } from "@/components/features/asset/AssetModalUtils";
 import { performSelfHealing } from "@/utils/assetUtils";
 import {
@@ -153,6 +153,8 @@ export const usePurchaseForm = ({
                 const assetSnap = await getDocs(assetQuery);
                 existingAssets = assetSnap.docs.map(d => ({ ref: d.ref, data: d.data() }));
             }
+            // Paint Guard (v126.3): Ensure UI loading state is painted before heavy inventory transactions
+            await new Promise(resolve => setTimeout(resolve, 100));
 
             const result = await runTransaction(db, async (transaction) => {
                 const selectedManager = managerOptions.find(o => o.value === formData.manager);
@@ -205,7 +207,7 @@ export const usePurchaseForm = ({
                     amount,
                     discount: formData.discount,
                     discountAmount,
-                    userId: formData.userId,
+                    userId: normalizeText(formData.userId, true),
                     deliveryInfo: productCategory === "inventory" ? formData.deliveryInfo : { courier: "", shipmentDate: "", trackingNumber: "", deliveryAddress: customer?.address || "" },
                     productCategory,
                     product: validProducts.map((p, idx) => {
@@ -355,9 +357,13 @@ export const usePurchaseForm = ({
                     return performSelfHealing(name, category, undefined, undefined, undefined, masterId || undefined);
                 })).catch(err => console.error("Self-healing background error:", err));
 
-                queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
-                queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
-                toast({ title: "저장 성공", status: "success", duration: 2000, position: "top" });
+                // Delay for Firestore indexing (v123.03)
+                await new Promise(resolve => setTimeout(resolve, 500));
+                await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
+                await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
+                await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
+                await queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
+                toast({ title: "저장 완료", status: "success", duration: 2000, position: "top" });
                 return true;
             }
             return false;
@@ -447,9 +453,13 @@ export const usePurchaseForm = ({
                     const [name, category, masterId] = itemKey.split("|");
                     await performSelfHealing(name, category, undefined, undefined, undefined, masterId || undefined);
                 }));
-                queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
-                queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
-                toast({ title: "삭제 성공", status: "info", duration: 2000, position: "top" });
+                // Delay for Firestore indexing
+                await new Promise(resolve => setTimeout(resolve, 500));
+                await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
+                await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
+                await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
+                await queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
+                toast({ title: "삭제 완료", status: "info", duration: 2000, position: "top" });
                 return true;
             }
             return false;

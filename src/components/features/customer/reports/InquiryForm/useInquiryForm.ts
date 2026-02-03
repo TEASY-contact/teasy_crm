@@ -17,7 +17,7 @@ import {
     deleteObject
 } from "firebase/storage";
 import { inquirySchema } from "@/lib/validations/reportSchema";
-import { applyColonStandard, getTeasyStandardFileName } from "@/utils/textFormatter";
+import { applyColonStandard, getTeasyStandardFileName, normalizeText } from "@/utils/textFormatter";
 import { formatPhone } from "@/utils/formatter";
 import {
     InquiryFormData,
@@ -206,7 +206,10 @@ export const useInquiryForm = ({ customer, activityId, initialData, defaultManag
                 uploadQueue(quotes, 'quotes')
             ]);
 
-            // 3. Atomic Transaction (Meta-Locking)
+            // 3. Paint Guard (v126.3): Ensure UI loading state is painted before transaction
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            // 4. Atomic Transaction (Meta-Locking)
             const saveResult = await runTransaction(db, async (transaction) => {
                 const selectedManager = managerOptions.find(o => o.value === formData.manager);
                 const targetId = activityId || doc(collection(db, "activities")).id;
@@ -226,9 +229,9 @@ export const useInquiryForm = ({ customer, activityId, initialData, defaultManag
                     managerName: selectedManager?.label || formData.manager,
                     managerRole: (selectedManager?.role || "employee") as any,
                     channel: formData.channel as any,
-                    nickname: isPhoneInquiry ? "" : (formData.nickname || ""),
+                    nickname: isPhoneInquiry ? "" : normalizeText(formData.nickname || ""),
                     phone: isPhoneInquiry ? (formData.phone || "").replace(/[^0-9]/g, "") : "",
-                    product: formData.product,
+                    product: normalizeText(formData.product),
                     result: formData.result as any,
                     memo: applyColonStandard(formData.memo || ""),
                     recordings: isPhoneInquiry ? finalRecordings : [],
@@ -265,7 +268,11 @@ export const useInquiryForm = ({ customer, activityId, initialData, defaultManag
             });
 
             if (saveResult.success) {
-                queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
+                // Delay for Firestore indexing (v123.03)
+                await new Promise(resolve => setTimeout(resolve, 500));
+                await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
+                await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
+                await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
                 toast({ title: "보고서 저장 완료", status: "success", duration: 2000, position: "top" });
                 return true;
             }
@@ -312,7 +319,11 @@ export const useInquiryForm = ({ customer, activityId, initialData, defaultManag
 
             if (cleanupResult.success) {
                 if (cleanupResult.urls) await cleanupStorage(cleanupResult.urls);
-                queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
+                // Delay for Firestore indexing
+                await new Promise(resolve => setTimeout(resolve, 500));
+                await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
+                await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
+                await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
                 toast({ title: "삭제 완료", status: "info", duration: 2000, position: "top" });
                 return true;
             }

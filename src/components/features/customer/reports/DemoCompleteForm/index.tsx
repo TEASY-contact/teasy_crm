@@ -49,13 +49,22 @@ export const DemoCompleteForm = forwardRef<any, DemoCompleteFormProps>(({
         setFormData(prev => ({ ...prev, discountValue: `-${formatted}` }));
     }, [setFormData]);
 
+    const silentRef = React.useRef<HTMLDivElement>(null);
+
     useImperativeHandle(ref, () => ({
         submit: () => submit(managerOptions as ManagerOption[]),
         delete: handleDelete
     }), [submit, handleDelete, managerOptions]);
 
+    // Silent Focus Guard (v126.3)
+    React.useEffect(() => {
+        if (silentRef.current) silentRef.current.focus();
+    }, []);
+
     return (
         <Box position="relative">
+            {/* Focus Guard */}
+            <Box ref={silentRef} tabIndex={0} position="absolute" top="-100px" left="-100px" opacity={0} pointerEvents="none" />
             {isLoading && (
                 <Flex
                     position="absolute" top={0} left={0} right={0} bottom={0}

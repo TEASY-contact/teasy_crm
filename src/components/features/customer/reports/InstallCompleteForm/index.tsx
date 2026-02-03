@@ -554,9 +554,10 @@ export const InstallCompleteForm = forwardRef<InstallCompleteFormHandle, Install
                                         onChange={(e: any) => !isReadOnly && setFormData({ ...formData, incompleteReason: e.target.value })}
                                         placeholder="체크되지 않은 업무가 있습니다. 사유를 입력해주세요."
                                         size="sm"
-                                        bg="white"
-                                        borderColor="gray.200"
-                                        _focus={{ borderColor: "brand.300", bg: "white" }}
+                                        bg="red.50"
+                                        pl="56px"
+                                        borderColor="red.100"
+                                        _focus={{ borderColor: "red.300", bg: "red.50" }}
                                         isDisabled={isReadOnly}
                                         w="full"
                                     />

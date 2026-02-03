@@ -16,6 +16,7 @@ import {
 } from "@chakra-ui/react";
 import { Customer } from "@/types/domain";
 import Link from "next/link";
+import { ThinParen } from "@/components/common/ui/BaseAtoms";
 
 /**
  * Helper: Tooltip that only shows when text is truncated (v123.79)
@@ -37,24 +38,7 @@ const TruncatedTooltip = ({ label, children }: { label: string, children: React.
     );
 };
 
-/**
- * Helper: Render special characters with global standards (v123.81)
- */
-const renderThinParentheses = (text: string) => {
-    if (!text) return text;
-    const parts = text.split(/([()\-×/xX])/);
-    return parts.map((part, i) => {
-        const isSpecial = part === '(' || part === ')' || part === '-' || part === '/' || part === '×' || (part && part.toLowerCase() === 'x');
-        if (isSpecial) {
-            return (
-                <Text as="span" key={i} fontWeight="300" color="gray.500">
-                    {part}
-                </Text>
-            );
-        }
-        return part;
-    });
-};
+
 
 /**
  * Helper: Text highlighting for search matches (v123.79)
@@ -178,7 +162,7 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
                                 <Td py={2} fontSize="sm" color="gray.600" borderBottom="1px" borderColor="gray.100" textAlign="left" px={4}>
                                     <TruncatedTooltip label={(customer.ownedProducts || []).join(", ") || "-"}>
                                         <Box as="span" isTruncated display="block">
-                                            {renderThinParentheses((customer.ownedProducts || []).join(", ") || "-")}
+                                            <ThinParen text={(customer.ownedProducts || []).join(", ") || "-"} />
                                         </Box>
                                     </TruncatedTooltip>
                                 </Td>

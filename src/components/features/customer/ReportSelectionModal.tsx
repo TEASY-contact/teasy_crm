@@ -9,6 +9,8 @@ import { StandardReportForm } from "./reports/StandardReportForm/index";
 import { DemoScheduleForm } from "./reports/DemoScheduleForm/index";
 import { DemoCompleteForm } from "./reports/DemoCompleteForm/index";
 import { InstallScheduleForm } from "./reports/InstallScheduleForm/index";
+import { InstallCompleteForm } from "./reports/InstallCompleteForm/index";
+import { AsScheduleForm } from "./reports/AsScheduleForm/index";
 import { TeasyButton, TeasyModalHeader, TeasyModalOverlay, TeasyModalContent, TeasyModalBody, TeasyModalFooter, TeasyModal } from "@/components/common/UIComponents";
 import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -81,19 +83,37 @@ const ReportSelectionModalContent = ({ onClose, customer, activities = [] }: { o
     }, {});
 
     const hasInquiry = typeCounts['inquiry'] > 0;
+    const hasPurchase = typeCounts['purchase_confirm'] > 0;
+    const hasBaseActivity = hasInquiry || hasPurchase;
 
     // Check for "unmatched" schedules to allow completions
     const canCompleteDemo = (typeCounts['demo_schedule'] || 0) > (typeCounts['demo_complete'] || 0);
-    const canScheduleInstall = (typeCounts['purchase_confirm'] || 0) > (typeCounts['install_schedule'] || 0);
+
+    // Install Schedule can be created only if there are unmatched 'Installation' purchases
+    // Fallback: If productCategory is missing, treat as 'product' (installation) for backward compatibility (v124.75)
+    const installationPurchaseCount = activities.filter(a =>
+        a.type === 'purchase_confirm' && (a.productCategory === 'product' || !a.productCategory)
+    ).length;
+    const canScheduleInstall = installationPurchaseCount > (typeCounts['install_schedule'] || 0);
+
     const canCompleteInstall = (typeCounts['install_schedule'] || 0) > (typeCounts['install_complete'] || 0);
     const canCompleteAS = (typeCounts['as_schedule'] || 0) > (typeCounts['as_complete'] || 0);
 
     const isReportDisabled = (val: string) => {
-        if (!hasInquiry && val !== 'inquiry') return true;
+        // Installation workflow activation: (v124.78)
+        // Install Schedule needs 'Purchase Confirm (product)', Install Complete needs 'Install Schedule'.
+        // These can be the starting flow even without 'Inquiry'.
+        if (val === "install_schedule") return !canScheduleInstall;
+        if (val === "install_complete") return !canCompleteInstall;
+
+        // Base entry-level reports
+        if (val === 'inquiry' || val === 'demo_schedule' || val === 'purchase_confirm') return false;
+
+        // Other downstream reports require 'Inquiry'
+        if (!hasInquiry) return true;
+
         switch (val) {
             case "demo_complete": return !canCompleteDemo;
-            case "install_schedule": return !canScheduleInstall;
-            case "install_complete": return !canCompleteInstall;
             case "as_complete": return !canCompleteAS;
             default: return false;
         }
@@ -144,6 +164,10 @@ const ReportSelectionModalContent = ({ onClose, customer, activities = [] }: { o
                 return <DemoCompleteForm {...props} />;
             case "install_schedule":
                 return <InstallScheduleForm {...props} />;
+            case "install_complete":
+                return <InstallCompleteForm {...props} />;
+            case "as_schedule":
+                return <AsScheduleForm {...props} />;
             default:
                 return (
                     <StandardReportForm

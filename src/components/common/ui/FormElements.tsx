@@ -281,5 +281,36 @@ export const TeasyTextarea = React.forwardRef((props: TextareaProps, ref: any) =
 ));
 TeasyTextarea.displayName = "TeasyTextarea";
 
-export const TeasyFormLabel = ({ sub, ...props }: FormLabelProps & { sub?: boolean }) => <FormLabel fontSize={sub ? "xs" : "sm"} fontWeight={sub ? "500" : "semibold"} color="gray.400" mb={1.5} requiredIndicator={sub ? <></> : undefined} {...props} />;
+export const TeasyFormLabel = ({ sub, children, ...props }: FormLabelProps & { sub?: boolean }) => (
+    <FormLabel
+        fontSize={sub ? "13px" : "sm"}
+        fontWeight={sub ? "500" : "semibold"}
+        color="gray.400"
+        mb={sub ? 2 : 1.5}
+        px={sub ? 1 : 0}
+        requiredIndicator={sub ? <></> : undefined}
+        display="flex"
+        alignItems="center"
+        {...props}
+    >
+        {sub && <Text as="span" mr={1}>·</Text>}
+        {children}
+    </FormLabel>
+);
 export const TeasyFormHelperText = (props: TextProps) => <Text fontSize="xs" fontWeight="500" color="gray.400" mt={1} pl={0.5} {...props} />;
+
+export const TeasyFormGroup = React.forwardRef(({ children, isWhite = false, ...props }: any, ref: any) => (
+    <Box
+        ref={ref}
+        p={3}
+        bg={isWhite ? "white" : "gray.50"}
+        borderRadius="10px"
+        border="1px solid"
+        borderColor="gray.100"
+        w="full"
+        {...props}
+    >
+        {children}
+    </Box>
+));
+TeasyFormGroup.displayName = "TeasyFormGroup";
