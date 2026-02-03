@@ -1,27 +1,57 @@
-export const isWithinBusinessDays = (startDate: Date, limit: number): boolean => {
-    if (!startDate) return false;
-    const now = new Date();
+/**
+ * KST (Asia/Seoul) and Korean Holiday Logic (v124.86)
+ * API-Driven Holiday Management
+ */
 
-    // Normalize to start of day to compare full days
-    const start = new Date(startDate);
+/**
+ * Checks if a given date is a Korean holiday or weekend
+ * holidayMap: { [year: string]: { [date: string]: string[] } }
+ */
+export const isKoreanHoliday = (date: Date, holidayMap?: any): boolean => {
+    const kstDate = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+    const day = kstDate.getDay();
+
+    // 1. Weekend Check (Sat: 6, Sun: 0)
+    if (day === 0 || day === 6) return true;
+
+    if (!holidayMap) return false;
+
+    const yyyy = String(kstDate.getFullYear());
+    const mm = String(kstDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(kstDate.getDate()).padStart(2, '0');
+    const fullDate = `${yyyy}-${mm}-${dd}`;
+
+    // Check if the date exists in the API holiday map
+    return !!(holidayMap[yyyy] && holidayMap[yyyy][fullDate]);
+};
+
+/**
+ * Calculates if the elapsed work days since startDate is within the limit
+ */
+export const isWithinBusinessDays = (startDate: Date, limit: number, holidayMap?: any): boolean => {
+    if (!startDate) return false;
+
+    // Normalize to KST
+    const start = new Date(new Date(startDate).toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
     start.setHours(0, 0, 0, 0);
 
-    const end = new Date(now);
-    end.setHours(0, 0, 0, 0);
+    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+    now.setHours(0, 0, 0, 0);
 
-    if (end < start) return true; // Future date (shouldn't happen but valid)
+    if (now < start) return true;
 
     let businessDays = 0;
     const current = new Date(start);
 
-    while (current <= end) {
-        const day = current.getDay();
-        if (day !== 0 && day !== 6) { // 0: Sun, 6: Sat
+    // If holidayMap is not yet loaded, we only have weekend info (limited accuracy)
+    // But we still count days.
+    while (current <= now) {
+        if (!isKoreanHoliday(current, holidayMap)) {
             businessDays++;
         }
 
-        // Safety break to prevent infinite loops if dates are way off
-        if (businessDays > limit + 1) return false;
+        // Safety break
+        if (businessDays > limit + 14) return false;
 
         current.setDate(current.getDate() + 1);
     }

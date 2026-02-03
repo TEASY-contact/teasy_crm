@@ -63,13 +63,20 @@ export const DemoScheduleForm = forwardRef<DemoScheduleFormHandle, DemoScheduleF
                     </FormControl>
                     <FormControl isRequired>
                         <TeasyFormLabel>담당자</TeasyFormLabel>
-                        <CustomSelect
-                            placeholder="선택"
-                            value={formData.manager}
-                            onChange={(val) => !isReadOnly && setFormData((prev: DemoScheduleFormData) => ({ ...prev, manager: val }))}
-                            options={managerOptions}
-                            isDisabled={isReadOnly}
-                        />
+                        {isReadOnly ? (
+                            <TeasyInput
+                                value={managerOptions.find(o => o.value === formData.manager)?.label || formData.manager}
+                                isReadOnly
+                            />
+                        ) : (
+                            <CustomSelect
+                                placeholder="선택"
+                                value={formData.manager}
+                                onChange={(val) => !isReadOnly && setFormData((prev: DemoScheduleFormData) => ({ ...prev, manager: val }))}
+                                options={managerOptions}
+                                isDisabled={isReadOnly}
+                            />
+                        )}
                     </FormControl>
                 </HStack>
 
@@ -96,13 +103,20 @@ export const DemoScheduleForm = forwardRef<DemoScheduleFormHandle, DemoScheduleF
 
                     <FormControl isRequired flex={1}>
                         <TeasyFormLabel>시연 상품</TeasyFormLabel>
-                        <CustomSelect
-                            placeholder="선택"
-                            value={formData.product}
-                            onChange={(val) => !isReadOnly && setFormData((prev: DemoScheduleFormData) => ({ ...prev, product: val }))}
-                            options={products}
-                            isDisabled={isReadOnly}
-                        />
+                        {isReadOnly ? (
+                            <TeasyInput
+                                value={products.find(p => p.value === formData.product)?.label || formData.product}
+                                isReadOnly
+                            />
+                        ) : (
+                            <CustomSelect
+                                placeholder="선택"
+                                value={formData.product}
+                                onChange={(val) => !isReadOnly && setFormData((prev: DemoScheduleFormData) => ({ ...prev, product: val }))}
+                                options={products}
+                                isDisabled={isReadOnly}
+                            />
+                        )}
                     </FormControl>
                 </HStack>
 

@@ -241,7 +241,10 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
                 if (activityId) {
                     transaction.update(activityRef, dataToSave as any); // Cast to any for updateDoc flexibility
                 } else {
-                    const nextSeq = (Number(currentMeta.lastSequence) || 0) + 1;
+                    // Sync sequence number with the authorizing schedule (v124.81)
+                    const lastSchedule = [...(activities || [])].reverse().find(a => a.type === "demo_schedule");
+                    const nextSeq = lastSchedule?.sequenceNumber || (Number(currentMeta.lastSequence) || 0) + 1;
+
                     transaction.set(activityRef, {
                         ...dataToSave,
                         sequenceNumber: nextSeq,

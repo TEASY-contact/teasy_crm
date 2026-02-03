@@ -7,7 +7,7 @@ import { Reorder, useDragControls } from "framer-motion";
 import { formatAmount } from "@/utils/formatter";
 import { applyColonStandard } from "@/utils/textFormatter";
 import { CustomSelect } from "@/components/common/CustomSelect";
-import { TeasyDateTimeInput, TeasyFormLabel, TeasyInput, TeasyTextarea, ReportBadge, ThinParen } from "@/components/common/UIComponents";
+import { TeasyDateTimeInput, TeasyFormLabel, TeasyInput, TeasyTextarea, ReportBadge, ThinParen, TeasyFormGroup } from "@/components/common/UIComponents";
 import { TeasyUniversalViewer } from "@/components/common/ui/MediaViewer";
 import { useReportMetadata } from "@/hooks/useReportMetadata";
 import { getCircledNumber } from "@/components/features/asset/AssetModalUtils";
@@ -41,13 +41,14 @@ const ProductItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef }: {
         >
             <HStack
                 justify="space-between"
-                bg={isReadOnly ? "gray.50" : "white"}
+                bg="white"
                 h="45px"
                 px={3}
                 py={1.5}
                 borderRadius="md"
                 shadow="xs"
-                border="1px solid transparent"
+                border="1px solid"
+                borderColor="gray.100"
                 transition="all 0.2s"
                 _active={!isReadOnly ? { bg: "brand.50", borderColor: "brand.200" } : {}}
             >
@@ -295,13 +296,20 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                         </FormControl>
                         <FormControl isRequired>
                             <TeasyFormLabel>담당자</TeasyFormLabel>
-                            <CustomSelect
-                                placeholder="선택"
-                                value={formData.manager}
-                                onChange={(val) => !isReadOnly && setFormData({ ...formData, manager: val })}
-                                options={managerOptions}
-                                isDisabled={isReadOnly}
-                            />
+                            {isReadOnly ? (
+                                <TeasyInput
+                                    value={managerOptions.find(o => o.value === formData.manager)?.label || formData.manager}
+                                    isReadOnly
+                                />
+                            ) : (
+                                <CustomSelect
+                                    placeholder="선택"
+                                    value={formData.manager}
+                                    onChange={(val) => !isReadOnly && setFormData({ ...formData, manager: val })}
+                                    options={managerOptions}
+                                    isDisabled={isReadOnly}
+                                />
+                            )}
                         </FormControl>
                     </HStack>
 
@@ -310,67 +318,82 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                         <VStack align="stretch" spacing={3}>
                             <HStack flex={1} spacing={4}>
                                 <Box flex={1}>
-                                    <CustomSelect
-                                        placeholder="선택"
-                                        value={productCategory}
-                                        onChange={(val) => setProductCategory(val)}
-                                        options={[
-                                            { value: "product", label: "시공 상품" },
-                                            { value: "inventory", label: "배송 상품" }
-                                        ]}
-                                        isDisabled={isReadOnly || formData.selectedProducts.length > 0}
-                                    />
+                                    {isReadOnly ? (
+                                        <TeasyInput
+                                            value={productCategory === "product" ? "시공 상품" : (productCategory === "inventory" ? "배송 상품" : "")}
+                                            isReadOnly
+                                        />
+                                    ) : (
+                                        <CustomSelect
+                                            placeholder="선택"
+                                            value={productCategory}
+                                            onChange={(val) => setProductCategory(val)}
+                                            options={[
+                                                { value: "product", label: "시공 상품" },
+                                                { value: "inventory", label: "배송 상품" }
+                                            ]}
+                                            isDisabled={formData.selectedProducts.length > 0}
+                                        />
+                                    )}
                                 </Box>
                                 <Box flex={2}>
-                                    {(() => {
-                                        const rawDelivery = inventoryItems.filter(i => i.isDeliveryItem || i.isDivider);
-                                        const deliveryFiltered = rawDelivery.reduce((acc: any[], item, idx, arr) => {
-                                            if (item.isDivider) {
-                                                const hasFollowupItems = arr.slice(idx + 1).some(next => !next.isDivider && next.isDeliveryItem);
-                                                if (hasFollowupItems) acc.push(item);
-                                            } else {
-                                                acc.push(item);
-                                            }
-                                            return acc;
-                                        }, []);
-                                        const isEmptyDelivery = productCategory === "inventory" && deliveryFiltered.filter(i => !i.isDivider).length === 0;
-
-                                        return (
-                                            <CustomSelect
-                                                placeholder={isEmptyDelivery ? "배송 가능 물품 없음" : "선택"}
-                                                value=""
-                                                onChange={(val) => {
-                                                    if (isReadOnly || !val) return;
-                                                    const currentList = productCategory === "product" ? products : inventoryItems;
-                                                    const productInfo = currentList.find(p => p.value === val);
-                                                    if (!productInfo) return;
-
-                                                    const existingIdx = formData.selectedProducts.findIndex((p: any) => p.id === val);
-                                                    let newSelected;
-                                                    if (existingIdx > -1) {
-                                                        newSelected = [...formData.selectedProducts];
-                                                        newSelected[existingIdx].quantity += 1;
-                                                    } else {
-                                                        newSelected = [...formData.selectedProducts, { id: val, name: productInfo.label, quantity: 1, masterId: (productInfo as any).id }];
-                                                    }
-                                                    setFormData({ ...formData, selectedProducts: newSelected });
-                                                }}
-                                                options={
-                                                    !productCategory
-                                                        ? []
-                                                        : productCategory === "product"
-                                                            ? products
-                                                            : deliveryFiltered
+                                    {isReadOnly ? (
+                                        <TeasyInput
+                                            value={formData.selectedProducts.length > 0 ? `${formData.selectedProducts[0].name}${formData.selectedProducts.length > 1 ? ` 외 ${formData.selectedProducts.length - 1}건` : ""}` : ""}
+                                            isReadOnly
+                                            placeholder="선택 내역 없음"
+                                        />
+                                    ) : (
+                                        (() => {
+                                            const rawDelivery = inventoryItems.filter(i => i.isDeliveryItem || i.isDivider);
+                                            const deliveryFiltered = rawDelivery.reduce((acc: any[], item, idx, arr) => {
+                                                if (item.isDivider) {
+                                                    const hasFollowupItems = arr.slice(idx + 1).some(next => !next.isDivider && next.isDeliveryItem);
+                                                    if (hasFollowupItems) acc.push(item);
+                                                } else {
+                                                    acc.push(item);
                                                 }
-                                                isDisabled={isReadOnly || !productCategory || isEmptyDelivery}
-                                            />
-                                        );
-                                    })()}
+                                                return acc;
+                                            }, []);
+                                            const isEmptyDelivery = productCategory === "inventory" && deliveryFiltered.filter(i => !i.isDivider).length === 0;
+
+                                            return (
+                                                <CustomSelect
+                                                    placeholder={isEmptyDelivery ? "배송 가능 물품 없음" : "선택"}
+                                                    value=""
+                                                    onChange={(val) => {
+                                                        if (isReadOnly || !val) return;
+                                                        const currentList = productCategory === "product" ? products : inventoryItems;
+                                                        const productInfo = currentList.find(p => p.value === val);
+                                                        if (!productInfo) return;
+
+                                                        const existingIdx = formData.selectedProducts.findIndex((p: any) => p.id === val);
+                                                        let newSelected;
+                                                        if (existingIdx > -1) {
+                                                            newSelected = [...formData.selectedProducts];
+                                                            newSelected[existingIdx].quantity += 1;
+                                                        } else {
+                                                            newSelected = [...formData.selectedProducts, { id: val, name: productInfo.label, quantity: 1, masterId: (productInfo as any).id }];
+                                                        }
+                                                        setFormData({ ...formData, selectedProducts: newSelected });
+                                                    }}
+                                                    options={
+                                                        !productCategory
+                                                            ? []
+                                                            : productCategory === "product"
+                                                                ? products
+                                                                : deliveryFiltered
+                                                    }
+                                                    isDisabled={isReadOnly || !productCategory || isEmptyDelivery}
+                                                />
+                                            );
+                                        })()
+                                    )}
                                 </Box>
                             </HStack>
 
                             {formData.selectedProducts.length > 0 && (
-                                <VStack align="stretch" spacing={2} p={3} bg="gray.50" borderRadius="10px" border="1px" borderColor="gray.100" ref={scrollContainerRef}>
+                                <TeasyFormGroup ref={scrollContainerRef}>
                                     <Reorder.Group
                                         as="div"
                                         axis="y"
@@ -389,7 +412,7 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                             />
                                         ))}
                                     </Reorder.Group>
-                                </VStack>
+                                </TeasyFormGroup>
                             )}
                         </VStack>
                     </FormControl>
@@ -397,26 +420,33 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                     <HStack spacing={4} align="flex-start">
                         <FormControl isRequired flex={1}>
                             <TeasyFormLabel>결제 방식</TeasyFormLabel>
-                            <CustomSelect
-                                placeholder="선택"
-                                value={formData.payMethod}
-                                onChange={(val) => {
-                                    if (isReadOnly) return;
-                                    setFormData({
-                                        ...formData,
-                                        payMethod: val,
-                                        amount: "",
-                                        discount: "미적용",
-                                        discountAmount: "",
-                                        userId: "",
-                                        taxInvoice: undefined
-                                    });
-                                    setPendingFile(null);
-                                    if (fileInputRef.current) fileInputRef.current.value = '';
-                                }}
-                                options={payMethodOptions}
-                                isDisabled={isReadOnly}
-                            />
+                            {isReadOnly ? (
+                                <TeasyInput
+                                    value={formData.payMethod}
+                                    isReadOnly
+                                />
+                            ) : (
+                                <CustomSelect
+                                    placeholder="선택"
+                                    value={formData.payMethod}
+                                    onChange={(val) => {
+                                        if (isReadOnly) return;
+                                        setFormData({
+                                            ...formData,
+                                            payMethod: val,
+                                            amount: "",
+                                            discount: "미적용",
+                                            discountAmount: "",
+                                            userId: "",
+                                            taxInvoice: undefined
+                                        });
+                                        setPendingFile(null);
+                                        if (fileInputRef.current) fileInputRef.current.value = '';
+                                    }}
+                                    options={payMethodOptions}
+                                    isDisabled={isReadOnly}
+                                />
+                            )}
                         </FormControl>
                         <FormControl isRequired flex={2}>
                             <TeasyFormLabel>결제 금액</TeasyFormLabel>
@@ -430,25 +460,32 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                     </HStack>
 
                     {formData.payMethod && (
-                        <Box p={3} bg="gray.50" borderRadius="10px" border="1px" borderColor="gray.100">
+                        <TeasyFormGroup>
                             <VStack spacing={4} align="stretch">
                                 <HStack w="full" align="flex-end" spacing={4}>
                                     <FormControl flex={1} isDisabled={isReadOnly}>
                                         <TeasyFormLabel sub mb={1} fontSize="xs">할인 내역</TeasyFormLabel>
-                                        <CustomSelect
-                                            value={formData.discount}
-                                            onChange={(val) => {
-                                                if (isReadOnly) return;
-                                                const isNoDiscount = val === "미적용";
-                                                setFormData({
-                                                    ...formData,
-                                                    discount: val,
-                                                    ...(isNoDiscount ? { discountAmount: "", userId: "" } : {})
-                                                });
-                                            }}
-                                            options={discountOptions}
-                                            isDisabled={isReadOnly}
-                                        />
+                                        {isReadOnly ? (
+                                            <TeasyInput
+                                                value={formData.discount}
+                                                isReadOnly
+                                            />
+                                        ) : (
+                                            <CustomSelect
+                                                value={formData.discount}
+                                                onChange={(val) => {
+                                                    if (isReadOnly) return;
+                                                    const isNoDiscount = val === "미적용";
+                                                    setFormData({
+                                                        ...formData,
+                                                        discount: val,
+                                                        ...(isNoDiscount ? { discountAmount: "", userId: "" } : {})
+                                                    });
+                                                }}
+                                                options={discountOptions}
+                                                isDisabled={isReadOnly}
+                                            />
+                                        )}
                                     </FormControl>
                                     <Box flex={2}>
                                         <TeasyInput
@@ -489,6 +526,8 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                                         cursor="pointer"
                                                         bg="gray.100"
                                                         color="gray.600"
+                                                        border="1px solid"
+                                                        borderColor="gray.200"
                                                         _hover={{ bg: "gray.200" }}
                                                         onClick={() => fileInputRef.current?.click()}
                                                         px={3}
@@ -534,6 +573,8 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                                         px={2}
                                                         h="18px"
                                                         borderRadius="4px"
+                                                        border="1px solid"
+                                                        borderColor="gray.200"
                                                         cursor="pointer"
                                                         transition="all 0.2s"
                                                         _hover={{ bg: "gray.500", color: "white" }}
@@ -561,6 +602,8 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                                                 px={2}
                                                                 h="18px"
                                                                 borderRadius="4px"
+                                                                border="1px solid"
+                                                                borderColor="gray.200"
                                                                 cursor="pointer"
                                                                 transition="all 0.2s"
                                                                 _hover={{ bg: "gray.500", color: "white" }}
@@ -592,6 +635,8 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                                                 px={2}
                                                                 h="18px"
                                                                 borderRadius="4px"
+                                                                border="1px solid"
+                                                                borderColor="gray.200"
                                                                 cursor="pointer"
                                                                 transition="all 0.2s"
                                                                 _hover={{ bg: "red.500", color: "white" }}
@@ -614,31 +659,38 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                     </FormControl>
                                 )}
                             </VStack>
-                        </Box>
+                        </TeasyFormGroup>
                     )}
 
                     {productCategory === "inventory" && formData.selectedProducts.length > 0 && (
                         <FormControl>
                             <TeasyFormLabel>배송 정보</TeasyFormLabel>
-                            <Box p={3} bg="gray.50" borderRadius="10px" border="1px" borderColor="gray.100">
+                            <TeasyFormGroup>
                                 <VStack spacing={4}>
                                     <HStack w="full" spacing={4}>
                                         <FormControl flex={1}>
                                             <TeasyFormLabel sub fontSize="xs" mb={1}>배송 업체</TeasyFormLabel>
-                                            <CustomSelect
-                                                placeholder="선택"
-                                                value={formData.deliveryInfo.courier}
-                                                onChange={(val) => !isReadOnly && setFormData({
-                                                    ...formData,
-                                                    deliveryInfo: { ...formData.deliveryInfo, courier: val }
-                                                })}
-                                                options={[
-                                                    { value: "CJ", label: "CJ" },
-                                                    { value: "로젠", label: "로젠" },
-                                                    { value: "우체국", label: "우체국" }
-                                                ]}
-                                                isDisabled={isReadOnly}
-                                            />
+                                            {isReadOnly ? (
+                                                <TeasyInput
+                                                    value={formData.deliveryInfo.courier}
+                                                    isReadOnly
+                                                />
+                                            ) : (
+                                                <CustomSelect
+                                                    placeholder="선택"
+                                                    value={formData.deliveryInfo.courier}
+                                                    onChange={(val) => !isReadOnly && setFormData({
+                                                        ...formData,
+                                                        deliveryInfo: { ...formData.deliveryInfo, courier: val }
+                                                    })}
+                                                    options={[
+                                                        { value: "CJ", label: "CJ" },
+                                                        { value: "로젠", label: "로젠" },
+                                                        { value: "우체국", label: "우체국" }
+                                                    ]}
+                                                    isDisabled={isReadOnly}
+                                                />
+                                            )}
                                         </FormControl>
                                         <FormControl flex={1}>
                                             <TeasyFormLabel sub fontSize="xs" mb={1}>발송 일자</TeasyFormLabel>
@@ -683,7 +735,7 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                         />
                                     </FormControl>
                                 </VStack>
-                            </Box>
+                            </TeasyFormGroup>
                         </FormControl>
                     )}
 
@@ -697,6 +749,13 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                         />
                     </FormControl>
                 </VStack>
+
+                {/* File Viewer Modal */}
+                <TeasyUniversalViewer
+                    isOpen={viewerState.isOpen}
+                    onClose={() => setViewerState({ ...viewerState, isOpen: false })}
+                    files={viewerState.file ? [viewerState.file] : []}
+                />
             </Box>
         );
     });

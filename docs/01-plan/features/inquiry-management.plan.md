@@ -13,7 +13,7 @@
     *   **섹션 분리**: `VStack spacing={6}`을 기반으로 한 논리적 그룹화.
     *   **2열 그리드 (HStack)**: [접수 일시-담당자], [문의 상품-상담 결과] 항목은 `HStack spacing={4}`를 통해 균형 잡힌 2열 배치.
 *   **동적 가변 UI (Channel Specific)**:
-    *   **가변 섹션**: 채널 선택 시 하단에 `gray.50` 배경 박스(`borderRadius="xl"`, `p={4}`)가 노출됨.
+    *   **가변 섹션**: 채널 선택 시 하단에 `white` 배경 박스(`borderRadius="xl"`, `p={4}`, `border="1px"`)가 노출됨. (Premium 일관성 유지)
     *   **"전화 문의" 선택 시**: 
         *   연락처 필드가 강조되며, 우측에 `bg="gray.100"`, `borderRadius="10px"`, `h="32px"` 규격의 **'녹취 업로드'** Badge 버튼 배치.
         *   연락처 필드는 고객의 기존 번호(`customer.phone`)를 기본값으로 계승.
@@ -25,6 +25,7 @@
     *   **기타 필드**: 선택 항목은 `placeholder="선택"`, 입력 항목은 `placeholder="입력"`.
     *   접수 일시는 **미래 시점 선택 불가** (`limitType="future"`).
     *   **공통 규격**: 모든 `TeasyInput` 및 `CustomSelect`는 `h="45px"`, `borderRadius="10px"` 준수.
+    *   **읽기 전용 (Read-Only)**: '담당자', '유입 채널', '문의 상품', '상담 결과' 등 선택 필드는 `isReadOnly` 시 `TeasyInput`으로 전환하여 정보를 노출함.
     *   **글로벌 상속 (Global Inherited)**: `theme.ts`의 `letterSpacing: "0.5px"`를 상속받아 고급스러운 자간 유지.
 *   **견적서 업로드 UI (Quote Section)**:
     *   필드 우측에 `bg="gray.100"`, `h="32px"`, `borderRadius="10px"` 규격의 **'파일 업로드'** Badge 버튼 배치.
@@ -86,6 +87,7 @@
 | v1.0 | 2026-02-03 | 신규 문의 기획서 초안 작성 |
 | v1.1 | 2026-02-03 | TimelineCard 상세 노출 로직(HasNickname) 및 "기타" 가변 UI 반영 |
 | v1.2 | 2026-02-03 | Storage Physics 및 메모리 관리 지침 추가 |
+| v1.3 | 2026-02-03 | 읽기 전용 선택 필드 TeasyInput 전환 및 가변 섹션 white 배경 표준화 |
 
 ---
 > [!IMPORTANT]

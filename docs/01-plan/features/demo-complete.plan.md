@@ -17,12 +17,13 @@
     *   '현금 할인' 선택 시 금액 입력창(`handleCashInput`)에 숫자 입력 즉시 **천 단위 콤마와 마이너스(`-`)** 기호가 자동 부여됨. (예: `-100,000`)
     *   `Intl.NumberFormat`을 사용하여 화폐 포맷 준수.
 *   **사진 업로드 관리**:
-    *   **공간 디자인**: `gray.50` 배경과 `1px dashed` 보더를 가진 전용박스 영역 배치.
+    *   **공간 디자인**: `white` 배경과 `1px dashed` 보더를 가진 전용박스 영역 배치. (데이터 표현 일관성 준수)
     *   **카운팅 피드백**: 필드 라벨 우측에 `(현재수/최대수)` 배지 노출 (최대 15장 / `DEMO_CONSTANTS.MAX_PHOTOS`).
 *   **플레이스홀더 및 규격 (Verbatim)**:
     *   연락처는 `placeholder="000-0000-0000"`, 나머지는 선택 `placeholder="선택"`, 입력 `placeholder="입력"`.
     *   완료 일시는 **미래 시점 선택 불가** (코드상 `limitType="future"`는 미래 선택을 제한한다는 의미).
     *   공통 `h="45px"`, `borderRadius="10px"` 준수.
+    *   **읽기 전용 (Read-Only)**: '담당자', '시연 상품', '시연 결과', '할인 제안' 등 선택형 필드는 `isReadOnly` 시 `TeasyInput`으로 전환하여 텍스트 정보를 명확하게 전달함.
     *   **글로벌 상속 (Global Inherited)**: `theme.ts`의 `letterSpacing: "0.5px"`를 상속받아 고급스러운 자간 유지.
 *   **사진 상호작용 (Interaction)**:
     *   업로드된 사진 클릭 시 `TeasyUniversalViewer`가 호출되어 전체 화면으로 이미지 확인 가능.
@@ -82,6 +83,7 @@
 | v1.0 | 2026-02-03 | 시연 완료 기획서 초안 작성 |
 | v1.1 | 2026-02-03 | 실시간 금액 포맷팅(handleCashInput) 및 사진 정밀 중복 방지 보완 |
 | v1.2 | 2026-02-03 | "시연 확정" 데이터 계승(Inheritance) 및 Storage Physics 지침 추가 |
+| v1.3 | 2026-02-03 | 읽기 전용 모드 선택 필드 TeasyInput 전환 및 사진 영역 white 배경 적용 |
 
 ---
 > [!NOTE]

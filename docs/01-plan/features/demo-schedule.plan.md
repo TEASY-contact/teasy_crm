@@ -21,7 +21,7 @@
     *   **글로벌 상속 (Global Inherited)**: `theme.ts`의 `letterSpacing: "0.5px"`를 상속받아 고급스러운 자간 유지.
 *   **상태 피드백**:
     *   **로딩 (Loading)**: 저장 시 `Spinner`가 적용된 `z-index: 20`의 화이트 오버레이 노출.
-    *   **읽기 전용 (Read-Only)**: `isReadOnly` 속성 활성화 시 모든 입력 필드(`isDisabled`) 비활성화 처리.
+    *   **읽기 전용 (Read-Only)**: `isReadOnly` 속성 활성화 시 모든 입력 필드는 비활성화 처리되며, '담당자' 및 '시연 상품' 등 선택 항목은 `CustomSelect` 대신 `TeasyInput`을 사용하여 라벨 값을 명확히 노출함.
 
 ### 1.2 타임라인 카드 UI (Timeline Representation)
 *   **헤더**: '시연 확정' 배지(**Color: `blue`**), 방문 예정 일시, 작성자 성명 노출.
@@ -77,6 +77,7 @@
 | v1.0 | 2026-02-03 | 시연 확정 기획서 초안 작성 |
 | v1.1 | 2026-02-03 | TimelineCard 전용 라벨("주소") 및 담당자 퇴사자(banned) UI 반영 |
 | v1.2 | 2026-02-03 | 고객 정보 자동 바인딩(Pre-fill) 지침 정교화 |
+| v1.3 | 2026-02-03 | 읽기 전용 모드 담당자/상품 TeasyInput 전환 표준 반영 |
 
 ---
 > [!NOTE]

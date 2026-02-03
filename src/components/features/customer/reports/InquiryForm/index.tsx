@@ -12,7 +12,8 @@ import {
     TeasyPhoneInput,
     TeasyUniversalViewer,
     TeasyAudioPlayer,
-    TeasyButton
+    TeasyButton,
+    TeasyFormGroup
 } from "@/components/common/UIComponents";
 import { CustomSelect } from "@/components/common/CustomSelect";
 import { useAuth } from "@/context/AuthContext";
@@ -97,35 +98,49 @@ export const InquiryForm = forwardRef<InquiryFormHandle, InquiryFormProps>(({
                     </FormControl>
                     <FormControl isRequired>
                         <TeasyFormLabel>담당자</TeasyFormLabel>
-                        <CustomSelect
-                            placeholder="선택"
-                            value={formData.manager}
-                            onChange={(val) => !isReadOnly && setFormData((prev: InquiryFormData) => ({ ...prev, manager: val }))}
-                            options={managerOptions}
-                            isDisabled={isReadOnly}
-                        />
+                        {isReadOnly ? (
+                            <TeasyInput
+                                value={managerOptions.find(o => o.value === formData.manager)?.label || formData.manager}
+                                isReadOnly
+                            />
+                        ) : (
+                            <CustomSelect
+                                placeholder="선택"
+                                value={formData.manager}
+                                onChange={(val) => !isReadOnly && setFormData((prev: InquiryFormData) => ({ ...prev, manager: val }))}
+                                options={managerOptions}
+                                isDisabled={isReadOnly}
+                            />
+                        )}
                     </FormControl>
                 </HStack>
 
                 <VStack spacing={2} align="stretch">
                     <FormControl isRequired>
                         <TeasyFormLabel>유입 채널</TeasyFormLabel>
-                        <CustomSelect
-                            placeholder="선택"
-                            value={formData.channel}
-                            onChange={handleChannelChange}
-                            options={[
-                                { value: "전화 문의", label: "전화 문의" },
-                                { value: "네이버 톡톡", label: "네이버 톡톡" },
-                                { value: "채널톡", label: "채널톡" },
-                                { value: "기타", label: "기타" }
-                            ]}
-                            isDisabled={isReadOnly}
-                        />
+                        {isReadOnly ? (
+                            <TeasyInput
+                                value={formData.channel}
+                                isReadOnly
+                            />
+                        ) : (
+                            <CustomSelect
+                                placeholder="선택"
+                                value={formData.channel}
+                                onChange={handleChannelChange}
+                                options={[
+                                    { value: "전화 문의", label: "전화 문의" },
+                                    { value: "네이버 톡톡", label: "네이버 톡톡" },
+                                    { value: "채널톡", label: "채널톡" },
+                                    { value: "기타", label: "기타" }
+                                ]}
+                                isDisabled={isReadOnly}
+                            />
+                        )}
                     </FormControl>
 
                     {formData.channel && (
-                        <Box bg="gray.50" p={4} borderRadius="xl" border="1px" borderColor="gray.200">
+                        <TeasyFormGroup>
                             {formData.channel === "전화 문의" ? (
                                 <Box>
                                     <FormControl isRequired>
@@ -148,6 +163,8 @@ export const InquiryForm = forwardRef<InquiryFormHandle, InquiryFormProps>(({
                                                             onClick={() => recordingInputRef.current?.click()}
                                                             bg="gray.100"
                                                             color="gray.600"
+                                                            border="1px solid"
+                                                            borderColor="gray.200"
                                                             _hover={{ bg: "gray.200" }}
                                                             px={3}
                                                             h="32px"
@@ -194,35 +211,49 @@ export const InquiryForm = forwardRef<InquiryFormHandle, InquiryFormProps>(({
                                     />
                                 </FormControl>
                             )}
-                        </Box>
+                        </TeasyFormGroup>
                     )}
                 </VStack>
 
                 <HStack spacing={4}>
                     <FormControl isRequired>
                         <TeasyFormLabel>문의 상품</TeasyFormLabel>
-                        <CustomSelect
-                            placeholder="선택"
-                            value={formData.product}
-                            onChange={(val) => !isReadOnly && setFormData((prev: InquiryFormData) => ({ ...prev, product: val }))}
-                            options={products}
-                            isDisabled={isReadOnly}
-                        />
+                        {isReadOnly ? (
+                            <TeasyInput
+                                value={products.find(p => p.value === formData.product)?.label || formData.product}
+                                isReadOnly
+                            />
+                        ) : (
+                            <CustomSelect
+                                placeholder="선택"
+                                value={formData.product}
+                                onChange={(val) => !isReadOnly && setFormData((prev: InquiryFormData) => ({ ...prev, product: val }))}
+                                options={products}
+                                isDisabled={isReadOnly}
+                            />
+                        )}
                     </FormControl>
                     <FormControl isRequired>
                         <TeasyFormLabel>상담 결과</TeasyFormLabel>
-                        <CustomSelect
-                            placeholder="선택"
-                            value={formData.result}
-                            onChange={(val) => !isReadOnly && setFormData((prev: InquiryFormData) => ({ ...prev, result: val as any }))}
-                            options={[
-                                { value: "구매 예정", label: "구매 예정" },
-                                { value: "시연 확정", label: "시연 확정" },
-                                { value: "시연 고민", label: "시연 고민" },
-                                { value: "관심 없음", label: "관심 없음" }
-                            ]}
-                            isDisabled={isReadOnly}
-                        />
+                        {isReadOnly ? (
+                            <TeasyInput
+                                value={formData.result}
+                                isReadOnly
+                            />
+                        ) : (
+                            <CustomSelect
+                                placeholder="선택"
+                                value={formData.result}
+                                onChange={(val) => !isReadOnly && setFormData((prev: InquiryFormData) => ({ ...prev, result: val as any }))}
+                                options={[
+                                    { value: "구매 예정", label: "구매 예정" },
+                                    { value: "시연 확정", label: "시연 확정" },
+                                    { value: "시연 고민", label: "시연 고민" },
+                                    { value: "관심 없음", label: "관심 없음" }
+                                ]}
+                                isDisabled={isReadOnly}
+                            />
+                        )}
                     </FormControl>
                 </HStack>
 
@@ -248,6 +279,8 @@ export const InquiryForm = forwardRef<InquiryFormHandle, InquiryFormProps>(({
                                         onClick={() => quoteInputRef.current?.click()}
                                         bg="gray.100"
                                         color="gray.600"
+                                        border="1px solid"
+                                        borderColor="gray.200"
                                         _hover={{ bg: "gray.200" }}
                                         px={3}
                                         h="32px"

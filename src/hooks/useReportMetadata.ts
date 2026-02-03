@@ -7,10 +7,67 @@ import { useQuery } from "@tanstack/react-query";
 import { Asset, User, ManagerOption, ProductOption } from "@/types/domain";
 
 /**
- * Hook to fetch common metadata (Managers, Products) for report forms.
+ * Hook to fetch common metadata (Managers, Products, Holidays) for report forms.
  * Uses React Query for caching across different form components.
  */
 export const useReportMetadata = () => {
+    // 0. Fetch Korean Holidays from API (v124.88: Triple Redundancy)
+    const { data: holidayMap } = useQuery({
+        queryKey: ["holidays", "kr"],
+        queryFn: async () => {
+            const currentYear = new Date().getFullYear();
+            const yearsToFetch = [currentYear - 1, currentYear, currentYear + 1];
+
+            // Primary: hyunbinseo mirror (Single fetch)
+            try {
+                const res = await fetch("https://holidays.hyunbin.page/basic.json");
+                if (res.ok) return await res.json();
+            } catch (e) { console.warn("Primary Holiday API failed"); }
+
+            // Backup 1: taetae98coding mirror (Yearly fetch)
+            try {
+                const backupMap: any = {};
+                await Promise.all(yearsToFetch.map(async (year) => {
+                    const bRes = await fetch(`https://taetae98coding.github.io/Holiday/holiday/${year}.json`);
+                    if (bRes.ok) {
+                        const data = await bRes.json();
+                        backupMap[year] = backupMap[year] || {};
+                        data.forEach((h: any) => {
+                            if (h.isHoliday) {
+                                let curr = new Date(h.start);
+                                const end = new Date(h.endInclusive);
+                                while (curr <= end) {
+                                    backupMap[year][curr.toISOString().split('T')[0]] = [h.name];
+                                    curr.setDate(curr.getDate() + 1);
+                                }
+                            }
+                        });
+                    }
+                }));
+                if (Object.keys(backupMap).length > 0) return backupMap;
+            } catch (e) { console.warn("Backup 1 Holiday API failed"); }
+
+            // Backup 2: Nager.Date Global API (Yearly fetch)
+            try {
+                const globalBackupMap: any = {};
+                await Promise.all(yearsToFetch.map(async (year) => {
+                    const gRes = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/KR`);
+                    if (gRes.ok) {
+                        const data = await gRes.json();
+                        globalBackupMap[year] = globalBackupMap[year] || {};
+                        data.forEach((h: any) => {
+                            globalBackupMap[year][h.date] = [h.localName];
+                        });
+                    }
+                }));
+                if (Object.keys(globalBackupMap).length > 0) return globalBackupMap;
+            } catch (e) { console.warn("Backup 2 Holiday API failed"); }
+
+            throw new Error("All Holiday APIs failed");
+        },
+        staleTime: 1000 * 60 * 60 * 24, // 24 hours
+        gcTime: 1000 * 60 * 60 * 24 * 7, // 7 days
+    });
     // 1. Fetch Assets (Inventory/Product/Divider)
     const { data: rawAssets = [], isLoading: isLoadingAssets } = useQuery({
         queryKey: ["assets", "metadata"],
@@ -121,6 +178,7 @@ export const useReportMetadata = () => {
         products: processedAssets.products,
         inventoryItems: processedAssets.inventoryItems,
         rawAssets,
+        holidayMap,
         isLoadingMetadata: isLoadingAssets || isLoadingUsers
     };
 };

@@ -1,18 +1,19 @@
-// src/components/features/customer/reports/InstallScheduleForm/index.tsx
+// src/components/features/customer/reports/InstallCompleteForm/index.tsx
 "use client";
 import React, { forwardRef, useImperativeHandle, useRef } from "react";
-import { VStack, FormControl, Box, Spinner, HStack, Flex, Text, IconButton, Badge } from "@chakra-ui/react";
+import { VStack, FormControl, Box, Spinner, HStack, Flex, Text, IconButton, Badge, Checkbox } from "@chakra-ui/react";
 import { MdRemove, MdAdd, MdDragHandle } from "react-icons/md";
 import { Reorder, useDragControls } from "framer-motion";
 import { CustomSelect } from "@/components/common/CustomSelect";
 import { TeasyDateTimeInput, TeasyFormLabel, TeasyInput, TeasyTextarea, TeasyPhoneInput, TeasyFormGroup } from "@/components/common/UIComponents";
 import { useReportMetadata } from "@/hooks/useReportMetadata";
-import { useInstallScheduleForm, INSTALL_SCHEDULE_CONSTANTS } from "./useInstallScheduleForm";
-import { InstallScheduleFormData, InstallScheduleFormHandle, SelectedItem } from "./types";
+import { useInstallCompleteForm, INSTALL_COMPLETE_CONSTANTS } from "./useInstallCompleteForm";
+import { InstallCompleteFormData, InstallCompleteFormHandle } from "./types";
+import { SelectedItem } from "../InstallScheduleForm/types";
 import { getCircledNumber } from "@/components/features/asset/AssetModalUtils";
 import { PhotoGrid } from "../common/PhotoGrid";
 
-// --- Sub Component for Reorder Item (Shared Style with PurchaseConfirm) ---
+// --- Sub Component for Reorder Item ---
 const ListItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef, colorScheme = "brand" }: {
     item: SelectedItem,
     idx: number,
@@ -22,8 +23,6 @@ const ListItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef, colorSch
     colorScheme?: string
 }) => {
     const controls = useDragControls();
-    const isInherited = !!(item as any).isInherited;
-    const finalReadOnly = isReadOnly || isInherited;
 
     return (
         <Reorder.Item
@@ -44,10 +43,10 @@ const ListItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef, colorSch
                 border="1px solid"
                 borderColor="gray.100"
                 transition="all 0.2s"
-                _active={!finalReadOnly ? { bg: `${colorScheme}.50`, borderColor: `${colorScheme}.200` } : {}}
+                _active={!isReadOnly ? { bg: `${colorScheme}.50`, borderColor: `${colorScheme}.200` } : {}}
             >
                 <HStack spacing={3} flex={1}>
-                    {!finalReadOnly && (
+                    {!isReadOnly && (
                         <Box
                             color="gray.300"
                             cursor="grab"
@@ -86,7 +85,7 @@ const ListItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef, colorSch
                             {item.category}
                         </Badge>
                     )}
-                    {!finalReadOnly && (
+                    {!isReadOnly && (
                         <IconButton
                             aria-label="decrease-qty"
                             icon={<MdRemove />}
@@ -111,7 +110,7 @@ const ListItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef, colorSch
                     >
                         {item.quantity}
                     </Badge>
-                    {!finalReadOnly && (
+                    {!isReadOnly && (
                         <IconButton
                             aria-label="increase-qty"
                             icon={<MdAdd />}
@@ -127,16 +126,16 @@ const ListItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef, colorSch
     );
 };
 
-interface InstallScheduleFormProps {
+interface InstallCompleteFormProps {
     customer: { id: string, name: string, address?: string, phone?: string };
     activities?: any[];
     activityId?: string;
-    initialData?: Partial<InstallScheduleFormData>;
+    initialData?: Partial<InstallCompleteFormData>;
     isReadOnly?: boolean;
     defaultManager?: string;
 }
 
-export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, InstallScheduleFormProps>(({
+export const InstallCompleteForm = forwardRef<InstallCompleteFormHandle, InstallCompleteFormProps>(({
     customer,
     activities = [],
     activityId,
@@ -149,10 +148,10 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
         formData, setFormData,
         isLoading,
         handleFileUpload, removePhoto,
-        addTask, updateTask, removeTask,
+        addTask, updateTask, removeTask, toggleTask,
         submit,
         handleDelete
-    } = useInstallScheduleForm({ customer, activities, activityId, initialData, defaultManager, rawAssets });
+    } = useInstallCompleteForm({ customer, activities, activityId, initialData, defaultManager, rawAssets });
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const productScrollRef = useRef<HTMLDivElement>(null);
@@ -219,7 +218,7 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                         newSupplies.push({
                             id: `auto_${invInfo.value}`,
                             name: item.name,
-                            quantity: 1, // Start with 1, matching product initial qty
+                            quantity: 1,
                             category: invInfo.category,
                             isAuto: true,
                             linkedId: rowId
@@ -261,7 +260,6 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
 
         const targetItem = list[idx];
         const newQty = targetItem.quantity + delta;
-
         if (newQty <= 0) {
             if (window.confirm("항목을 삭제하시겠습니까?")) {
                 if (type === "product") {
@@ -290,7 +288,7 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
         } else {
             list[idx].quantity = newQty;
 
-            // SYNC LOGIC: If product qty changes, update merged auto-supplies to reflect the new total
+            // SYNC LOGIC: If product qty changes, update merged auto-supplies
             if (type === "product") {
                 const updatedSupplies = formData.selectedSupplies.map(s => {
                     if (s.isAuto && s.linkedId && s.linkedId.split(",").includes(id)) {
@@ -332,12 +330,12 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
             <VStack spacing={6} align="stretch">
                 <HStack spacing={4}>
                     <FormControl isRequired>
-                        <TeasyFormLabel>시공 일시</TeasyFormLabel>
+                        <TeasyFormLabel>완료 일시</TeasyFormLabel>
                         <TeasyDateTimeInput
                             value={formData.date}
                             onChange={(val: string) => !isReadOnly && setFormData({ ...formData, date: val })}
                             isDisabled={isReadOnly}
-                            limitType="past"
+                            limitType="future"
                         />
                     </FormControl>
                     <FormControl isRequired>
@@ -360,7 +358,7 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                 </HStack>
 
                 <FormControl isRequired>
-                    <TeasyFormLabel>방문 주소</TeasyFormLabel>
+                    <TeasyFormLabel>주소</TeasyFormLabel>
                     <TeasyInput
                         value={formData.location}
                         onChange={(e: any) => !isReadOnly && setFormData({ ...formData, location: e.target.value })}
@@ -379,24 +377,22 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                     />
                 </FormControl>
 
-                <FormControl isRequired>
-                    <TeasyFormLabel>시공 상품</TeasyFormLabel>
+                <FormControl>
+                    <TeasyFormLabel>시공 내역</TeasyFormLabel>
                     <VStack align="stretch" spacing={3}>
-                        {!formData.selectedProducts.some(p => (p as any).isInherited) && !isReadOnly && (
-                            <CustomSelect
-                                placeholder="선택"
-                                value=""
-                                onChange={handleAddProduct}
-                                options={products}
-                                isDisabled={isReadOnly}
-                            />
-                        )}
+                        <CustomSelect
+                            placeholder="선택"
+                            value=""
+                            onChange={handleAddProduct}
+                            options={products}
+                            isDisabled={isReadOnly}
+                        />
                         {formData.selectedProducts.length > 0 && (
                             <TeasyFormGroup ref={productScrollRef}>
                                 <Reorder.Group
                                     axis="y"
                                     values={formData.selectedProducts}
-                                    onReorder={(val) => handleReorder("product", val)}
+                                    onReorder={(val) => handleReorder("product", val as SelectedItem[])}
                                     style={{ listStyleType: "none" }}
                                 >
                                     {formData.selectedProducts.map((item, idx) => (
@@ -416,7 +412,7 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                 </FormControl>
 
                 <FormControl>
-                    <TeasyFormLabel>준비 물품</TeasyFormLabel>
+                    <TeasyFormLabel>사용 내역</TeasyFormLabel>
                     <VStack align="stretch" spacing={3}>
                         <CustomSelect
                             placeholder="선택"
@@ -462,16 +458,19 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                     </VStack>
                 </FormControl>
 
-                {/* 수행 요망 (Tasks) */}
+                {/* 수행 업무 결과 */}
                 <FormControl>
-                    <TeasyFormLabel>수행 요망</TeasyFormLabel>
-                    <Box bg="gray.50" borderRadius="md" p={3} border="1px" borderColor="gray.100">
+                    <TeasyFormLabel>수행 결과</TeasyFormLabel>
+                    <TeasyFormGroup>
                         <VStack spacing={5} align="stretch">
                             {/* 시공 전 */}
                             <Box>
-                                <TeasyFormLabel sub>시공 전</TeasyFormLabel>
+                                <HStack justify="space-between" align="center">
+                                    <TeasyFormLabel sub mb={2}>시공 전</TeasyFormLabel>
+                                    <Text fontSize="11px" color="gray.400" pr={3.5} fontWeight="bold" mt={-1}>✓</Text>
+                                </HStack>
                                 <VStack spacing={2} align="stretch">
-                                    {(formData.tasksBefore || [""]).map((task, idx) => (
+                                    {formData.tasksBefore.map((task, idx) => (
                                         <HStack
                                             key={idx}
                                             spacing={3}
@@ -490,46 +489,16 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                                                 <Text fontSize="sm" fontWeight="bold" color="brand.500" minW="20px" textAlign="center">
                                                     {getCircledNumber(idx + 1)}
                                                 </Text>
-                                                {isReadOnly ? (
-                                                    <Text fontSize="sm" color="gray.700" fontWeight="medium">
-                                                        {task}
-                                                    </Text>
-                                                ) : (
-                                                    <TeasyInput
-                                                        size="sm"
-                                                        variant="unstyled"
-                                                        placeholder="입력"
-                                                        value={task}
-                                                        onChange={(e: any) => updateTask('before', idx, e.target.value)}
-                                                        fontSize="sm"
-                                                        color="gray.700"
-                                                        h="24px"
-                                                        lineHeight="1.6"
-                                                        py={0}
-                                                    />
-                                                )}
+                                                <Text fontSize="sm" color="gray.700" fontWeight="medium">
+                                                    {task.text}
+                                                </Text>
                                             </HStack>
-                                            {!isReadOnly && (
-                                                <HStack spacing={1}>
-                                                    <IconButton
-                                                        aria-label="remove-task"
-                                                        icon={<MdRemove />}
-                                                        size="xs"
-                                                        variant="ghost"
-                                                        colorScheme="gray"
-                                                        onClick={() => removeTask('before', idx)}
-                                                    />
-                                                    <Text color="gray.200" fontSize="10px">|</Text>
-                                                    <IconButton
-                                                        aria-label="add-task"
-                                                        icon={<MdAdd />}
-                                                        size="xs"
-                                                        variant="ghost"
-                                                        colorScheme="gray"
-                                                        onClick={() => addTask('before')}
-                                                    />
-                                                </HStack>
-                                            )}
+                                            <Checkbox
+                                                isChecked={task.completed}
+                                                onChange={() => !isReadOnly && toggleTask?.('before', idx)}
+                                                isDisabled={isReadOnly}
+                                                colorScheme="brand"
+                                            />
                                         </HStack>
                                     ))}
                                 </VStack>
@@ -537,9 +506,12 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
 
                             {/* 시공 후 */}
                             <Box>
-                                <TeasyFormLabel sub>시공 후</TeasyFormLabel>
+                                <HStack justify="space-between" align="center">
+                                    <TeasyFormLabel sub mb={2}>시공 후</TeasyFormLabel>
+                                    <Text fontSize="11px" color="gray.400" pr={3.5} fontWeight="bold" mt={-1}>✓</Text>
+                                </HStack>
                                 <VStack spacing={2} align="stretch">
-                                    {(formData.tasksAfter || [""]).map((task, idx) => (
+                                    {formData.tasksAfter.map((task, idx) => (
                                         <HStack
                                             key={idx}
                                             spacing={3}
@@ -556,65 +528,53 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                                         >
                                             <HStack spacing={1} flex={1}>
                                                 <Text fontSize="sm" fontWeight="bold" color="brand.500" minW="20px" textAlign="center">
-                                                    {getCircledNumber((formData.tasksBefore || [""]).length + idx + 1)}
+                                                    {getCircledNumber(formData.tasksBefore.length + idx + 1)}
                                                 </Text>
-                                                {isReadOnly ? (
-                                                    <Text fontSize="sm" color="gray.700" fontWeight="medium">
-                                                        {task}
-                                                    </Text>
-                                                ) : (
-                                                    <TeasyInput
-                                                        size="sm"
-                                                        variant="unstyled"
-                                                        placeholder="입력"
-                                                        value={task}
-                                                        onChange={(e: any) => updateTask('after', idx, e.target.value)}
-                                                        fontSize="sm"
-                                                        color="gray.700"
-                                                        h="24px"
-                                                        lineHeight="1.6"
-                                                        py={0}
-                                                    />
-                                                )}
+                                                <Text fontSize="sm" color="gray.700" fontWeight="medium">
+                                                    {task.text}
+                                                </Text>
                                             </HStack>
-                                            {!isReadOnly && (
-                                                <HStack spacing={1}>
-                                                    <IconButton
-                                                        aria-label="remove-task"
-                                                        icon={<MdRemove />}
-                                                        size="xs"
-                                                        variant="ghost"
-                                                        colorScheme="gray"
-                                                        onClick={() => removeTask('after', idx)}
-                                                    />
-                                                    <Text color="gray.200" fontSize="10px">|</Text>
-                                                    <IconButton
-                                                        aria-label="add-task"
-                                                        icon={<MdAdd />}
-                                                        size="xs"
-                                                        variant="ghost"
-                                                        colorScheme="gray"
-                                                        onClick={() => addTask('after')}
-                                                    />
-                                                </HStack>
-                                            )}
+                                            <Checkbox
+                                                isChecked={task.completed}
+                                                onChange={() => !isReadOnly && toggleTask?.('after', idx)}
+                                                isDisabled={isReadOnly}
+                                                colorScheme="brand"
+                                            />
                                         </HStack>
                                     ))}
                                 </VStack>
                             </Box>
+
+                            {/* 사유 입력창 (Incomplete Reason) */}
+                            {[...formData.tasksBefore, ...formData.tasksAfter].some(t => !t.completed) && (
+                                <Box>
+                                    <TeasyFormLabel sub>수행불가 사유</TeasyFormLabel>
+                                    <TeasyTextarea
+                                        value={formData.incompleteReason}
+                                        onChange={(e: any) => !isReadOnly && setFormData({ ...formData, incompleteReason: e.target.value })}
+                                        placeholder="체크되지 않은 업무가 있습니다. 사유를 입력해주세요."
+                                        size="sm"
+                                        bg="white"
+                                        borderColor="gray.200"
+                                        _focus={{ borderColor: "brand.300", bg: "white" }}
+                                        isDisabled={isReadOnly}
+                                        w="full"
+                                    />
+                                </Box>
+                            )}
                         </VStack>
-                    </Box>
+                    </TeasyFormGroup>
                 </FormControl>
 
-                <FormControl>
-                    <TeasyFormLabel>현장 사진 ({formData.photos.length}/{INSTALL_SCHEDULE_CONSTANTS.MAX_PHOTOS})</TeasyFormLabel>
-                    <Box p={4} border="1px dashed" borderColor="gray.200" borderRadius="xl" bg="white">
+                <FormControl isRequired>
+                    <TeasyFormLabel>현장 사진 ({formData.photos.length}/{INSTALL_COMPLETE_CONSTANTS.MAX_PHOTOS})</TeasyFormLabel>
+                    <TeasyFormGroup bg="white" borderStyle="dashed" p={4} borderRadius="xl">
                         <PhotoGrid
                             photos={formData.photos}
                             isReadOnly={isReadOnly}
                             onAddClick={() => fileInputRef.current?.click()}
                             onRemoveClick={removePhoto}
-                            maxPhotos={INSTALL_SCHEDULE_CONSTANTS.MAX_PHOTOS}
+                            maxPhotos={INSTALL_COMPLETE_CONSTANTS.MAX_PHOTOS}
                         />
                         <input
                             type="file"
@@ -629,7 +589,7 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                                 }
                             }}
                         />
-                    </Box>
+                    </TeasyFormGroup>
                 </FormControl>
 
                 <FormControl>
@@ -637,7 +597,7 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                     <TeasyTextarea
                         value={formData.memo}
                         onChange={(e: any) => !isReadOnly && setFormData({ ...formData, memo: e.target.value })}
-                        placeholder="시공 시 주의사항 등 입력"
+                        placeholder="특이사항 또는 고객 전달사항 입력"
                         isDisabled={isReadOnly}
                     />
                 </FormControl>
@@ -646,4 +606,4 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
     );
 });
 
-InstallScheduleForm.displayName = "InstallScheduleForm";
+InstallCompleteForm.displayName = "InstallCompleteForm";

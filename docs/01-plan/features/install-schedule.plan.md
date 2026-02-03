@@ -14,6 +14,12 @@
     *   **섹션 스타일**: 각 섹션 헤더는 `fontSize="sm"`, `fontWeight="bold"`, `color="gray.700"` 스타일을, 섹션 간 구분선은 `my={6}` 여백을 준수. 섹션 내 스택 간격은 `spacing={4}`.
     *   **안전 장치**: 오버레이 클릭 시 닫히지 않도록 `closeOnOverlayClick={false}` 설정. 모달 타이틀은 `fontWeight="bold"` 적용. 닫기 버튼(`ModalCloseButton`) 포함.
     *   **로딩 UX**: 초기 진입 시 별도 스켈레톤 없이 폼이 즉시 렌더링. 버튼만 Loading Spinner 처리(`loadingText="저장 중"`). `isLoading` 상태와 `useRef`(`isSubmitting`)를 조합하여 이중으로 중복 제출 방지(Immediate Guard).
+    *   **글로벌 리스트 표준 (Global List Representation Standard)**:
+        *   확인(Read-Only) 모달 내 모든 리스트(상품, 자재, 업무 등)는 아래 표준을 준수함.
+        *   **컨테이너**: `bg="white"`, `borderRadius="md"`, `border="1px solid"`, `borderColor="gray.100"`, `shadow="xs"`.
+        *   **레이아웃**: `justify="space-between"`, 내부 패딩 `px={3}, py={1.5}`.
+        *   **콘텐츠 (Left)**: 원형 숫자(`getCircledNumber`) + 텍스트(`Text` 컴포넌트 사용, `fontSize="sm"`, `fontWeight="medium"`).
+        *   **콘텐츠 (Right)**: 정보 성격에 따른 `Badge` 배치 (수량, 카테고리, 상태 등).
     *   **상태 제어**: 로딩/제출 중이거나 닫기 시 `readOnly` 전환 및 `reset`을 통한 잔상 데이터 방지. 스크롤은 `scrollBehavior="inside"`로 내부 스크롤 처리.
     *   **파일 UX**: 업로드 시 `파일명 + 파일크기` 조합으로 중복 여부를 체크(Client-side). 전송 직전 `Map` 자료구조로 2차 중복 제거(Safety Net) 수행. 확장자 누락 시 `jpg` Fallback.
     *   **테마 정책**: 현재 Light Mode 색상(`white`, `gray.50` 등)이 하드코딩되어 있음. 구분선(`Divider`)은 기본 `gray.200`.
@@ -27,18 +33,21 @@
     *   **안내 문구**: 자재 리스트 하단 우측 정렬된 `purple.400` 문구(`* 저장 시 위 물량만큼 재고에서 자동 차감됩니다.`) 노출.
     *   **자동 정리 (Cleanup)**: 상위 상품 삭제 시 연결된(`linkedId`) 자동 산출 자재(`isAuto`)도 함께 삭제되거나 수량 재계산.
 *   **업무 지시서 디자인 (Task UX)**:
-    *   시공 전/후 섹션을 `gray.50` 배경 내 `white` 카드 형태로 수직 리스트업. 아이템 간 간격은 `spacing={3}`(12px) 적용. 타이틀 색상은 `gray.600`.
+    *   **입력 환경**: 시공 전/후 섹션을 `white` 배경 내 `white` 카드 형태로 수직 리스트업. 아이템 간 간격은 `spacing={3}`(12px) 적용. 타이틀 색상은 `gray.400`.
     *   `tasksBefore`, `tasksAfter`는 `string[]` 배열로 관리되며 초기값은 `[""]`로 세팅. 업데이트 시 인덱스 기반 불변성 유지.
     *   `variant="unstyled"` 필드 사용으로 텍스트 기반 정보 기재 특화.
 *   **사진 계승 인터페이스**:
-    *   신규 작성 시 '시연 완료'(`demo_complete`) 보고서(타 타입 불가)의 현장 사진(`photos`)이 즉시 프리필(Pre-fill)되어 작업 효율 극대화.
+    *   '시연 완료' 시점에 업로드된 사진이 있는 경우 '시공 확정' 양식 진입 시 자동으로 상속(Auto-fill)되어 사용자 편의성 제공.
     *   **최대 개수 제한**: 사진은 상수 `INSTALL_SCHEDULE_CONSTANTS.MAX_PHOTOS`(**15장**)를 참조하여 제한하며, 초과 시 "한도 초과" 경고 토스트 노출.
-    *   **파일 핸들링**: `input type="file"`은 `hidden` 및 `multiple` 속성 사용. `accept="image/*"`로 이미지 파일만 제한. 언마운트 시 `revokeObjectURL`로 메모리 해제(Cleanup).
+    *   **파일 핸들링**: `input type="file"`은 `hidden` 및 `multiple` 속성 사용. `accept="image/*"`로 이미지 파일만 제한.
     *   **미리보기 UI**: `SimpleGrid`(`columns={3}`, `spacing={2}`) 레이아웃. `AspectRatio`(`1:1`), `objectFit="cover"` 적용. 삭제 버튼은 `FiX` 아이콘, `size="xs"`, `colorScheme="red"`. Key는 인덱스 사용.
+    *   사진 추가/삭제 시 `isSubmitting.current` 제어로 연산 안정성 확보. 언마운트 시 `revokeObjectURL`로 메모리 해제(Cleanup).
 *   **플레이스홀더 및 규격 (Verbatim)**:
     *   방문 주소 `placeholder="전국 시공 주소 입력"`, 참고 사항 `placeholder="시공 시 주의사항 등 입력"`.
     *   시공 일시는 미래 예약을 위해 **과거 시점 선택 불가** (`limitType="past"`: Disable Past). 컴포넌트는 `TeasyDateTimeInput` 사용하며 `FiCalendar` 아이콘 배치.
-    *   **입력 필드**: `bg="white"` 배경. 포커스 시 `focusBorderColor="purple.500"`. 좌측에 `FiUser`, `FiMapPin`, `FiPhone` 등 인지 강화 아이콘 배치(`InputGroup` 사용).
+    *   **입력 필드**: `bg="white"` 배경. 포커스 시 `focusBorderColor="purple.500"`.
+    *   **담당자 항목**: 읽기 전용 상태일 때 `TeasyInput` 스타일로 표시되며, 담당자 성명(Label)이 출력됩니다.
+    *   라벨 좌측에는 `FiCalendar`, `FiUser`, `FiMapPin`, `FiPhone` 아이콘을 배치합니다. (`InputGroup` 사용)
     *   **수량 필드**: `min={1}` 제한, `clampValueOnBlur={false}`, 고정 폭(`상품: 80px`, `자재: 70px`).
     *   **메모**: 참고 사항(`Textarea`)은 높이 `100px` 고정, 최대 글자 수 `200`자 제한, `resize="none"`.
     *   **버튼**: 저장 버튼(`colorScheme="purple"`), 취소 버튼(`variant="ghost"`, `mr={3}`)을 `ModalFooter` 우측에 정렬.
@@ -117,6 +126,7 @@
 | v1.0 | 2026-02-03 | 시공 확정 기획서 초안 작성 |
 | v1.1 | 2026-02-03 | TimelineCard 상세 노출 필드(장소/업무) 및 업무 지시서 초기값 반영 |
 | v1.2 | 2026-02-03 | 자재 구성 파싱 Regex 정규식 및 데이터 계층 상속 지침 명문화 |
+| v1.3 | 2026-02-03 | 글로벌 리스트 표현 표준 도입 (수행 요망 항목 적용) |
 
 ---
 > [!NOTE]

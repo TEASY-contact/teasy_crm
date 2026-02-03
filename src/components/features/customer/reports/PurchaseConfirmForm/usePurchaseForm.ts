@@ -84,7 +84,7 @@ export const usePurchaseForm = ({
 
     // --- Validation & Sanitization ---
     const validate = () => {
-        if (formData.selectedProducts.length === 0 || !formData.payMethod || !formData.amount || !formData.manager) {
+        if (formData.selectedProducts.length === 0 || !formData.payMethod || !formData.amount || !formData.manager || !productCategory) {
             return { isValid: false, message: "필수 항목을 모두 입력해주세요." };
         }
         if (productCategory === "inventory" && (formData.deliveryInfo.courier || formData.deliveryInfo.trackingNumber)) {
@@ -232,9 +232,45 @@ export const usePurchaseForm = ({
                     Object.entries(rawData).filter(([_, v]) => v !== undefined)
                 );
 
-                const newProducts = formData.selectedProducts.map(p => p.name.trim());
                 const existingOwned = currentCustomer.ownedProducts || [];
-                const updatedOwned = Array.from(new Set([...existingOwned, ...newProducts]));
+                const ownedMap = new Map<string, number>();
+
+                // Parse existing owned products (Name x Qty)
+                existingOwned.forEach((item: string) => {
+                    const match = item.match(/^(.*)\s+x\s+(\d+)$/);
+                    if (match) {
+                        const name = match[1].trim();
+                        const qty = parseInt(match[2]);
+                        ownedMap.set(name, (ownedMap.get(name) || 0) + qty);
+                    } else if (item.trim()) {
+                        ownedMap.set(item.trim(), (ownedMap.get(item.trim()) || 0) + 1);
+                    }
+                });
+
+                // Add new products to the map (only if it's a new report to avoid double counting on edit)
+                // Note: The user explicitly asked for "Cumulative" when "Purchase Confirm" is duplicated.
+                if (!activityId) {
+                    formData.selectedProducts.forEach(p => {
+                        const name = p.name.trim();
+                        const qty = Number(p.quantity) || 0;
+                        if (name) {
+                            ownedMap.set(name, (ownedMap.get(name) || 0) + qty);
+                        }
+                    });
+                } else {
+                    // On Edit, we only add if names are entirely new to the customer (conservative approach)
+                    formData.selectedProducts.forEach(p => {
+                        const name = p.name.trim();
+                        const qty = Number(p.quantity) || 0;
+                        if (name && !ownedMap.has(name)) {
+                            ownedMap.set(name, qty);
+                        }
+                    });
+                }
+
+                const updatedOwned = Array.from(ownedMap.entries())
+                    .sort((a, b) => a[0].localeCompare(b[0]))
+                    .map(([name, qty]) => `${name} x ${qty}`);
 
                 // 3. ALL WRITES
                 if (activityId) {

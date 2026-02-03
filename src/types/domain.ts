@@ -112,8 +112,9 @@ export interface Activity extends BaseDoc {
     productCategory?: 'product' | 'inventory';
     selectedProducts?: any[];
     selectedSupplies?: any[];
-    tasksBefore?: string[];
-    tasksAfter?: string[];
+    tasksBefore?: any[];
+    tasksAfter?: any[];
+    incompleteReason?: string;
     deliveryInfo?: DeliveryInfo;
     taxInvoice?: InquiryFile;
 

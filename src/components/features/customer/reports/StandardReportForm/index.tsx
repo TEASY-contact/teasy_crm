@@ -31,6 +31,7 @@ export interface StandardReportFormProps {
     initialData?: Partial<StandardReportFormData>;
     isReadOnly?: boolean;
     defaultManager?: string;
+    activities?: any[];
     reportType?: string;
     reportLabel?: string;
 }
@@ -44,6 +45,7 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
     customer,
     activityId,
     initialData,
+    activities = [],
     isReadOnly = false,
     defaultManager = "",
     reportType = "standard",
@@ -83,15 +85,20 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
         } else {
             const now = new Date();
             const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}  ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+            // Auto-fill from last as_schedule if applicable (v124.81)
+            const lastAsSchedule = [...(activities || [])].reverse().find(a => a.type === "as_schedule");
+
             setFormData(prev => ({
                 ...prev,
                 date: formattedDate,
-                manager: prev.manager || defaultManager,
-                location: prev.location || customer?.address || "",
-                phone: prev.phone || customer?.phone || ""
+                manager: lastAsSchedule?.manager || prev.manager || defaultManager,
+                location: lastAsSchedule?.location || prev.location || customer?.address || "",
+                phone: lastAsSchedule?.phone || prev.phone || customer?.phone || "",
+                product: lastAsSchedule?.product || prev.product || ""
             }));
         }
-    }, [initialData, defaultManager, customer]);
+    }, [initialData, defaultManager, customer, activities]);
 
     useImperativeHandle(ref, () => ({
         submit: async () => {
@@ -139,7 +146,17 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
                     if (activityId) {
                         transaction.update(activityRef, dataToSave);
                     } else {
-                        const nextSeq = (Number(currentMeta.lastSequence) || 0) + 1;
+                        // Sync sequence number based on pairing (v124.81)
+                        let nextSeq = (Number(currentMeta.lastSequence) || 0) + 1;
+                        if (reportType === "as_complete") {
+                            const lastSchedule = [...(activities || [])].reverse().find(a => a.type === "as_schedule");
+                            if (lastSchedule) nextSeq = lastSchedule.sequenceNumber || nextSeq;
+                        } else if (reportType === "demo_complete") {
+                            // Note: useDemoCompleteForm usually handles this, but StandardReportForm is a fallback
+                            const lastSchedule = [...(activities || [])].reverse().find(a => a.type === "demo_schedule");
+                            if (lastSchedule) nextSeq = lastSchedule.sequenceNumber || nextSeq;
+                        }
+
                         transaction.set(activityRef, {
                             ...dataToSave,
                             sequenceNumber: nextSeq,
@@ -213,13 +230,20 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
 
                 <FormControl isRequired isReadOnly={isReadOnly} flex={1}>
                     <TeasyFormLabel>담당자</TeasyFormLabel>
-                    <CustomSelect
-                        options={managerOptions}
-                        value={formData.manager}
-                        onChange={(val) => setFormData({ ...formData, manager: val })}
-                        placeholder="담당자 선택"
-                        isDisabled={isReadOnly}
-                    />
+                    {isReadOnly ? (
+                        <TeasyInput
+                            value={managerOptions.find(o => o.value === formData.manager)?.label || formData.manager}
+                            isReadOnly
+                        />
+                    ) : (
+                        <CustomSelect
+                            options={managerOptions}
+                            value={formData.manager}
+                            onChange={(val) => setFormData({ ...formData, manager: val })}
+                            placeholder="담당자 선택"
+                            isDisabled={isReadOnly}
+                        />
+                    )}
                 </FormControl>
             </HStack>
 
