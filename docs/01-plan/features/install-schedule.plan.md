@@ -21,7 +21,7 @@
     *   신규 작성 시 '시연 완료'(`demo_complete`) 보고서의 현장 사진(`photos`)이 즉시 프리필(Pre-fill)되어 작업 효율 극대화.
 *   **플레이스홀더 및 규격 (Verbatim)**:
     *   방문 주소 `placeholder="전국 시공 주소 입력"`, 참고 사항 `placeholder="시공 시 주의사항 등 입력"`.
-    *   시공 일시는 **과거 시점 선택 불가** (`limitType="past"`).
+    *   시공 일시는 미래 예약을 위해 **과거 시점 선택 불가** (`limitType="past"`: Disable Past).
     *   공통 `h="45px"`, `borderRadius="10px"` 준수.
 
 ### 1.2 타임라인 카드 UI (Timeline Representation)
@@ -43,7 +43,7 @@
     *   `/(.+)\s*[×x*]\s*(\d+)/`, `/(.+)\s*\((\d+)\)/`, `/(.+)\s*(\d+)개/`
     *   추출 시 `replace(/^[①-⑳]|^(\d+\.)/, "")`를 통해 인덱스 기호 강제 소거.
 *   **지능형 합산 (LinkedId)**: 동일 자재가 복수 상품에서 요구될 경우 `linkedId`(CSV)를 통해 항목 통합 및 한 번에 차감.
-*   **실시간 동적 싱크**: 상위 상품 수량 변경 시 하위 모든 `isAuto` 자재 수량 실시간 재계산.
+*   **실시간 동적 싱크 (Simple Sum)**: 상위 상품 수량 변경 시 하위 `isAuto` 자재 수량은 **단순 1:1 합산**으로 동기화됨 (Parsing Ratio 무시).
 
 ### 2.2 자원 관리 및 데이터 계승 (Integration)
 *   **데이터 계승 (Inheritance)**: 
