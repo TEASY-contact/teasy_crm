@@ -116,7 +116,7 @@ export const TimelineCard = ({
             }
 
             if (content.channel === "전화 문의" && content.phone) {
-                specificItems.push({ label: "전화", value: content.phone, isSubItem: true, isFirstSubItem: true });
+                specificItems.push({ label: "전화", value: formatPhone(content.phone), isSubItem: true, isFirstSubItem: true });
             }
 
             if (content.product) {
