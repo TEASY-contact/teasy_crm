@@ -21,12 +21,18 @@
     *   **카운팅 피드백**: 필드 라벨 우측에 `(현재수/최대수)` 배지 노출 (최대 15장 / `DEMO_CONSTANTS.MAX_PHOTOS`).
 *   **플레이스홀더 및 규격 (Verbatim)**:
     *   연락처는 `placeholder="000-0000-0000"`, 나머지는 선택 `placeholder="선택"`, 입력 `placeholder="입력"`.
-    *   완료 일시는 **미래 시점 선택 불가** (`limitType="future"`).
+    *   완료 일시는 **미래 시점 선택 불가** (코드상 `limitType="future"`는 미래 선택을 제한한다는 의미).
     *   공통 `h="45px"`, `borderRadius="10px"` 준수.
+    *   **글로벌 상속 (Global Inherited)**: `theme.ts`의 `letterSpacing: "0.5px"`를 상속받아 고급스러운 자간 유지.
+*   **사진 상호작용 (Interaction)**:
+    *   업로드된 사진 클릭 시 `TeasyUniversalViewer`가 호출되어 전체 화면으로 이미지 확인 가능.
 
 ### 1.2 타임라인 카드 UI (Timeline Representation)
 *   **헤더**: '시연 완료' 배지(**Color: `purple`**), 완료 일시, 작성자 성명.
 *   **정보 리스트**:
+    *   **공통 (Common)**:
+        *   **일시**: `일시 :  {date}  {time}`
+        *   **담당**: `담당 :  {managerName}`
     *   **주소**: `주소 :  {location}` (TimelineCard.tsx 기준 라벨: "주소")
     *   **전화**: `전화 :  000-0000-0000`
     *   **상품**: `상품 :  {product}` (입력값이 `crm`일 경우 대문자 `CRM`으로 자동 치환 노출)
@@ -57,6 +63,8 @@
 *   **선택 옵션 (Verbatim)**:
     *   **시연 결과**: `"구매의향 높음"`, `"구매의향 보통"`, `"구매의향 낮음"`
     *   **할인 방식**: `"할인 없음"`, `"현금 할인"`, `"네이버 쿠폰"` (라벨은 "할인 쿠폰")
+*   **담당자 옵션 로직**:
+    *   `useReportMetadata` 훅을 통해 내부 직원과 협력사(Partner) 사이에 구분선(`divider`)을 자동 삽입하고, 퇴사자는 라벨에 `(퇴)`를 명시.
 
 ---
 
