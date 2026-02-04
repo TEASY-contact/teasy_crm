@@ -94,7 +94,7 @@ export default function CustomerDetailPage({ params: paramsPromise }: { params: 
                         <Box position="relative" pl={8} _before={{ content: '""', position: "absolute", left: "3.5px", top: 0, bottom: 0, width: "2px", bg: "gray.200" }}>
                             <VStack spacing={8} align="stretch">
                                 {activities.length > 0 ? activities.map((activity, idx) => {
-                                    const typeCount = activity.sequenceNumber || activities.slice(0, idx + 1).filter(a => a.type === activity.type).length;
+                                    const typeCount = activities.slice(0, idx + 1).filter(a => a.type === activity.type).length;
                                     const isBanned = userStatusMap[activity.manager] === 'banned';
                                     return (
                                         <TimelineCard

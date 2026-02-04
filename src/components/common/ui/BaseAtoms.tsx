@@ -9,13 +9,13 @@ import {
  */
 export const ThinParen = ({ text }: { text?: string }) => {
     if (!text) return null;
-    const parts = text.split(/([()\-×/_xX])/);
+    const parts = text.split(/([()\-×/_]|\b[xX]\b)/);
     return (
         <>
             {parts.map((part, i) => {
                 const isSpecial = part === '(' || part === ')' || part === '-' || part === '/' || part === '×' || part === '_' || (part && part.toLowerCase() === 'x');
                 if (isSpecial) {
-                    return <Text key={i} as="span" color="gray.500" fontWeight="300" display="inline-block">{part}</Text>;
+                    return <Text key={i} as="span" color="gray.500" fontWeight="300" display="inline">{part}</Text>;
                 }
                 return part;
             })}

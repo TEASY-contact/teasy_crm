@@ -4,6 +4,7 @@ import {
     VStack, FormControl, Box, Flex, Text, Badge,
     useToast, HStack, Spacer, Switch, IconButton, Divider, Spinner
 } from "@chakra-ui/react";
+import { ArrowBackIcon } from "@chakra-ui/icons";
 import { Reorder, useDragControls } from "framer-motion";
 import { MdAdd, MdRemove, MdDragHandle } from "react-icons/md";
 import {
@@ -212,7 +213,24 @@ export const InventoryMasterModal: React.FC<InventoryMasterModalProps> = ({ isOp
         <TeasyModal isOpen={isOpen} onClose={onClose} size="2xl">
             <TeasyModalOverlay />
             <TeasyModalContent>
-                <TeasyModalHeader>신규 물품 등록</TeasyModalHeader>
+                <TeasyModalHeader position="relative">
+                    <IconButton
+                        aria-label="Back"
+                        icon={<ArrowBackIcon />}
+                        size="md"
+                        position="absolute"
+                        left="8px"
+                        top="8px"
+                        color="white"
+                        variant="ghost"
+                        _hover={{ bg: "whiteAlpha.300" }}
+                        onClick={onClose}
+                        type="button"
+                    />
+                    <Box as="span" ml={10}>
+                        신규 물품 등록
+                    </Box>
+                </TeasyModalHeader>
                 <TeasyModalBody>
                     <VStack spacing={6} align="stretch">
                         <FormControl isRequired>

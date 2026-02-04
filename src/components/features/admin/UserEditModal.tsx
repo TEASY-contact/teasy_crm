@@ -16,6 +16,7 @@ import { MdBlock, MdRefresh } from "react-icons/md";
 import { CustomSelect } from "@/components/common/CustomSelect";
 import { useAuth } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
+import { ArrowBackIcon } from "@chakra-ui/icons";
 
 const ALL_CANDIDATE_COLORS = [
     // 1-50
@@ -213,7 +214,24 @@ const UserEditModalContent = ({ onClose, user, existingUsers = [], hideAdminFiel
 
     return (
         <TeasyModalContent>
-            <TeasyModalHeader>임직원 계정 관리</TeasyModalHeader>
+            <TeasyModalHeader position="relative">
+                <IconButton
+                    aria-label="Back"
+                    icon={<ArrowBackIcon />}
+                    size="md"
+                    position="absolute"
+                    left="8px"
+                    top="8px"
+                    color="white"
+                    variant="ghost"
+                    _hover={{ bg: "whiteAlpha.300" }}
+                    onClick={onClose}
+                    type="button"
+                />
+                <Box as="span" ml={10}>
+                    임직원 계정 관리
+                </Box>
+            </TeasyModalHeader>
             <TeasyModalBody>
                 {/* Focus Guard: Prevents automatic focus on the first input */}
                 <Box tabIndex={0} w={0} h={0} opacity={0} position="absolute" />
@@ -348,8 +366,7 @@ const UserEditModalContent = ({ onClose, user, existingUsers = [], hideAdminFiel
                     <Box>
                         {currentUserData?.role === 'master' && user.role !== 'master' && (
                             <TeasyButton
-                                version="ghost"
-                                colorScheme="red"
+                                version="danger"
                                 onClick={handleDelete}
                                 isDisabled={isLoading}
                             >
@@ -358,7 +375,7 @@ const UserEditModalContent = ({ onClose, user, existingUsers = [], hideAdminFiel
                         )}
                     </Box>
                     <HStack spacing={3}>
-                        <TeasyButton version="ghost" onClick={onClose}>취소</TeasyButton>
+                        <TeasyButton version="secondary" onClick={onClose}>취소</TeasyButton>
                         <TeasyButton isLoading={isLoading} onClick={handleSave}>저장하기</TeasyButton>
                     </HStack>
                 </HStack>

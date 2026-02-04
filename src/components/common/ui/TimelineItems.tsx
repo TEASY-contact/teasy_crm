@@ -31,11 +31,14 @@ export const TimelineInfoItem = ({ label, value, isHighlight, isSubItem, isFirst
     );
 };
 
-export const TimelineFileList = ({ files, label, isSubItem, isFirstSubItem, uploader, timestamp, pl, ...props }: any) => {
+export const TimelineFileList = ({ files, label, isSubItem, isFirstSubItem, uploader, timestamp, pl, showConfirm: manualShowConfirm, ...props }: any) => {
     const [viewerState, setViewerState] = useState({ isOpen: false, index: 0 });
     const [audioState, setAudioState] = useState({ isOpen: false, file: null as any });
 
     if (!files || files.length === 0) return null;
+
+    // Default: Hide confirm for '영상' (Video) label (v126.86)
+    const showConfirm = manualShowConfirm !== undefined ? manualShowConfirm : label !== "영상";
 
     const formattedTimestamp = typeof timestamp === 'string' && /\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(timestamp)
         ? timestamp.replace(/\s+/, "  ")
@@ -77,8 +80,12 @@ export const TimelineFileList = ({ files, label, isSubItem, isFirstSubItem, uplo
                     })()}
                 </Box>
                 <HStack spacing={1.5} ml={4} align="center">
-                    <Box as="button" type="button" bg="gray.100" color="gray.500" fontSize="10px" px={2} h="18px" borderRadius="4px" cursor="pointer" transition="all 0.2s" _hover={{ bg: "gray.500", color: "white" }} onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleConfirm(0); }} fontWeight="bold" textTransform="none">확인</Box>
-                    <Text color="gray.300" fontSize="10px" fontWeight="bold">/</Text>
+                    {showConfirm && (
+                        <>
+                            <Box as="button" type="button" bg="gray.100" color="gray.500" fontSize="10px" px={2} h="18px" borderRadius="4px" cursor="pointer" transition="all 0.2s" _hover={{ bg: "gray.500", color: "white" }} onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleConfirm(0); }} fontWeight="bold" textTransform="none">확인</Box>
+                            <Text color="gray.300" fontSize="10px" fontWeight="bold">/</Text>
+                        </>
+                    )}
                     <Box as="button" type="button" bg="gray.100" color="gray.500" fontSize="10px" px={2} h="18px" borderRadius="4px" cursor="pointer" transition="all 0.2s" _hover={{ bg: "gray.500", color: "white" }} onClick={async (e: any) => { e.stopPropagation(); for (let i = 0; i < filesWithUploader.length; i++) { await triggerTeasyDownload(filesWithUploader[i]); if (i < filesWithUploader.length - 1) await new Promise(r => setTimeout(r, 200)); } }} fontWeight="bold" textTransform="none">다운로드</Box>
                 </HStack>
             </Flex>

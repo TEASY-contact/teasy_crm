@@ -71,44 +71,43 @@ export const CustomerProfileCard: React.FC<CustomerProfileCardProps> = React.mem
                     </Badge>
                 )}
             </Flex>
-            <Grid templateColumns="7fr 3fr" gap={20}>
-                <Grid templateColumns="repeat(2, 1fr)" gap={10}>
-                    <ProfileItem
-                        label="주소"
-                        values={addressValues}
-                        onAdd={handleAddressAdd}
-                    />
-                    <ProfileItem
-                        label="보유 상품"
-                        values={productValues}
-                        onAdd={handleProductAdd}
-                    />
-                    <ProfileItem
-                        label="연락처"
-                        values={phoneValues}
-                        onAdd={handlePhoneAdd}
-                    />
-                    <ProfileItem
-                        label="라이선스"
-                        values={licenseValues}
-                        onAdd={handleLicenseAdd}
-                    />
-                </Grid>
-                <VStack align="stretch" spacing={10} pl={3}>
-                    <ProfileItem
-                        label="최초 등록일"
-                        values={[getOnlyDate(customer.registeredDate)]}
-                        isDate
-                        align="flex-start"
-                    />
-                    <ProfileItem
-                        label="최신 활동일"
-                        values={[getOnlyDate(lastActivityDate)]}
-                        isDate
-                        onClick={() => latestActivity && onActivityClick(latestActivity, false)}
-                        align="flex-start"
-                    />
-                </VStack>
+            <Grid templateColumns="2.8fr 5.2fr 2fr" gap={10} rowGap={8}>
+                {/* Row 1 */}
+                <ProfileItem
+                    label="주소"
+                    values={addressValues}
+                    onAdd={handleAddressAdd}
+                />
+                <ProfileItem
+                    label="보유 상품"
+                    values={productValues}
+                    onAdd={handleProductAdd}
+                />
+                <ProfileItem
+                    label="최초 등록일"
+                    values={[getOnlyDate(customer.registeredDate)]}
+                    isDate
+                    align="flex-start"
+                />
+
+                {/* Row 2 */}
+                <ProfileItem
+                    label="연락처"
+                    values={phoneValues}
+                    onAdd={handlePhoneAdd}
+                />
+                <ProfileItem
+                    label="라이선스"
+                    values={licenseValues}
+                    onAdd={handleLicenseAdd}
+                />
+                <ProfileItem
+                    label="최신 활동일"
+                    values={[getOnlyDate(lastActivityDate)]}
+                    isDate
+                    onClick={() => latestActivity && onActivityClick(latestActivity, false)}
+                    align="flex-start"
+                />
             </Grid>
         </Box>
     );

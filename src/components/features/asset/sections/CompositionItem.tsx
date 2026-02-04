@@ -12,6 +12,7 @@ interface CompositionItemProps {
     onRemove: () => void;
     assets: AssetData[];
     realNum?: string;
+    onDragEnd?: () => void;
 }
 
 export const CompositionItem: React.FC<CompositionItemProps> = ({
@@ -19,7 +20,8 @@ export const CompositionItem: React.FC<CompositionItemProps> = ({
     idx,
     onRemove,
     assets,
-    realNum
+    realNum,
+    onDragEnd
 }) => {
     const { masterItems } = useInventoryMaster();
     const controls = useDragControls();
@@ -36,6 +38,7 @@ export const CompositionItem: React.FC<CompositionItemProps> = ({
             value={comp}
             dragListener={false}
             dragControls={controls}
+            onDragEnd={onDragEnd}
             whileDrag={{
                 scale: 1.02,
                 boxShadow: "0 10px 25px rgba(128, 90, 213, 0.25)",

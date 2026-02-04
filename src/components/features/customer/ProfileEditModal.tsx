@@ -1,6 +1,7 @@
 // src/components/features/customer/ProfileEditModal.tsx
 "use client";
 import React, { useState, useEffect } from "react";
+import { ArrowBackIcon } from "@chakra-ui/icons";
 import {
     VStack,
     HStack,
@@ -14,6 +15,10 @@ import {
     NumberInputStepper,
     NumberIncrementStepper,
     NumberDecrementStepper,
+    Box,
+    Flex,
+    Spacer,
+    Spinner,
 } from "@chakra-ui/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { MdRemoveCircleOutline } from "react-icons/md";
@@ -73,7 +78,7 @@ export const ProfileEditModal = ({
         if (!newValue.trim()) return;
 
         const formattedValue = (label === "보유 상품" || label === "라이선스")
-            ? `${newValue.trim()} (${count})`
+            ? `${newValue.trim()} x ${count}`
             : (label === "연락처" ? formatPhone(newValue.trim()) : newValue.trim());
 
         setValues([...values, formattedValue]);
@@ -144,7 +149,24 @@ export const ProfileEditModal = ({
         <TeasyModal isOpen={isOpen} onClose={onClose} size="sm">
             <TeasyModalOverlay />
             <TeasyModalContent>
-                <TeasyModalHeader>{label}</TeasyModalHeader>
+                <TeasyModalHeader position="relative">
+                    <IconButton
+                        aria-label="Back"
+                        icon={<ArrowBackIcon />}
+                        size="md"
+                        position="absolute"
+                        left="8px"
+                        top="8px"
+                        color="white"
+                        variant="ghost"
+                        _hover={{ bg: "whiteAlpha.300" }}
+                        onClick={onClose}
+                        type="button"
+                    />
+                    <Box as="span" ml={10}>
+                        {label || "정보 수정"}
+                    </Box>
+                </TeasyModalHeader>
                 <TeasyModalBody>
                     <VStack align="stretch" spacing={4}>
                         {/* Existing Items */}
@@ -152,7 +174,14 @@ export const ProfileEditModal = ({
                             {values.map((v, i) => (
                                 <HStack key={i} justify="space-between" bg="gray.50" p={2} borderRadius="md">
                                     <Text fontSize="sm" fontWeight="medium" color="gray.700">
-                                        <ThinParen text={label === "연락처" ? formatPhone(v) : v} />
+                                        {(() => {
+                                            let displayValue = label === "연락처" ? formatPhone(v) : v;
+                                            if (label === "보유 상품" || label === "라이선스") {
+                                                // Convert legacy (count) format to standardized x count for display
+                                                displayValue = displayValue.replace(/\s\((\d+)\)$/, ' x $1');
+                                            }
+                                            return <ThinParen text={displayValue} />;
+                                        })()}
                                     </Text>
                                     <IconButton
                                         aria-label="Remove"
@@ -183,8 +212,21 @@ export const ProfileEditModal = ({
                                     ) : (
                                         <TeasyInput
                                             value={newValue}
-                                            onChange={(e) => setNewValue(e.target.value)}
-                                            placeholder="입력"
+                                            onChange={(e) => {
+                                                if (label === "라이선스") {
+                                                    let val = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                                                    if (val.length > 25) val = val.substring(0, 25);
+                                                    let formatted = '';
+                                                    for (let i = 0; i < val.length; i++) {
+                                                        if (i > 0 && i % 5 === 0) formatted += '-';
+                                                        formatted += val[i];
+                                                    }
+                                                    setNewValue(formatted);
+                                                } else {
+                                                    setNewValue(e.target.value);
+                                                }
+                                            }}
+                                            placeholder={label === "라이선스" ? "XXXXX-XXXXX-..." : "입력"}
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter') handleAdd();
                                             }}

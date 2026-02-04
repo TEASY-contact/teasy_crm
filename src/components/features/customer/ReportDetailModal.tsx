@@ -1,7 +1,8 @@
 // src/components/features/customer/ReportDetailModal.tsx
 "use client";
-import { useRef } from "react";
-import { Box, Flex, Spacer, Text, useToast } from "@chakra-ui/react";
+import { useRef, useState } from "react";
+import { Box, Flex, Spacer, Text, useToast, Spinner, VStack, IconButton } from "@chakra-ui/react";
+import { ArrowBackIcon } from "@chakra-ui/icons";
 import { isWithinBusinessDays } from "@/utils/dateUtils";
 import { InquiryForm } from "./reports/InquiryForm/index";
 import { StandardReportForm } from "./reports/StandardReportForm/index";
@@ -11,6 +12,7 @@ import { PurchaseConfirmForm } from "./reports/PurchaseConfirmForm/index";
 import { InstallScheduleForm } from "./reports/InstallScheduleForm/index";
 import { InstallCompleteForm } from "./reports/InstallCompleteForm/index";
 import { AsScheduleForm } from "./reports/AsScheduleForm/index";
+import { AsCompleteForm } from "./reports/AsCompleteForm/index";
 import { Activity, Customer } from "@/types/domain";
 import {
     TeasyButton,
@@ -42,6 +44,7 @@ const ReportDetailModalContent = ({ onClose, customer, activity, activities = []
     const { holidayMap } = useReportMetadata();
     const formRef = useRef<any>(null);
     const toast = useToast();
+    const [isSaving, setIsSaving] = useState(false);
     const isProcessing = useRef(false);
 
     // Permissions Logic
@@ -65,9 +68,14 @@ const ReportDetailModalContent = ({ onClose, customer, activity, activities = []
     const isWorkRequest = activity.category !== undefined; // work_requests documents usually have 'category'
 
     const handleSave = async () => {
-        if (formRef.current) {
-            const success = await formRef.current.submit();
-            if (success) onClose();
+        if (formRef.current && !isSaving) {
+            setIsSaving(true);
+            try {
+                const success = await formRef.current.submit();
+                if (success) onClose();
+            } finally {
+                setIsSaving(false);
+            }
         }
     };
 
@@ -123,14 +131,38 @@ const ReportDetailModalContent = ({ onClose, customer, activity, activities = []
         if (activity.type === "install_schedule") return <InstallScheduleForm {...commonProps} />;
         if (activity.type === "install_complete") return <InstallCompleteForm {...commonProps} />;
         if (activity.type === "as_schedule") return <AsScheduleForm {...commonProps} />;
+        if (activity.type === "as_complete") return <AsCompleteForm {...commonProps} />;
         return <StandardReportForm {...commonProps} />;
     };
 
     return (
-        <TeasyModalContent>
-            <TeasyModalHeader>
-                {activity.typeName || "업무 요청"}
-                <span style={{ fontWeight: 300, marginLeft: '4px' }}>(</span>{isReadOnly ? "확인" : "수정"}<span style={{ fontWeight: 300 }}>)</span>
+        <TeasyModalContent position="relative">
+            {isSaving && (
+                <Flex position="absolute" top={0} left={0} right={0} bottom={0} bg="whiteAlpha.800" zIndex={100} align="center" justify="center" borderRadius="2xl" backdropFilter="blur(2px)">
+                    <VStack spacing={4}>
+                        <Spinner size="xl" color="brand.500" thickness="4px" />
+                        <Text fontWeight="medium" color="brand.600">처리 중...</Text>
+                    </VStack>
+                </Flex>
+            )}
+            <TeasyModalHeader position="relative">
+                <IconButton
+                    aria-label="Back"
+                    icon={<ArrowBackIcon />}
+                    size="md"
+                    position="absolute"
+                    left="8px"
+                    top="8px"
+                    color="white"
+                    variant="ghost"
+                    _hover={{ bg: "whiteAlpha.300" }}
+                    onClick={onClose}
+                    type="button"
+                />
+                <Box as="span" ml={10}>
+                    {activity.typeName || "업무 요청"}
+                    <span style={{ fontWeight: 300, marginLeft: '4px' }}>(</span>{isReadOnly ? "확인" : "수정"}<span style={{ fontWeight: 300 }}>)</span>
+                </Box>
             </TeasyModalHeader>
             <TeasyModalBody
                 p={8}
@@ -187,11 +219,11 @@ const ReportDetailModalContent = ({ onClose, customer, activity, activities = []
                         <Spacer />
                         {canEdit ? (
                             <>
-                                <TeasyButton version="secondary" onClick={onClose} w="108px" h="45px">취소</TeasyButton>
-                                <TeasyButton onClick={handleSave} w="108px" h="45px">저장</TeasyButton>
+                                <TeasyButton version="secondary" onClick={onClose} w="108px" h="45px" isDisabled={isSaving}>취소</TeasyButton>
+                                <TeasyButton onClick={handleSave} w="108px" h="45px" isLoading={isSaving}>저장</TeasyButton>
                             </>
                         ) : (
-                            <TeasyButton onClick={onClose} w="108px" h="45px">닫기</TeasyButton>
+                            <TeasyButton version="secondary" onClick={onClose} w="108px" h="45px">닫기</TeasyButton>
                         )}
                     </>
                 )}

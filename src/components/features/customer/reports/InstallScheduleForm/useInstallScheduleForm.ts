@@ -7,7 +7,7 @@ import { collection, serverTimestamp, doc, runTransaction, query, where, getDocs
 import { ref as sRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { useAuth } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { applyColonStandard } from "@/utils/textFormatter";
+import { applyColonStandard, normalizeText } from "@/utils/textFormatter";
 import { formatPhone } from "@/utils/formatter";
 import { InstallScheduleFormData, SelectedItem } from "./types";
 import { Activity, ActivityType, Asset } from "@/types/domain";
@@ -273,7 +273,7 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
                     manager: formData.manager,
                     managerName: selectedManager?.label || formData.manager,
                     managerRole: selectedManager?.role || "employee",
-                    location: formData.location,
+                    location: normalizeText(formData.location),
                     phone: cleanPhone,
                     product: validProducts.map((p, idx) => {
                         const prefix = validProducts.length > 1 ? getCircledNumber(idx + 1) : "";
@@ -306,7 +306,7 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
                     });
                     transaction.update(activityRef, dataToSave as any);
                 } else {
-                    const nextSeq = (Number(currentMeta.lastSequence) || 0) + 1;
+                    const nextSeq = activities.filter(a => a.type === INSTALL_SCHEDULE_CONSTANTS.TYPE).length + 1;
                     transaction.set(activityRef, {
                         ...dataToSave,
                         sequenceNumber: nextSeq,

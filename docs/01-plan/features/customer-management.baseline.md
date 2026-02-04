@@ -49,7 +49,9 @@ This document captures the current (Visual Freeze) state of the CRM before the r
     - **Sequence Pairing**: Completion reports (`as_complete`, `demo_complete`) sync their `sequenceNumber` with their authorizing `schedule` records.
     - **Locked State**: New customers initialized with `isLocked: false` and `lockedBy: null`.
     - **Default Manager**: Registration defaults to "정민권".
+  - **Data Integrity Standards**:
+    - **Reactive Clean-up**: If a UI state change makes certain data irrelevant (e.g., category change, all tasks completed), the system must immediately clear the corresponding state data to prevent ghost data storage.
 - **Profile Data**:
-  - **Owned Products**: Auto-cumulative update via `purchase_confirm`.
+  - **Owned Products**: Conditional update via `purchase_confirm` (inventory items) and `install_complete` (product items).
   - **License**: **Manual Field Only**.
-  - **Last Consult Date**: Updated by all reports.
+  - **Last Consult Date**: Updated by all report submissions to reflect the latest interaction.

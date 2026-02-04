@@ -14,11 +14,12 @@ import {
     MdMenu
 } from "react-icons/md";
 import { useRouter } from "next/navigation";
-import { Reorder } from "framer-motion";
+import { Reorder, useDragControls } from "framer-motion";
 import {
     TeasyButton, TeasyInput, TeasyFormLabel,
 } from "@/components/common/UIComponents";
 import { useDistributorMaster, DistributorItem } from "@/hooks/useDistributorMaster";
+import { useAsTypeMaster, AsTypeItem } from "@/hooks/useAsTypeMaster";
 
 const COLOR_THEMES = [
     { bg: "rgba(107, 70, 193, 0.1)", color: "#6B46C1" }, // Purple
@@ -56,10 +57,34 @@ export default function SettingsPage() {
         updateOrder
     } = useDistributorMaster();
 
+    const {
+        asTypes,
+        isLoading: isAsTypeLoading,
+        addAsType,
+        addDivider: addAsDivider,
+        removeAsType,
+        updateOrder: updateAsOrder
+    } = useAsTypeMaster();
+
     const [name, setName] = useState("");
+    const [asTypeName, setAsTypeName] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isAsSubmitting, setIsAsSubmitting] = useState(false);
     const [selectedTarget, setSelectedTarget] = useState<DistributorItem | null>(null);
     const colorDisclosure = useDisclosure();
+
+    const renderItem = (item: any, onRemove: (id: string) => void, onColorClick?: () => void, showColor = true) => {
+        return (
+            <ItemWrapper
+                key={item.id}
+                item={item}
+                onRemove={onRemove}
+                onColorClick={onColorClick}
+                showColor={showColor}
+                onDragEnd={() => toast({ title: "순서가 변경되었습니다.", status: "success", position: "top", duration: 1500 })}
+            />
+        );
+    };
 
     return (
         <Box p={8} bg="gray.50" minH="100vh">
@@ -76,7 +101,7 @@ export default function SettingsPage() {
                 </Flex>
             </VStack>
 
-            <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={6}>
+            <SimpleGrid columns={{ base: 1, lg: 6 }} spacing={6}>
                 {/* 1. Distributor Management Card */}
                 <Box
                     bg="white"
@@ -109,7 +134,6 @@ export default function SettingsPage() {
                                 <TeasyButton
                                     version="secondary"
                                     borderColor="brand.500"
-                                    leftIcon={<MdHorizontalRule />}
                                     onClick={async () => {
                                         setIsSubmitting(true);
                                         try { await addDivider(); toast({ title: "구분선 추가 완료", status: "success", position: "top" }); }
@@ -153,27 +177,107 @@ export default function SettingsPage() {
                             ) : (
                                 <Reorder.Group axis="y" values={distributors} onReorder={updateOrder} style={{ listStyle: "none", padding: 0 }}>
                                     <VStack align="stretch" spacing={2}>
-                                        {distributors.map((d) => (
-                                            <Reorder.Item key={d.id} value={d} style={{ listStyle: "none" }} onDragEnd={() => toast({ title: "순서가 변경되었습니다.", status: "success", position: "top", duration: 1500 })}>
-                                                <HStack justify="space-between" bg={d.isDivider ? "gray.50" : "white"} px={3} py={d.isDivider ? 0 : 1} minH={d.isDivider ? "14px" : "40px"} borderRadius="lg" shadow={d.isDivider ? "none" : "sm"} border="1px solid" borderColor="gray.100">
-                                                    <HStack spacing={2} flex={1}>
-                                                        <Icon as={MdMenu} color="gray.300" cursor="grab" />
-                                                        {d.isDivider ? (
-                                                            <Box flex={1} h="1px" bg="gray.200" />
-                                                        ) : (
-                                                            <HStack spacing={2}>
-                                                                <Circle size="12px" bg={d.colorConfig?.bg || "gray.100"} border="1px solid" borderColor={d.colorConfig?.color || "gray.300"} cursor="pointer" onClick={() => { setSelectedTarget(d); colorDisclosure.onOpen(); }} />
-                                                                <Text fontSize="xs" color="gray.700" fontWeight="bold">{d.name}</Text>
-                                                            </HStack>
-                                                        )}
-                                                    </HStack>
-                                                    <IconButton aria-label="Remove" icon={<MdRemove />} size="xs" variant="ghost" color="gray.300" onClick={async () => {
-                                                        if (!window.confirm("정말 삭제하시겠습니까?")) return;
-                                                        try { await removeDistributor(d.id); toast({ title: "삭제 완료", status: "info", position: "top" }); }
-                                                        catch (e) { toast({ title: "삭제 실패", status: "error", position: "top" }); }
-                                                    }} />
-                                                </HStack>
-                                            </Reorder.Item>
+                                        {distributors.map((d) => renderItem(
+                                            d,
+                                            async (id) => {
+                                                if (!window.confirm("정말 삭제하시겠습니까?")) return;
+                                                try { await removeDistributor(id); toast({ title: "삭제 완료", status: "info", position: "top" }); }
+                                                catch (e) { toast({ title: "삭제 실패", status: "error", position: "top" }); }
+                                            },
+                                            () => { setSelectedTarget(d); colorDisclosure.onOpen(); },
+                                            true
+                                        ))}
+                                    </VStack>
+                                </Reorder.Group>
+                            )}
+                        </Box>
+                    </VStack>
+                </Box>
+
+                {/* 2. A/S Type Management Card */}
+                <Box
+                    bg="white"
+                    p={5}
+                    borderRadius="2xl"
+                    shadow="sm"
+                    border="1px"
+                    borderColor="gray.100"
+                >
+                    <VStack align="stretch" spacing={5}>
+                        <Box borderBottom="1px" borderColor="gray.100" pb={3}>
+                            <Text fontSize="md" fontWeight="bold" color="gray.700">A/S 유형 설정</Text>
+                        </Box>
+
+                        <FormControl isRequired>
+                            <TeasyFormLabel>신규 유형명</TeasyFormLabel>
+                            <HStack spacing={2}>
+                                <TeasyInput
+                                    value={asTypeName}
+                                    onChange={(e) => setAsTypeName(e.target.value)}
+                                    placeholder="유형명 입력"
+                                    onKeyDown={(e) => e.key === 'Enter' && (async () => {
+                                        if (!asTypeName.trim()) { toast({ title: "유형명을 입력해주세요.", status: "warning", position: "top" }); return; }
+                                        setIsAsSubmitting(true);
+                                        try { await addAsType(asTypeName); setAsTypeName(""); toast({ title: "추가 완료", status: "success", position: "top" }); }
+                                        catch (e: any) { toast({ title: e.message || "추가 실패", status: "error", position: "top" }); }
+                                        finally { setIsAsSubmitting(false); }
+                                    })()}
+                                />
+                                <TeasyButton
+                                    version="secondary"
+                                    borderColor="brand.500"
+                                    onClick={async () => {
+                                        setIsAsSubmitting(true);
+                                        try { await addAsDivider(); toast({ title: "구분선 추가 완료", status: "success", position: "top" }); }
+                                        catch (e: any) { toast({ title: "지원되지 않는 항목", status: "error", position: "top" }); }
+                                        finally { setIsAsSubmitting(false); }
+                                    }}
+                                    isLoading={isAsSubmitting}
+                                    h="45px"
+                                    fontSize="12px"
+                                    fontWeight="800"
+                                    px={3}
+                                >
+                                    구분선
+                                </TeasyButton>
+                                <IconButton
+                                    aria-label="Add"
+                                    icon={<MdAdd size={22} />}
+                                    onClick={async () => {
+                                        if (!asTypeName.trim()) { toast({ title: "유형명을 입력해주세요.", status: "warning", position: "top" }); return; }
+                                        setIsAsSubmitting(true);
+                                        try { await addAsType(asTypeName); setAsTypeName(""); toast({ title: "추가 완료", status: "success", position: "top" }); }
+                                        catch (e: any) { toast({ title: e.message || "추가 실패", status: "error", position: "top" }); }
+                                        finally { setIsAsSubmitting(false); }
+                                    }}
+                                    isLoading={isAsSubmitting}
+                                    h="45px"
+                                    w="45px"
+                                    colorScheme="brand"
+                                    bg="brand.500"
+                                    color="white"
+                                    borderRadius="md"
+                                />
+                            </HStack>
+                        </FormControl>
+
+                        <Box bg="gray.50" p={2} borderRadius="xl" minH="200px" border="1px" borderColor="gray.100" maxH="400px" overflowY="auto">
+                            {isAsTypeLoading ? (
+                                <Center h="100px"><Spinner /></Center>
+                            ) : asTypes.length === 0 ? (
+                                <Center h="100px" color="gray.300" fontSize="xs">등록된 유형이 없습니다.</Center>
+                            ) : (
+                                <Reorder.Group axis="y" values={asTypes} onReorder={updateAsOrder} style={{ listStyle: "none", padding: 0 }}>
+                                    <VStack align="stretch" spacing={2}>
+                                        {asTypes.map((d) => renderItem(
+                                            d,
+                                            async (id) => {
+                                                if (!window.confirm("정말 삭제하시겠습니까?")) return;
+                                                try { await removeAsType(id); toast({ title: "삭제 완료", status: "info", position: "top" }); }
+                                                catch (e) { toast({ title: "삭제 실패", status: "error", position: "top" }); }
+                                            },
+                                            undefined,
+                                            false
                                         ))}
                                     </VStack>
                                 </Reorder.Group>
@@ -230,3 +334,77 @@ export default function SettingsPage() {
         </Box>
     );
 }
+
+// Sub-component for drag handle reordering
+const ItemWrapper = ({
+    item,
+    onRemove,
+    onColorClick,
+    showColor,
+    onDragEnd
+}: {
+    item: any,
+    onRemove: (id: string) => void,
+    onColorClick?: () => void,
+    showColor: boolean,
+    onDragEnd: () => void
+}) => {
+    const controls = useDragControls();
+    return (
+        <Reorder.Item
+            value={item}
+            dragListener={false}
+            dragControls={controls}
+            style={{ listStyle: "none" }}
+            onDragEnd={onDragEnd}
+        >
+            <HStack
+                justify="space-between"
+                bg={item.isDivider ? "gray.50" : "white"}
+                px={3}
+                py={item.isDivider ? 0 : 1.5}
+                minH={item.isDivider ? "14px" : "40px"}
+                borderRadius="lg"
+                shadow={item.isDivider ? "none" : "sm"}
+                border="1px solid"
+                borderColor="gray.100"
+            >
+                <HStack spacing={2} flex={1}>
+                    <Icon
+                        as={MdMenu}
+                        color="gray.300"
+                        cursor="grab"
+                        _active={{ cursor: "grabbing" }}
+                        onPointerDown={(e) => controls.start(e)}
+                    />
+                    {item.isDivider ? (
+                        <Box flex={1} h="1px" bg="gray.200" />
+                    ) : (
+                        <HStack spacing={2}>
+                            {showColor && (
+                                <Circle
+                                    size="12px"
+                                    bg={item.colorConfig?.bg || "gray.100"}
+                                    border="1px solid"
+                                    borderColor={item.colorConfig?.color || "gray.300"}
+                                    cursor="pointer"
+                                    onClick={onColorClick}
+                                />
+                            )}
+                            <Text fontSize="xs" color="gray.700" fontWeight="bold">{item.name}</Text>
+                        </HStack>
+                    )}
+                </HStack>
+                <IconButton
+                    aria-label="Remove"
+                    icon={<MdRemove />}
+                    size="xs"
+                    variant="ghost"
+                    color="gray.300"
+                    onClick={() => onRemove(item.id)}
+                    _hover={{ bg: "red.50", color: "red.500" }}
+                />
+            </HStack>
+        </Reorder.Item>
+    );
+};

@@ -62,6 +62,7 @@ interface UsePurchaseFormProps {
     managerOptions: ManagerOption[];
     inventoryItems: ProductOption[];
     pendingFile?: File | null;
+    activities?: any[];
 }
 
 /**
@@ -75,7 +76,8 @@ export const usePurchaseForm = ({
     productCategory,
     managerOptions,
     inventoryItems,
-    pendingFile
+    pendingFile,
+    activities = []
 }: UsePurchaseFormProps) => {
     const { userData } = useAuth();
     const queryClient = useQueryClient();
@@ -249,25 +251,27 @@ export const usePurchaseForm = ({
                     }
                 });
 
-                // Add new products to the map (only if it's a new report to avoid double counting on edit)
-                // Note: The user explicitly asked for "Cumulative" when "Purchase Confirm" is duplicated.
-                if (!activityId) {
-                    formData.selectedProducts.forEach(p => {
-                        const name = p.name.trim();
-                        const qty = Number(p.quantity) || 0;
-                        if (name) {
-                            ownedMap.set(name, (ownedMap.get(name) || 0) + qty);
-                        }
-                    });
-                } else {
-                    // On Edit, we only add if names are entirely new to the customer (conservative approach)
-                    formData.selectedProducts.forEach(p => {
-                        const name = p.name.trim();
-                        const qty = Number(p.quantity) || 0;
-                        if (name && !ownedMap.has(name)) {
-                            ownedMap.set(name, qty);
-                        }
-                    });
+                // Add new products to the map (only for 'inventory' - direct delivery items)
+                // 'product' (installation) items are added later during 'Install Complete'
+                if (productCategory === "inventory") {
+                    if (!activityId) {
+                        formData.selectedProducts.forEach(p => {
+                            const name = p.name.trim();
+                            const qty = Number(p.quantity) || 0;
+                            if (name) {
+                                ownedMap.set(name, (ownedMap.get(name) || 0) + qty);
+                            }
+                        });
+                    } else {
+                        // On Edit, we only add if names are entirely new to the customer (conservative approach)
+                        formData.selectedProducts.forEach(p => {
+                            const name = p.name.trim();
+                            const qty = Number(p.quantity) || 0;
+                            if (name && !ownedMap.has(name)) {
+                                ownedMap.set(name, qty);
+                            }
+                        });
+                    }
                 }
 
                 const updatedOwned = Array.from(ownedMap.entries())
@@ -282,7 +286,7 @@ export const usePurchaseForm = ({
                     });
                     transaction.update(activityRef, dataToSave as any);
                 } else {
-                    const nextSeq = (Number(currentInquiryMeta.lastSequence) || 0) + 1;
+                    const nextSeq = activities.filter(a => a.type === "purchase_confirm").length + 1;
                     transaction.set(activityRef, {
                         ...dataToSave,
                         sequenceNumber: nextSeq,

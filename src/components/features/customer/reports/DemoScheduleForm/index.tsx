@@ -14,6 +14,7 @@ interface DemoScheduleFormProps {
     initialData?: Partial<DemoScheduleFormData>;
     isReadOnly?: boolean;
     defaultManager?: string;
+    activities?: any[];
 }
 
 export const DemoScheduleForm = forwardRef<DemoScheduleFormHandle, DemoScheduleFormProps>(({
@@ -21,7 +22,8 @@ export const DemoScheduleForm = forwardRef<DemoScheduleFormHandle, DemoScheduleF
     activityId,
     initialData,
     isReadOnly = false,
-    defaultManager = ""
+    defaultManager = "",
+    activities = []
 }, ref) => {
     const { managerOptions, products } = useReportMetadata();
     const {
@@ -29,7 +31,7 @@ export const DemoScheduleForm = forwardRef<DemoScheduleFormHandle, DemoScheduleF
         isLoading,
         submit,
         handleDelete
-    } = useDemoScheduleForm({ customer, activityId, initialData, defaultManager });
+    } = useDemoScheduleForm({ customer, activities, activityId, initialData, defaultManager });
 
     const silentRef = React.useRef<HTMLDivElement>(null);
 

@@ -32,9 +32,10 @@ interface UseInquiryFormProps {
     initialData?: Partial<Activity>;
     defaultManager?: string;
     userData: { uid?: string; name?: string } | null;
+    activities?: any[];
 }
 
-export const useInquiryForm = ({ customer, activityId, initialData, defaultManager, userData }: UseInquiryFormProps) => {
+export const useInquiryForm = ({ customer, activities = [], activityId, initialData, defaultManager, userData }: UseInquiryFormProps) => {
     const queryClient = useQueryClient();
     const toast = useToast();
     const isSubmitting = useRef(false);
@@ -250,7 +251,7 @@ export const useInquiryForm = ({ customer, activityId, initialData, defaultManag
                 if (activityId) {
                     transaction.update(activityRef, dataToSave as any);
                 } else {
-                    const nextSeq = (Number(currentMeta.lastSequence) || 0) + 1;
+                    const nextSeq = activities.filter(a => a.type === INQUIRY_CONSTANTS.TYPE).length + 1;
                     transaction.set(activityRef, {
                         ...dataToSave,
                         sequenceNumber: nextSeq,

@@ -1,4 +1,4 @@
-// src/components/features/customer/reports/InstallCompleteForm/useInstallCompleteForm.ts
+// src/components/features/customer/reports/AsCompleteForm/useAsCompleteForm.ts
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@chakra-ui/react";
@@ -7,31 +7,22 @@ import { collection, serverTimestamp, doc, runTransaction } from "firebase/fires
 import { ref as sRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { useAuth } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { applyColonStandard, normalizeText } from "@/utils/textFormatter";
-import { formatPhone } from "@/utils/formatter";
-import { InstallCompleteFormData } from "./types";
-import { Activity, ActivityType, Asset } from "@/types/domain";
+import { AsCompleteFormData, AS_COMPLETE_CONSTANTS } from "./types";
+import { Activity, Asset } from "@/types/domain";
 import { getCircledNumber } from "@/components/features/asset/AssetModalUtils";
 import { performSelfHealing } from "@/utils/assetUtils";
+import { formatPhone } from "@/utils/formatter";
+import { applyColonStandard, normalizeText, getTeasyStandardFileName } from "@/utils/textFormatter";
 
-export const INSTALL_COMPLETE_CONSTANTS = {
-    TYPE: "install_complete" as ActivityType,
-    TYPE_NAME: "시공 완료",
-    META_PREFIX: "install_complete",
-    MAX_PHOTOS: 15,
-    STORAGE_PATH_PREFIX: "activities/install_complete"
-};
-
-interface UseInstallCompleteFormProps {
+interface UseAsCompleteFormProps {
     customer: { id: string, name: string, address?: string, phone?: string };
     activities?: any[];
     activityId?: string;
-    initialData?: Partial<InstallCompleteFormData>;
+    initialData?: Partial<AsCompleteFormData>;
     defaultManager?: string;
-    rawAssets?: Asset[];
 }
 
-export const useInstallCompleteForm = ({ customer, activities = [], activityId, initialData, defaultManager, rawAssets = [] }: UseInstallCompleteFormProps) => {
+export const useAsCompleteForm = ({ customer, activities = [], activityId, initialData, defaultManager }: UseAsCompleteFormProps) => {
     const { userData } = useAuth();
     const queryClient = useQueryClient();
     const toast = useToast();
@@ -40,18 +31,23 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
 
     const [pendingFiles, setPendingFiles] = useState<{ url: string, file: File }[]>([]);
 
-    const [formData, setFormData] = useState<InstallCompleteFormData>({
+    const [formData, setFormData] = useState<AsCompleteFormData>({
         date: "",
         manager: defaultManager || "",
+        asType: "",
         location: customer?.address || "",
         phone: formatPhone(customer?.phone || ""),
         selectedProducts: [],
+        symptoms: [],
+        tasks: [],
         selectedSupplies: [],
-        tasksBefore: [],
-        tasksAfter: [],
-        incompleteReason: "",
+        symptomIncompleteReason: "",
+        taskIncompleteReason: "",
         photos: [],
-        memo: ""
+        memo: "",
+        commitmentFiles: [],
+        collectionVideo: null,
+        reinstallationVideo: null
     });
 
     useEffect(() => {
@@ -60,31 +56,42 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
                 ...prev,
                 ...initialData,
                 manager: initialData.manager || defaultManager || "",
+                asType: initialData.asType || "",
                 selectedProducts: initialData.selectedProducts || [],
+                symptoms: (initialData.symptoms || []).map((s: any) => typeof s === 'string' ? { text: s, completed: false } : s),
+                tasks: (initialData.tasks || []).map((t: any) => typeof t === 'string' ? { text: t, completed: false } : t),
                 selectedSupplies: initialData.selectedSupplies || [],
-                tasksBefore: (initialData.tasksBefore || []).map((t: any) => typeof t === 'string' ? { text: t, completed: false } : t),
-                tasksAfter: (initialData.tasksAfter || []).map((t: any) => typeof t === 'string' ? { text: t, completed: false } : t),
-                photos: initialData.photos || []
+                symptomIncompleteReason: initialData.symptomIncompleteReason || "",
+                taskIncompleteReason: initialData.taskIncompleteReason || "",
+                photos: initialData.photos || [],
+                commitmentFiles: initialData.commitmentFiles || [],
+                collectionVideo: initialData.collectionVideo || null,
+                reinstallationVideo: initialData.reinstallationVideo || null
             }));
         } else {
             const now = new Date();
             const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}  ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-            // Auto-fill from last install_schedule
-            const lastInstallSchedule = [...(activities || [])].reverse().find(a => a.type === "install_schedule");
+            // Auto-fill from last as_schedule
+            const lastAsSchedule = [...(activities || [])].reverse().find(a => a.type === "as_schedule");
 
             setFormData(prev => ({
                 ...prev,
                 date: formattedDate,
-                location: lastInstallSchedule?.location || customer?.address || "",
-                phone: formatPhone(lastInstallSchedule?.phone || customer?.phone || ""),
-                manager: lastInstallSchedule?.manager || prev.manager,
-                selectedProducts: lastInstallSchedule?.selectedProducts || [],
-                selectedSupplies: lastInstallSchedule?.selectedSupplies || [],
-                tasksBefore: (lastInstallSchedule?.tasksBefore || []).map((t: string) => ({ text: t, completed: false })),
-                tasksAfter: (lastInstallSchedule?.tasksAfter || []).map((t: string) => ({ text: t, completed: false })),
-                incompleteReason: "",
-                photos: [] // Fresh photos for completion
+                location: lastAsSchedule?.location || customer?.address || "",
+                phone: formatPhone(lastAsSchedule?.phone || customer?.phone || ""),
+                manager: lastAsSchedule?.manager || prev.manager,
+                asType: lastAsSchedule?.asType || "",
+                selectedProducts: lastAsSchedule?.selectedProducts || [],
+                symptoms: (lastAsSchedule?.symptoms || []).map((s: string) => ({ text: s, completed: false })),
+                tasks: (lastAsSchedule?.tasks || []).map((t: string) => ({ text: t, completed: false })),
+                selectedSupplies: lastAsSchedule?.selectedSupplies || [],
+                symptomIncompleteReason: "",
+                taskIncompleteReason: "",
+                photos: [],
+                commitmentFiles: [],
+                collectionVideo: null,
+                reinstallationVideo: null
             }));
         }
     }, [initialData, defaultManager, customer.address, customer.phone, activities]);
@@ -93,8 +100,8 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
         if (!files || files.length === 0) return;
 
         setFormData(prev => {
-            if (prev.photos.length + files.length > INSTALL_COMPLETE_CONSTANTS.MAX_PHOTOS) {
-                toast({ title: "한도 초과", description: `사진은 최대 ${INSTALL_COMPLETE_CONSTANTS.MAX_PHOTOS}장까지 업로드 가능합니다.`, status: "warning", position: "top" });
+            if (prev.photos.length + files.length > AS_COMPLETE_CONSTANTS.MAX_PHOTOS) {
+                toast({ title: "한도 초과", description: `사진은 최대 ${AS_COMPLETE_CONSTANTS.MAX_PHOTOS}장까지 업로드 가능합니다.`, status: "warning", position: "top" });
                 return prev;
             }
 
@@ -149,24 +156,123 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
         }));
     }, []);
 
+    const handleAttachmentUpload = useCallback((files: FileList | null, type: 'commitment' | 'collection_video' | 'reinstall_video') => {
+        if (!files || files.length === 0) return;
+
+        const fileList = Array.from(files);
+
+        // Find existing indices for commitment files to fill gaps (v126.85)
+        let existingIndices: number[] = [];
+        if (type === 'commitment') {
+            existingIndices = formData.commitmentFiles.map(f => {
+                const match = (f.displayName || "").match(/_(\d+)$/);
+                return match ? parseInt(match[1]) - 1 : -1;
+            }).filter(i => i >= 0);
+        }
+
+        const newAttachments = fileList.map((file, idx) => {
+            const id = Math.random().toString(36).substring(7);
+            const url = URL.createObjectURL(file);
+            const ext = file.name.split('.').pop()?.toUpperCase() || "FILE";
+
+            const categoryLabel = type === 'commitment' ? '시공확약서' : (type === 'collection_video' ? '수거전동영상' : '설치후동영상');
+
+            let finalIdx = idx;
+            let finalTotal = fileList.length;
+
+            if (type === 'commitment') {
+                // Find next available index starting from 0
+                let nextIdx = 0;
+                while (existingIndices.includes(nextIdx)) {
+                    nextIdx++;
+                }
+                existingIndices.push(nextIdx);
+                finalIdx = nextIdx;
+                // Treat as multi-file (total > 1) to ensure suffix is always added for commitment
+                finalTotal = Math.max(2, formData.commitmentFiles.length + fileList.length);
+            }
+
+            const displayName = getTeasyStandardFileName(customer.name, categoryLabel, formData.date, finalIdx, finalTotal);
+
+            return {
+                id,
+                url,
+                name: file.name,
+                displayName,
+                ext,
+                _file: file
+            };
+        });
+
+        setFormData(prev => {
+            if (type === 'commitment') {
+                return { ...prev, commitmentFiles: [...prev.commitmentFiles, ...newAttachments] };
+            } else if (type === 'collection_video') {
+                return { ...prev, collectionVideo: newAttachments[0] };
+            } else {
+                return { ...prev, reinstallationVideo: newAttachments[0] };
+            }
+        });
+    }, [customer.name, formData.date, formData.commitmentFiles]);
+
+    const removeAttachment = useCallback((id: string, type: 'commitment' | 'collection_video' | 'reinstall_video') => {
+        setFormData(prev => {
+            if (type === 'commitment') {
+                const target = prev.commitmentFiles.find(f => f.id === id);
+                if (target?.url.startsWith('blob:')) URL.revokeObjectURL(target.url);
+                return { ...prev, commitmentFiles: prev.commitmentFiles.filter(f => f.id !== id) };
+            } else if (type === 'collection_video') {
+                if (prev.collectionVideo?.url.startsWith('blob:')) URL.revokeObjectURL(prev.collectionVideo.url);
+                return { ...prev, collectionVideo: null };
+            } else {
+                if (prev.reinstallationVideo?.url.startsWith('blob:')) URL.revokeObjectURL(prev.reinstallationVideo.url);
+                return { ...prev, reinstallationVideo: null };
+            }
+        });
+    }, []);
+
     const submit = useCallback(async (managerOptions: any[]) => {
         if (isLoading || isSubmitting.current) return false;
 
-        if (!formData.date || !formData.manager || !formData.location || !formData.phone) {
-            toast({ title: "필수 항목 누락", status: "warning", duration: 2000, position: "top" });
+        if (!formData.date || !formData.manager || !formData.asType || !formData.location || !formData.phone || formData.selectedSupplies.length === 0) {
+            toast({ title: "필수 항목 누락", description: formData.selectedSupplies.length === 0 ? "사용 내역을 최소 1개 이상 추가해주세요." : "필수 항목을 모두 입력해주세요.", status: "warning", duration: 2000, position: "top" });
             return false;
         }
 
-        const hasIncompleteTask = [...formData.tasksBefore, ...formData.tasksAfter].some(t => !t.completed);
-        if (hasIncompleteTask && !formData.incompleteReason.trim()) {
-            toast({ title: "미수행 사유 입력 필요", description: "체크되지 않은 업무가 있습니다. 사유를 입력해주세요.", status: "warning", duration: 2000, position: "top" });
+        const symIncomplete = formData.symptoms.some(t => !t.completed);
+        const taskIncomplete = formData.tasks.some(t => !t.completed);
+
+        if (symIncomplete && !formData.symptomIncompleteReason.trim()) {
+            toast({ title: "사유 입력 필요", description: "점검되지 않은 증상이 있습니다. 사유를 입력해주세요.", status: "warning", duration: 2000, position: "top" });
             return false;
+        }
+
+        if (taskIncomplete && !formData.taskIncompleteReason.trim()) {
+            toast({ title: "사유 입력 필요", description: "수행되지 않은 결과가 있습니다. 사유를 입력해주세요.", status: "warning", duration: 2000, position: "top" });
+            return false;
+        }
+
+        // 🚨 AS Type Conditional Validation
+        if (formData.asType === "이전 시공") {
+            if (formData.commitmentFiles.length < 2) {
+                toast({ title: "확약서 누락", description: "시공 확약서 사진을 2장 이상 업로드해주세요.", status: "warning", duration: 2000, position: "top" });
+                return false;
+            }
+        } else if (formData.asType === "방문 수거") {
+            if (!formData.collectionVideo) {
+                toast({ title: "동영상 누락", description: "수거 전 동영상을 업로드해주세요.", status: "warning", duration: 2000, position: "top" });
+                return false;
+            }
+        } else if (formData.asType === "방문 재설치") {
+            if (!formData.reinstallationVideo) {
+                toast({ title: "동영상 누락", description: "설치 후 동영상을 업로드해주세요.", status: "warning", duration: 2000, position: "top" });
+                return false;
+            }
         }
 
         setIsLoading(true);
         isSubmitting.current = true;
 
-        // Ensure the loading overlay is painted before intensive work (v124.92)
         await new Promise(resolve => setTimeout(resolve, 100));
 
         try {
@@ -177,11 +283,10 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
             let finalPhotos = [...formData.photos];
             if (pendingFiles.length > 0) {
                 const uniquePending = Array.from(new Map(pendingFiles.map(p => [p.file.name + p.file.size, p])).values());
-
                 const uploadPromises = uniquePending.map(async (p, i) => {
                     const ext = p.file.name.split('.').pop() || 'jpg';
-                    const filename = `complete_${Date.now()}_${i}_${Math.random().toString(36).substring(7)}.${ext}`;
-                    const storagePath = `${INSTALL_COMPLETE_CONSTANTS.STORAGE_PATH_PREFIX}/${customer.id}/${filename}`;
+                    const filename = `as_complete_${Date.now()}_${i}_${Math.random().toString(36).substring(7)}.${ext}`;
+                    const storagePath = `${AS_COMPLETE_CONSTANTS.STORAGE_PATH_PREFIX}/${customer.id}/${filename}`;
                     const storageRef = sRef(storage, storagePath);
                     await uploadBytes(storageRef, p.file);
                     return await getDownloadURL(storageRef);
@@ -190,7 +295,29 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
                 finalPhotos = finalPhotos.filter(url => !url.startsWith('blob:')).concat(uploadedUrls);
             }
 
-            // Deduplicate photos
+            // Upload Attachments (Commitment, Videos)
+            const uploadQueue = async (fileList: any[], folder: string) => {
+                return Promise.all(fileList.map(async (f) => {
+                    if (!f.url.startsWith('blob:')) return { id: f.id, url: f.url, name: f.name, displayName: f.displayName, ext: f.ext };
+
+                    const file = f._file;
+                    if (!file) throw new Error(`파일 유실: ${f.displayName}`);
+
+                    const filename = `${folder}_${Date.now()}_${Math.random().toString(36).substring(7)}.${f.ext.toLowerCase()}`;
+                    const storagePath = `${AS_COMPLETE_CONSTANTS.STORAGE_PATH_PREFIX}/${customer.id}/${filename}`;
+                    const storageRef = sRef(storage, storagePath);
+
+                    await uploadBytes(storageRef, file);
+                    const url = await getDownloadURL(storageRef);
+                    const { _file, ...fileData } = f;
+                    return { ...fileData, url };
+                }));
+            };
+
+            const finalCommitment = await uploadQueue(formData.commitmentFiles, 'commitment');
+            const finalCollectionVideo = formData.collectionVideo ? (await uploadQueue([formData.collectionVideo], 'collection_video'))[0] : null;
+            const finalReinstallVideo = formData.reinstallationVideo ? (await uploadQueue([formData.reinstallationVideo], 'reinstall_video'))[0] : null;
+
             const finalSeen = new Set();
             finalPhotos = finalPhotos.filter(url => {
                 const baseUrl = url.split('?')[0].trim();
@@ -199,7 +326,7 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
                 return true;
             });
 
-            // --- Pre-transaction Read (v1.3 Sync with Schedule Logic) ---
+            // Pre-transaction Read (v1.3 Sync with Schedule Logic)
             let existingAssets: any[] = [];
             if (activityId) {
                 const { query, where, getDocs } = await import("firebase/firestore");
@@ -213,72 +340,71 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
                 const targetActivityId = activityId || doc(collection(db, "activities")).id;
                 const activityRef = doc(db, "activities", targetActivityId);
 
-                // --- 1. Settlement Preparation (READS MUST BE FIRST) ---
-                const lastSchedule = [...(activities || [])].reverse().find(a => a.type === "install_schedule");
+                // Settlement Preparation
+                const lastSchedule = [...(activities || [])].reverse().find(a => a.type === "as_schedule");
                 const reservedSupplies = lastSchedule?.selectedSupplies || [];
 
-                // Aggregate reserved supplies
                 const reservedMap = new Map<string, { name: string, category: string, quantity: number }>();
                 reservedSupplies.forEach((s: any) => {
                     const key = `${s.name.trim()}|${(s.category || "").trim()}`;
                     reservedMap.set(key, { name: s.name.trim(), category: (s.category || "").trim(), quantity: (reservedMap.get(key)?.quantity || 0) + (Number(s.quantity) || 0) });
                 });
 
-                // Aggregate actual supplies
                 const actualMap = new Map<string, { name: string, category: string, quantity: number }>();
                 formData.selectedSupplies.forEach(s => {
                     const key = `${s.name.trim()}|${(s.category || "").trim()}`;
                     actualMap.set(key, { name: s.name.trim(), category: (s.category || "").trim(), quantity: (actualMap.get(key)?.quantity || 0) + (Number(s.quantity) || 0) });
                 });
 
-                // Calculate Settlement Items
                 const allKeys = new Set([...reservedMap.keys(), ...actualMap.keys()]);
                 const settlementItems: { name: string, category: string, delta: number }[] = [];
 
                 allKeys.forEach(key => {
                     const reservedQty = reservedMap.get(key)?.quantity || 0;
                     const actualQty = actualMap.get(key)?.quantity || 0;
-                    const delta = reservedQty - actualQty; // + : Return to stock (Inflow), - : Extra usage (Outflow)
+                    const delta = reservedQty - actualQty;
 
                     if (delta !== 0) {
                         const item = reservedMap.get(key) || actualMap.get(key);
-                        if (item && item.category) {
-                            settlementItems.push({ name: item.name, category: item.category, delta });
-                        }
+                        if (item && item.category) settlementItems.push({ name: item.name, category: item.category, delta });
                     }
                 });
 
-                // --- 2. ALL READS START ---
-                // Customer and Activity Meta
+                // ALL READS START
                 const customerRef = doc(db, "customers", customer.id);
                 const customerSnap = await transaction.get(customerRef);
-                const metaRef = doc(db, "customer_meta", `${customer.id}_${INSTALL_COMPLETE_CONSTANTS.META_PREFIX}`);
+                const metaRef = doc(db, "customer_meta", `${customer.id}_${AS_COMPLETE_CONSTANTS.META_PREFIX}`);
                 const metaSnap = await transaction.get(metaRef);
 
-                // Asset Metas for ALL involved items (Settlement + Actuals)
                 const metaReadTasks = settlementItems.map(async (item) => {
                     const metaId = `meta_${item.name}_${item.category}`.replace(/\//g, "_");
                     const assetMetaRef = doc(db, "asset_meta", metaId);
                     const snap = await transaction.get(assetMetaRef);
                     return { item, ref: assetMetaRef, snap };
                 });
-
                 const supplyMetaResults = await Promise.all(metaReadTasks);
 
-                // --- 3. ALL WRITES START ---
+                // ALL WRITES START
                 let currentMeta = metaSnap.exists() ? metaSnap.data() : { lastSequence: 0, totalCount: 0 };
                 const validProducts = formData.selectedProducts.filter(p => p.name && p.name.trim() !== "");
                 const validSupplies = formData.selectedSupplies.filter(s => s.name && s.name.trim() !== "");
 
+                // Consolidate reasons for legacy Activity interface if needed, or save separately
+                const combinedReason = [
+                    formData.symptoms.every(t => t.completed) ? "" : `[증상] ${formData.symptomIncompleteReason}`,
+                    formData.tasks.every(t => t.completed) ? "" : `[수행] ${formData.taskIncompleteReason}`
+                ].filter(Boolean).join(" / ");
+
                 const dataToSave: Partial<Activity> = {
                     customerId: customer.id,
                     customerName: customer.name,
-                    type: INSTALL_COMPLETE_CONSTANTS.TYPE,
-                    typeName: INSTALL_COMPLETE_CONSTANTS.TYPE_NAME,
+                    type: AS_COMPLETE_CONSTANTS.TYPE,
+                    typeName: AS_COMPLETE_CONSTANTS.TYPE_NAME,
                     date: formData.date,
                     manager: formData.manager,
                     managerName: selectedManager?.label || formData.manager,
                     managerRole: selectedManager?.role || "employee",
+                    asType: formData.asType,
                     location: normalizeText(formData.location),
                     phone: cleanPhone,
                     product: validProducts.map((p, idx) => {
@@ -287,10 +413,15 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
                     }).join(", "),
                     selectedProducts: validProducts,
                     selectedSupplies: validSupplies,
-                    tasksBefore: formData.tasksBefore,
-                    tasksAfter: formData.tasksAfter,
-                    incompleteReason: [...formData.tasksBefore, ...formData.tasksAfter].every(t => t.completed) ? "" : formData.incompleteReason,
+                    symptoms: formData.symptoms,
+                    tasks: formData.tasks,
+                    symptomIncompleteReason: formData.symptoms.every(t => t.completed) ? "" : formData.symptomIncompleteReason,
+                    taskIncompleteReason: formData.tasks.every(t => t.completed) ? "" : formData.taskIncompleteReason,
+                    incompleteReason: combinedReason,
                     photos: finalPhotos,
+                    commitmentFiles: formData.asType === "이전 시공" ? finalCommitment : [],
+                    collectionVideo: formData.asType === "방문 수거" ? finalCollectionVideo : null,
+                    reinstallationVideo: formData.asType === "방문 재설치" ? finalReinstallVideo : null,
                     memo: applyColonStandard(formData.memo || ""),
                     updatedAt: serverTimestamp(),
                     createdByName: userData?.name || "알 수 없음"
@@ -299,50 +430,7 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
                 const now = new Date();
                 const actionDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-                const currentCustomer = customerSnap.exists() ? customerSnap.data() : {};
-                const existingOwned = currentCustomer.ownedProducts || [];
-                const ownedMap = new Map<string, number>();
-
-                // Parse existing owned products (Name x Qty)
-                existingOwned.forEach((item: string) => {
-                    const match = item.match(/^(.*)\s+x\s+(\d+)$/);
-                    if (match) {
-                        const name = match[1].trim();
-                        const qty = parseInt(match[2]);
-                        ownedMap.set(name, (ownedMap.get(name) || 0) + qty);
-                    } else if (item.trim()) {
-                        ownedMap.set(item.trim(), (ownedMap.get(item.trim()) || 0) + 1);
-                    }
-                });
-
-                // Add newly installed products (installation items)
-                if (!activityId) {
-                    validProducts.forEach(p => {
-                        const name = p.name.trim();
-                        const qty = Number(p.quantity) || 0;
-                        if (name) {
-                            ownedMap.set(name, (ownedMap.get(name) || 0) + qty);
-                        }
-                    });
-                } else if (initialData?.selectedProducts) {
-                    // On Edit, simple adjustment: replace or cumulative? 
-                    // To match PurchaseConfirm, we only add if names are entirely new, 
-                    // or we could do complex diffing. Following PurchaseConfirm's conservative approach:
-                    validProducts.forEach(p => {
-                        const name = p.name.trim();
-                        const qty = Number(p.quantity) || 0;
-                        if (name && !ownedMap.has(name)) {
-                            ownedMap.set(name, qty);
-                        }
-                    });
-                }
-
-                const updatedOwned = Array.from(ownedMap.entries())
-                    .sort((a, b) => a[0].localeCompare(b[0]))
-                    .map(([name, qty]) => `${name} x ${qty}`);
-
                 transaction.update(customerRef, {
-                    ownedProducts: updatedOwned,
                     lastConsultDate: formData.date,
                     updatedAt: serverTimestamp()
                 });
@@ -354,7 +442,7 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
                     });
                     transaction.update(activityRef, dataToSave as any);
                 } else {
-                    const nextSeq = lastSchedule?.sequenceNumber || (activities.filter(a => a.type === INSTALL_COMPLETE_CONSTANTS.TYPE).length + 1);
+                    const nextSeq = lastSchedule?.sequenceNumber || (activities.filter(a => a.type === AS_COMPLETE_CONSTANTS.TYPE).length + 1);
                     transaction.set(activityRef, {
                         ...dataToSave,
                         sequenceNumber: nextSeq,
@@ -376,17 +464,15 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
                     let currentAssetMeta = assetMetaSnap.exists() ? assetMetaSnap.data() : { totalInflow: 0, totalOutflow: 0, currentStock: 0 };
                     const finalStock = (Number(currentAssetMeta.currentStock) || 0) + item.delta;
 
-                    // Update Meta
                     transaction.set(assetMetaRef, {
                         ...currentAssetMeta,
                         currentStock: finalStock,
                         totalInflow: item.delta > 0 ? (Number(currentAssetMeta.totalInflow) || 0) + item.delta : (Number(currentAssetMeta.totalInflow) || 0),
                         totalOutflow: item.delta < 0 ? (Number(currentAssetMeta.totalOutflow) || 0) + Math.abs(item.delta) : (Number(currentAssetMeta.totalOutflow) || 0),
                         lastUpdatedAt: serverTimestamp(),
-                        lastAction: item.delta > 0 ? "install_recovery" : "install_extra_outflow"
+                        lastAction: item.delta > 0 ? "as_recovery" : "as_extra_outflow"
                     }, { merge: true });
 
-                    // Create Asset Record
                     const newAssetRef = doc(collection(db, "assets"));
                     transaction.set(newAssetRef, {
                         category: item.category,
@@ -401,8 +487,8 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
                         lastRecipientId: customer.id,
                         createdAt: serverTimestamp(),
                         editLog: item.delta > 0
-                            ? `시공 정산: 물량 남음 (현장 회수 입고) [${customer.name}]`
-                            : `시공 정산: 물량 추가 사용 (현장 추가 출급) [${customer.name}]`,
+                            ? `A/S 정산: 물량 남음 (현장 회수 입고) [${customer.name}]`
+                            : `A/S 정산: 물량 추가 사용 (현장 추가 출급) [${customer.name}]`,
                         sourceActivityId: targetActivityId
                     });
                 }
@@ -411,30 +497,50 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
             });
 
             if (saveResult.success) {
-                // Photo Cleanup
-                if (activityId && initialData?.photos) {
-                    const removedPhotos = initialData.photos.filter((oldUrl: string) => !finalPhotos.includes(oldUrl));
-                    await cleanupOrphanedPhotos(removedPhotos);
+                const urlsToDelete: string[] = [];
+
+                // 1. Photos cleanup
+                if (initialData?.photos) {
+                    initialData.photos.forEach(url => {
+                        if (!finalPhotos.includes(url)) urlsToDelete.push(url);
+                    });
                 }
 
-                // Background Heal
+                // 2. Commitment Files cleanup
+                if (initialData?.commitmentFiles) {
+                    initialData.commitmentFiles.forEach(f => {
+                        if (!finalCommitment.some(cf => cf.url === f.url)) urlsToDelete.push(f.url);
+                    });
+                }
+
+                // 3. Videos cleanup
+                if (initialData?.collectionVideo && (!finalCollectionVideo || finalCollectionVideo.url !== initialData.collectionVideo.url)) {
+                    urlsToDelete.push(initialData.collectionVideo.url);
+                }
+                if (initialData?.reinstallationVideo && (!finalReinstallVideo || finalReinstallVideo.url !== initialData.reinstallationVideo.url)) {
+                    urlsToDelete.push(initialData.reinstallationVideo.url);
+                }
+
+                if (urlsToDelete.length > 0) {
+                    await cleanupOrphanedPhotos(urlsToDelete);
+                }
+
                 Promise.all(saveResult.affectedItems.map(itemKey => {
                     const [name, category] = itemKey.split("|");
                     return performSelfHealing(name, category);
                 })).catch(e => console.error("Self-healing error:", e));
 
                 setPendingFiles([]);
-                // Delay for Firestore indexing (v123.03)
                 await new Promise(resolve => setTimeout(resolve, 500));
                 await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
                 await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
                 await queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
-                toast({ title: initialData ? "시공 완료 수정 완료" : "시공 완료 등록 완료", status: "success", duration: 2000, position: "top" });
+                toast({ title: initialData ? "A/S 완료 수정 완료" : "A/S 완료 등록 완료", status: "success", duration: 2000, position: "top" });
                 return true;
             }
         } catch (error: any) {
-            console.error("Install Complete Submit Failure:", error);
+            console.error("AS Complete Submit Failure:", error);
             toast({ title: "저장 실패", description: error.message, status: "error", position: "top" });
             return false;
         } finally {
@@ -449,7 +555,6 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
         if (!window.confirm(`보고서와 연결된 사진이 모두 삭제됩니다. 정말 삭제하시겠습니까?`)) return false;
         setIsLoading(true);
         try {
-            // --- Pre-transaction Read ---
             const { query, where, getDocs } = await import("firebase/firestore");
             const assetQuery = query(collection(db, "assets"), where("sourceActivityId", "==", activityId));
             const assetSnap = await getDocs(assetQuery);
@@ -457,8 +562,6 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
 
             const result = await runTransaction(db, async (transaction) => {
                 const affectedItems = new Set<string>();
-
-                // 1. ALL READS FIRST
                 const metaSnapshots = await Promise.all(assetsToRestores.map(async (asset) => {
                     const metaId = `meta_${asset.data.name}_${asset.data.category}`.replace(/\//g, "_");
                     const assetMetaRef = doc(db, "asset_meta", metaId);
@@ -468,10 +571,9 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
 
                 const activityRef = doc(db, "activities", activityId);
                 const activitySnap = await transaction.get(activityRef);
-                const metaRef = doc(db, "customer_meta", `${customer.id}_${INSTALL_COMPLETE_CONSTANTS.META_PREFIX}`);
+                const metaRef = doc(db, "customer_meta", `${customer.id}_${AS_COMPLETE_CONSTANTS.META_PREFIX}`);
                 const custMetaSnap = await transaction.get(metaRef);
 
-                // 2. ALL WRITES
                 for (const item of metaSnapshots) {
                     const { asset, ref: assetMetaRef, snap: assetMetaSnap } = item;
                     affectedItems.add(`${asset.data.name}|${asset.data.category}`);
@@ -490,7 +592,13 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
 
                 let photosToDelete: string[] = [];
                 if (activitySnap.exists()) {
-                    photosToDelete = activitySnap.data().photos || [];
+                    const data = activitySnap.data() as Activity;
+                    photosToDelete = [
+                        ...(data.photos || []),
+                        ...(data.commitmentFiles || []).map(f => f.url),
+                        ...(data.collectionVideo ? [data.collectionVideo.url] : []),
+                        ...(data.reinstallationVideo ? [data.reinstallationVideo.url] : [])
+                    ];
                 }
 
                 if (custMetaSnap.exists()) {
@@ -508,7 +616,6 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
                     const [name, category] = itemKey.split("|");
                     return performSelfHealing(name, category);
                 })).catch(e => console.error("Self-healing error:", e));
-                // Delay for Firestore indexing
                 await new Promise(resolve => setTimeout(resolve, 500));
                 await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
@@ -517,42 +624,24 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
                 toast({ title: "삭제 완료", status: "info", duration: 2000, position: "top" });
                 return true;
             }
-            return false;
         } catch (error) {
-            console.error("Install Complete Delete Failure:", error);
             toast({ title: "삭제 실패", status: "error", position: "top" });
-            return false;
-        } finally {
-            setIsLoading(false);
-        }
+        } finally { setIsLoading(false); }
         return false;
     }, [activityId, customer.id, toast, cleanupOrphanedPhotos, queryClient]);
 
-    const addTask = useCallback((type: 'before' | 'after') => {
-        return; // Fixed from schedule
-    }, []);
-
-    const updateTask = useCallback((type: 'before' | 'after', index: number, value: string) => {
-        return; // Read-only text
-    }, []);
-
-    const removeTask = useCallback((type: 'before' | 'after', index: number) => {
-        return; // Fixed from schedule
-    }, []);
-
-    const toggleTask = useCallback((type: 'before' | 'after', index: number) => {
+    const toggleCheck = useCallback((type: 'symptoms' | 'tasks', index: number) => {
         setFormData(prev => {
-            const field = type === 'before' ? 'tasksBefore' : 'tasksAfter';
-            const newList = [...prev[field]];
+            const newList = [...prev[type]];
             newList[index] = { ...newList[index], completed: !newList[index].completed };
+            const allSectionDone = newList.every(t => t.completed);
 
-            // Auto-clear reason if everything is now completed (v126.9)
-            const allDone = [...(type === 'before' ? newList : prev.tasksBefore), ...(type === 'after' ? newList : prev.tasksAfter)].every(t => t.completed);
+            const fieldToReset = type === 'symptoms' ? 'symptomIncompleteReason' : 'taskIncompleteReason';
 
             return {
                 ...prev,
-                [field]: newList,
-                incompleteReason: allDone ? "" : prev.incompleteReason
+                [type]: newList,
+                [fieldToReset]: allSectionDone ? "" : prev[fieldToReset as keyof AsCompleteFormData]
             };
         });
     }, []);
@@ -561,7 +650,8 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
         formData, setFormData,
         isLoading,
         handleFileUpload, removePhoto,
-        addTask, updateTask, removeTask, toggleTask,
+        handleAttachmentUpload, removeAttachment,
+        toggleCheck,
         submit,
         handleDelete
     };

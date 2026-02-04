@@ -1,8 +1,9 @@
 // src/components/features/customer/ProfileItem.tsx
 import React from 'react';
-import { Box, Text, Flex, IconButton, VStack } from "@chakra-ui/react";
+import { Box, Text, Flex, IconButton, VStack, HStack } from "@chakra-ui/react";
 import { AddIcon } from "@chakra-ui/icons";
 import { ThinParen } from "@/components/common/UIComponents";
+import { getCircledNumber } from "@/components/features/asset/AssetModalUtils";
 
 interface ProfileItemProps {
     label: string;
@@ -44,18 +45,35 @@ export const ProfileItem = React.memo(({ label, values, onAdd, onClick, isDate, 
             spacing={0}
         >
             {values.length > 0 ? (
-                label === "보유 상품" ? (
-                    <Flex wrap="wrap" gap={2} align="center">
-                        {values.map((v, i) => (
-                            <React.Fragment key={i}>
-                                <Text fontSize="sm" fontWeight="bold" color="gray.600">
-                                    <ThinParen text={v} />
-                                </Text>
-                                {i < values.length - 1 && (
-                                    <Text fontSize="xs" color="gray.300" fontWeight="normal">|</Text>
-                                )}
-                            </React.Fragment>
-                        ))}
+                (label === "보유 상품" || label === "라이선스") ? (
+                    <Flex wrap="wrap" gap={3} align="center">
+                        {values.map((v, i) => {
+                            const match = v.match(/^(.*)(\s[xX]\s\d+|\s\(\d+\))$/);
+                            return (
+                                <HStack key={i} spacing={1} align="center">
+                                    <Text fontSize="sm" color="gray.500" fontWeight="300">
+                                        {getCircledNumber(i + 1)}
+                                    </Text>
+                                    <Text fontSize="sm" fontWeight="bold" color="gray.600">
+                                        {match ? (
+                                            <>
+                                                <ThinParen text={match[1]} />
+                                                <Text as="span" color="gray.500" fontWeight="300" ml={1}>
+                                                    {match[2].includes('(')
+                                                        ? `x ${match[2].replace(/[()]/g, '').trim()}`
+                                                        : match[2].trim().toLowerCase()}
+                                                </Text>
+                                            </>
+                                        ) : (
+                                            <ThinParen text={v} />
+                                        )}
+                                    </Text>
+                                    {i < values.length - 1 && (
+                                        <Box w="1px" h="10px" bg="gray.200" mx={1} />
+                                    )}
+                                </HStack>
+                            );
+                        })}
                     </Flex>
                 ) : (
                     values.map((v, i) => (
@@ -64,7 +82,8 @@ export const ProfileItem = React.memo(({ label, values, onAdd, onClick, isDate, 
                             fontSize="sm"
                             fontWeight="bold"
                             color={isDate && (label === "최신 활동일" || label === "최근 활동") ? "brand.500" : "gray.600"}
-                            textDecoration={onClick ? "underline" : "none"}
+                            textDecoration="none"
+                            _hover={onClick ? { textDecoration: "underline" } : {}}
                             textUnderlineOffset="3px"
                             textAlign={align === "flex-end" ? "right" : "left"}
                         >

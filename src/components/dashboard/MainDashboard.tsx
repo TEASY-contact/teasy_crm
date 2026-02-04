@@ -3,7 +3,7 @@ import { Box, Flex, Grid, GridItem, HStack, Text, SimpleGrid, useDisclosure } fr
 import { useState } from "react";
 import { CalendarBadge } from "./CalendarBadge";
 import { SideStatusCard } from "@/components/dashboard/SideStatusCards";
-import { ReportBadge, TeasyListItem, TeasyButton, SurnameBadge, TeasyList, TeasyListText, TeasyListSubText } from "@/components/common/UIComponents";
+import { ReportBadge, TeasyListItem, TeasyButton, SurnameBadge, TeasyList, TeasyListText, TeasyListSubText, ThinParen } from "@/components/common/UIComponents";
 import { ReportDetailModal } from "@/components/features/customer/ReportDetailModal";
 import { useDashboardLogic } from "./hooks/useDashboardLogic";
 import { getBadgeInfo, getBadgeColor, extractRegion } from "./utils/dashboardUtils";
@@ -163,8 +163,8 @@ export const MainDashboard = () => {
                                     <Box flex={1} overflow="hidden">
                                         <TeasyListText color="gray.500" fontWeight="medium" isTruncated w="full">{req.title}</TeasyListText>
                                     </Box>
-                                    <Box flexShrink={0} w="85px" textAlign="right">
-                                        <TeasyListSubText>{(req.date || '').replace(/\s+/g, "  ").replace(/\//g, "-")}</TeasyListSubText>
+                                    <Box flexShrink={0} w="110px" textAlign="right">
+                                        <TeasyListSubText whiteSpace="pre" fontWeight="medium"><ThinParen text={(req.date || '').replace(/\s+/g, "  ").replace(/\//g, "-")} /></TeasyListSubText>
                                     </Box>
                                 </TeasyListItem>
                             ))}
@@ -192,7 +192,9 @@ export const MainDashboard = () => {
                                             <SurnameBadge name={s.managerName} badgeChar={userMetadata[s.manager]?.badgeChar} color={userMetadata[s.manager]?.color} w="22px" h="22px" fontSize="10px" />
                                         </Box>
                                         <Box flexShrink={0} w="45px" textAlign="right">
-                                            <TeasyListSubText fontWeight="600" color={s.completed ? "gray.300" : "gray.500"} textDecoration={s.completed ? "line-through" : "none"}>{(s.date || '').split('  ')[1] || (s.date || '').split(' ')[1] || ''}</TeasyListSubText>
+                                            <TeasyListSubText fontWeight="medium" color={s.completed ? "gray.300" : "gray.400"} textDecoration={s.completed ? "line-through" : "none"} whiteSpace="pre">
+                                                <ThinParen text={(s.date || '').split('  ')[1] || (s.date || '').split(' ')[1] || ''} />
+                                            </TeasyListSubText>
                                         </Box>
                                     </TeasyListItem>
                                 ))}
@@ -209,8 +211,8 @@ export const MainDashboard = () => {
                                         <Box flex={1} overflow="hidden">
                                             <TeasyListText fontWeight="bold" isTruncated w="full">{r.customerName || '알 수 없는 고객'}</TeasyListText>
                                         </Box>
-                                        <Box flexShrink={0} w="85px" textAlign="right">
-                                            <TeasyListSubText>{(r.date || '').replace(/\s+/g, "  ").replace(/\//g, "-")}</TeasyListSubText>
+                                        <Box flexShrink={0} w="110px" textAlign="right">
+                                            <TeasyListSubText whiteSpace="pre" fontWeight="medium"><ThinParen text={(r.date || '').replace(/\s+/g, "  ").replace(/\//g, "-")} /></TeasyListSubText>
                                         </Box>
                                     </TeasyListItem>
                                 ))}

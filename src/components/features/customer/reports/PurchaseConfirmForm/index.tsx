@@ -2,9 +2,7 @@
 
 import React, { forwardRef, useImperativeHandle, useState, useEffect, useRef } from "react";
 import { VStack, FormControl, Box, Spinner, HStack, useToast, Flex, Text, IconButton, Badge } from "@chakra-ui/react";
-import { MdRemove, MdAdd, MdDragHandle } from "react-icons/md";
-import { Reorder, useDragControls } from "framer-motion";
-import { formatAmount } from "@/utils/formatter";
+import { formatAmount, formatPhone } from "@/utils/formatter";
 import { applyColonStandard } from "@/utils/textFormatter";
 import { CustomSelect } from "@/components/common/CustomSelect";
 import { TeasyDateTimeInput, TeasyFormLabel, TeasyInput, TeasyTextarea, ReportBadge, ThinParen, TeasyFormGroup } from "@/components/common/UIComponents";
@@ -12,14 +10,17 @@ import { TeasyUniversalViewer } from "@/components/common/ui/MediaViewer";
 import { useReportMetadata } from "@/hooks/useReportMetadata";
 import { getCircledNumber } from "@/components/features/asset/AssetModalUtils";
 import { usePurchaseForm, PurchaseFormData, SelectedProduct } from "./usePurchaseForm";
+import { MdRemove, MdAdd, MdDragHandle } from "react-icons/md";
+import { Reorder, useDragControls } from "framer-motion";
 
 // --- Sub Component for Advanced Reorder Item ---
-const ProductItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef }: {
+const ProductItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef, onDragEnd }: {
     item: SelectedProduct,
     idx: number,
     isReadOnly: boolean,
     onUpdateQty: (id: string, delta: number) => void,
-    constraintsRef: React.RefObject<HTMLDivElement>
+    constraintsRef: React.RefObject<HTMLDivElement>,
+    onDragEnd?: () => void
 }) => {
     const controls = useDragControls();
 
@@ -29,6 +30,7 @@ const ProductItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef }: {
             value={item}
             dragListener={false}
             dragControls={controls}
+            onDragEnd={onDragEnd}
             dragConstraints={constraintsRef}
             dragElastic={0.1}
             whileDrag={{
@@ -122,10 +124,12 @@ interface PurchaseConfirmFormProps {
     initialData?: any;
     isReadOnly?: boolean;
     defaultManager?: string;
+    activities?: any[];
 }
 
 export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
-    ({ customer, activityId, initialData, isReadOnly = false, defaultManager = "" }, ref) => {
+    ({ customer, activityId, initialData, isReadOnly = false, defaultManager = "", activities = [] }, ref) => {
+        const toast = useToast();
         const { managerOptions, products, inventoryItems, rawAssets } = useReportMetadata();
         const [productCategory, setProductCategory] = useState<string>(initialData?.productCategory || "");
         const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -210,7 +214,8 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
             productCategory: productCategory as 'product' | 'inventory',
             managerOptions,
             inventoryItems,
-            pendingFile
+            pendingFile,
+            activities
         });
 
         const silentRef = useRef<HTMLDivElement>(null);
@@ -294,14 +299,17 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                 )}
                 <VStack spacing={6} align="stretch">
                     <HStack spacing={4}>
-                        <FormControl isRequired>
+                        <FormControl isRequired flex={1}>
                             <TeasyFormLabel>구매 일시</TeasyFormLabel>
-                            <TeasyDateTimeInput
-                                value={formData.date}
-                                onChange={(val: string) => !isReadOnly && setFormData({ ...formData, date: val })}
-                                isDisabled={isReadOnly}
-                                limitType="future"
-                            />
+                            {isReadOnly ? (
+                                <TeasyInput value={formData.date} isReadOnly />
+                            ) : (
+                                <TeasyDateTimeInput
+                                    value={formData.date}
+                                    onChange={(val: string) => setFormData({ ...formData, date: val })}
+                                    limitType="future"
+                                />
+                            )}
                         </FormControl>
                         <FormControl isRequired>
                             <TeasyFormLabel>담당자</TeasyFormLabel>
@@ -314,9 +322,8 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                 <CustomSelect
                                     placeholder="선택"
                                     value={formData.manager}
-                                    onChange={(val) => !isReadOnly && setFormData({ ...formData, manager: val })}
+                                    onChange={(val) => setFormData({ ...formData, manager: val })}
                                     options={managerOptions}
-                                    isDisabled={isReadOnly}
                                 />
                             )}
                         </FormControl>
@@ -325,7 +332,7 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                     <FormControl isRequired>
                         <TeasyFormLabel>구매 상품</TeasyFormLabel>
                         <VStack align="stretch" spacing={3}>
-                            <HStack flex={1} spacing={4}>
+                            <HStack w="full" spacing={4} align="flex-start">
                                 <Box flex={1}>
                                     {isReadOnly ? (
                                         <TeasyInput
@@ -336,7 +343,18 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                         <CustomSelect
                                             placeholder="선택"
                                             value={productCategory}
-                                            onChange={(val) => setProductCategory(val)}
+                                            onChange={(val) => {
+                                                setProductCategory(val);
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    deliveryInfo: {
+                                                        courier: "",
+                                                        shipmentDate: prev.deliveryInfo.shipmentDate,
+                                                        trackingNumber: "",
+                                                        deliveryAddress: customer?.address || ""
+                                                    }
+                                                }));
+                                            }}
                                             options={[
                                                 { value: "product", label: "시공 상품" },
                                                 { value: "inventory", label: "배송 상품" }
@@ -418,6 +436,7 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                                 isReadOnly={isReadOnly}
                                                 onUpdateQty={handleUpdateQty}
                                                 constraintsRef={scrollContainerRef}
+                                                onDragEnd={() => toast({ title: "순서가 변경되었습니다.", status: "success", position: "top", duration: 1500 })}
                                             />
                                         ))}
                                     </Reorder.Group>
@@ -426,7 +445,7 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                         </VStack>
                     </FormControl>
 
-                    <HStack spacing={4} align="flex-start">
+                    <HStack w="full" spacing={4} align="flex-start">
                         <FormControl isRequired flex={1}>
                             <TeasyFormLabel>결제 방식</TeasyFormLabel>
                             {isReadOnly ? (
@@ -439,7 +458,6 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                     placeholder="선택"
                                     value={formData.payMethod}
                                     onChange={(val) => {
-                                        if (isReadOnly) return;
                                         setFormData({
                                             ...formData,
                                             payMethod: val,
@@ -453,7 +471,6 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                         if (fileInputRef.current) fileInputRef.current.value = '';
                                     }}
                                     options={payMethodOptions}
-                                    isDisabled={isReadOnly}
                                 />
                             )}
                         </FormControl>
@@ -461,9 +478,9 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                             <TeasyFormLabel>결제 금액</TeasyFormLabel>
                             <TeasyInput
                                 value={formatAmount(String(formData.amount))}
-                                onChange={(e) => !isReadOnly && setFormData({ ...formData, amount: formatAmount(e.target.value) })}
+                                onChange={(e) => setFormData({ ...formData, amount: formatAmount(e.target.value) })}
                                 placeholder="숫자 입력"
-                                isDisabled={isReadOnly}
+                                isReadOnly={isReadOnly}
                             />
                         </FormControl>
                     </HStack>
@@ -483,7 +500,6 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                             <CustomSelect
                                                 value={formData.discount}
                                                 onChange={(val) => {
-                                                    if (isReadOnly) return;
                                                     const isNoDiscount = val === "미적용";
                                                     setFormData({
                                                         ...formData,
@@ -492,7 +508,6 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                                     });
                                                 }}
                                                 options={discountOptions}
-                                                isDisabled={isReadOnly}
                                             />
                                         )}
                                     </FormControl>
@@ -501,7 +516,6 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                             value={(formData.payMethod === "자사몰" || formData.discount === "쿠폰 할인" || formData.payMethod === "입금" || formData.discount === "현금 할인") ? formatAmount(String(formData.discountAmount), true) : formData.userId}
                                             placeholder={(formData.payMethod === "자사몰" || formData.discount === "쿠폰 할인" || formData.payMethod === "입금" || formData.discount === "현금 할인") ? "할인 금액" : "사용자 ID 입력"}
                                             onChange={(e) => {
-                                                if (isReadOnly) return;
                                                 const isAmountField = (formData.payMethod === "자사몰" || formData.discount === "쿠폰 할인" || formData.payMethod === "입금" || formData.discount === "현금 할인");
                                                 if (isAmountField) {
                                                     setFormData({ ...formData, discountAmount: formatAmount(e.target.value, true) });
@@ -509,7 +523,7 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                                     setFormData({ ...formData, userId: e.target.value });
                                                 }
                                             }}
-                                            isDisabled={isReadOnly || formData.discount === "미적용"}
+                                            isReadOnly={isReadOnly || formData.discount === "미적용"}
                                         />
                                     </Box>
                                 </HStack>
@@ -676,7 +690,7 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                             <TeasyFormLabel>배송 정보</TeasyFormLabel>
                             <TeasyFormGroup>
                                 <VStack spacing={4}>
-                                    <HStack w="full" spacing={4}>
+                                    <HStack w="full" spacing={4} align="flex-start">
                                         <FormControl flex={1}>
                                             <TeasyFormLabel sub fontSize="xs" mb={1}>배송 업체</TeasyFormLabel>
                                             {isReadOnly ? (
@@ -703,15 +717,18 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                         </FormControl>
                                         <FormControl flex={1}>
                                             <TeasyFormLabel sub fontSize="xs" mb={1}>발송 일자</TeasyFormLabel>
-                                            <TeasyDateTimeInput
-                                                value={formData.deliveryInfo.shipmentDate || ""}
-                                                onChange={(val: string) => !isReadOnly && setFormData({
-                                                    ...formData,
-                                                    deliveryInfo: { ...formData.deliveryInfo, shipmentDate: val }
-                                                })}
-                                                isDisabled={isReadOnly}
-                                                limitType="future"
-                                            />
+                                            {isReadOnly ? (
+                                                <TeasyInput value={formData.deliveryInfo.shipmentDate} isReadOnly />
+                                            ) : (
+                                                <TeasyDateTimeInput
+                                                    value={formData.deliveryInfo.shipmentDate || ""}
+                                                    onChange={(val: string) => setFormData({
+                                                        ...formData,
+                                                        deliveryInfo: { ...formData.deliveryInfo, shipmentDate: val }
+                                                    })}
+                                                    limitType="future"
+                                                />
+                                            )}
                                         </FormControl>
                                     </HStack>
                                     <FormControl>

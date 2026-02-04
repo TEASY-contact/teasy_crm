@@ -6,6 +6,7 @@ import {
 import {
     TeasyPlaceholderText
 } from "@/components/common/UIComponents";
+import { useToast } from "@chakra-ui/react";
 import { Reorder } from "framer-motion";
 import { AssetData } from "@/utils/assetUtils";
 import { AssetTh, AssetTd } from "./AssetTableAtoms";
@@ -25,6 +26,7 @@ interface AssetTableProps {
 export const AssetTable: React.FC<AssetTableProps> = ({
     viewMode, filteredAssets, selectedAssetId, setSelectedAssetId, search, onEdit, onReorder, onDeleteDivider
 }) => {
+    const toast = useToast();
     return (
         <Box
             overflowY="auto"
@@ -127,6 +129,7 @@ export const AssetTable: React.FC<AssetTableProps> = ({
                                 onEdit={onEdit}
                                 onDeleteDivider={onDeleteDivider}
                                 totalCount={filteredAssets.length}
+                                onDragEnd={() => toast({ title: "순서가 변경되었습니다.", status: "success", position: "top", duration: 1500 })}
                             />
                         ))
                     )}

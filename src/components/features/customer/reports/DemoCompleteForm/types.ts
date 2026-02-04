@@ -1,3 +1,5 @@
+import { InquiryFile } from "../InquiryForm/types";
+
 export const DEMO_CONSTANTS = {
     TYPE: "demo_complete",
     TYPE_NAME: "시연 완료",
@@ -31,6 +33,7 @@ export interface DemoCompleteFormData {
     discountValue: string;
     memo: string;
     photos: string[];
+    quotes: InquiryFile[];
 }
 
 export interface DemoCompleteActivity extends DemoCompleteFormData {

@@ -2,7 +2,7 @@
 "use client";
 import { useMemo } from "react";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
 import { useQuery } from "@tanstack/react-query";
 import { Asset, User, ManagerOption, ProductOption } from "@/types/domain";
 
@@ -143,6 +143,33 @@ export const useReportMetadata = () => {
         };
     }, [rawAssets]);
 
+    // 3.5. Fetch A/S Types (v1.3)
+    const { data: asTypes = [] } = useQuery({
+        queryKey: ["as_types", "metadata"],
+        queryFn: async () => {
+            const q = query(collection(db, "as_type_master"), orderBy("orderIndex", "asc"));
+            const snap = await getDocs(q);
+            return snap.docs.map(d => ({
+                value: d.id,
+                label: d.data().name,
+                isDivider: !!d.data().isDivider
+            }));
+        }
+    });
+
+    const asTypeOptions = useMemo(() => {
+        if (asTypes.length === 0) return [
+            { value: "일반점검", label: "일반점검" },
+            { value: "기기수리", label: "기기수리" },
+            { value: "소프트웨어", label: "소프트웨어" }
+        ];
+        return asTypes.map(t => ({
+            value: t.isDivider ? `divider_${t.value}` : t.label,
+            label: t.label,
+            isDivider: t.isDivider
+        }));
+    }, [asTypes]);
+
     // 4. Process Manager Options (Memoized)
     const managerOptions = useMemo(() => {
         const internalStaff = allUsers
@@ -177,6 +204,7 @@ export const useReportMetadata = () => {
         managerOptions,
         products: processedAssets.products,
         inventoryItems: processedAssets.inventoryItems,
+        asTypeOptions,
         rawAssets,
         holidayMap,
         isLoadingMetadata: isLoadingAssets || isLoadingUsers

@@ -68,7 +68,7 @@ const WorkRequestModalContent = ({ onClose, data, currentUser }: { onClose: () =
             <TeasyModalFooter borderTop="1px" borderColor="gray.100" justifyContent="space-between">
                 <Box>
                     {isSender && data.status !== 'approved' && (
-                        <TeasyButton version="ghost" color="red.500" fontSize="sm" onClick={() => deleteRequest(data.id)}>삭제</TeasyButton>
+                        <TeasyButton version="danger" onClick={() => deleteRequest(data.id)}>삭제</TeasyButton>
                     )}
                 </Box>
                 <HStack spacing={3}>
@@ -77,21 +77,20 @@ const WorkRequestModalContent = ({ onClose, data, currentUser }: { onClose: () =
                         <TeasyButton colorScheme="purple" size="sm" onClick={() => handleStatusChange(data.id, 'review_requested', data.senderId)}>검토 요청</TeasyButton>
                     )}
                     {isReceiver && data.status === 'review_requested' && (
-                        <TeasyButton variant="outline" colorScheme="purple" size="sm" onClick={() => handleStatusChange(data.id, 'pending', data.senderId)}>검토요청 회수</TeasyButton>
+                        <TeasyButton version="secondary" size="sm" onClick={() => handleStatusChange(data.id, 'pending', data.senderId)}>검토요청 회수</TeasyButton>
                     )}
-
                     {/* Sender Buttons */}
                     {isSender && data.status === 'review_requested' && (
                         <>
-                            <TeasyButton version="secondary" colorScheme="red" size="sm" onClick={() => handleStatusChange(data.id, 'pending', data.receiverId)}>재검토 요청</TeasyButton>
+                            <TeasyButton version="danger" size="sm" onClick={() => handleStatusChange(data.id, 'pending', data.receiverId)}>재검토 요청</TeasyButton>
                             <TeasyButton colorScheme="purple" size="sm" onClick={() => handleStatusChange(data.id, 'approved', data.receiverId)}>최종 승인</TeasyButton>
                         </>
                     )}
                     {isSender && data.status === 'approved' && (
-                        <TeasyButton version="secondary" colorScheme="red" size="sm" onClick={() => handleStatusChange(data.id, 'pending', data.receiverId)}>최종 승인 반려</TeasyButton>
+                        <TeasyButton version="danger" size="sm" onClick={() => handleStatusChange(data.id, 'pending', data.receiverId)}>최종 승인 반려</TeasyButton>
                     )}
 
-                    <TeasyButton version="ghost" size="sm" onClick={onClose}>닫기</TeasyButton>
+                    <TeasyButton version="secondary" size="sm" onClick={onClose}>닫기</TeasyButton>
                 </HStack>
             </TeasyModalFooter>
         </TeasyModalContent>

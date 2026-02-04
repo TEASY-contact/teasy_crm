@@ -11,12 +11,13 @@ import { ManagerOption } from "../DemoCompleteForm/types";
 
 interface UseDemoScheduleFormProps {
     customer: { id: string, name: string, address?: string, phone?: string };
+    activities?: any[];
     activityId?: string;
     initialData?: Partial<DemoScheduleFormData>;
     defaultManager?: string;
 }
 
-export const useDemoScheduleForm = ({ customer, activityId, initialData, defaultManager }: UseDemoScheduleFormProps) => {
+export const useDemoScheduleForm = ({ customer, activities = [], activityId, initialData, defaultManager }: UseDemoScheduleFormProps) => {
     const { userData } = useAuth();
     const queryClient = useQueryClient();
     const toast = useToast();
@@ -114,7 +115,7 @@ export const useDemoScheduleForm = ({ customer, activityId, initialData, default
                 if (activityId) {
                     transaction.update(activityRef, dataToSave as any);
                 } else {
-                    const nextSeq = (Number(currentMeta.lastSequence) || 0) + 1;
+                    const nextSeq = activities.filter(a => a.type === SCHEDULE_CONSTANTS.TYPE).length + 1;
                     transaction.set(activityRef, {
                         ...dataToSave,
                         sequenceNumber: nextSeq,

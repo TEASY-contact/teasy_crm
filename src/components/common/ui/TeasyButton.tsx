@@ -12,7 +12,7 @@ export const TeasyButton = forwardRef<HTMLButtonElement, TeasyButtonProps>(
             primary: { bg: "brand.500", color: "white", hoverBg: "brand.600" },
             secondary: { variant: "outline", borderColor: "rgba(128, 90, 213, 0.3)", color: "brand.500", hoverBg: "rgba(128, 90, 213, 0.1)" },
             danger: { variant: "outline", borderColor: "rgba(229, 62, 62, 0.3)", color: "red.500", hoverBg: "rgba(229, 62, 62, 0.1)" },
-            ghost: { variant: "ghost", color: "gray.500", hoverBg: "rgba(0,0,0,0.02)", hoverColor: "brand.500" }
+            ghost: { variant: "outline", borderColor: "gray.200", color: "gray.500", hoverBg: "gray.50", hoverColor: "brand.500" }
         };
 
         const currentStyle = baseStyles[version];

@@ -1,8 +1,9 @@
 // src/components/features/customer/reports/InstallScheduleForm/index.tsx
 "use client";
 import React, { forwardRef, useImperativeHandle, useRef } from "react";
-import { VStack, FormControl, Box, Spinner, HStack, Flex, Text, IconButton, Badge } from "@chakra-ui/react";
+import { VStack, FormControl, Box, Spinner, HStack, Flex, Text, IconButton, Badge, useToast } from "@chakra-ui/react";
 import { MdRemove, MdAdd, MdDragHandle } from "react-icons/md";
+import { formatPhone } from "@/utils/formatter";
 import { Reorder, useDragControls } from "framer-motion";
 import { CustomSelect } from "@/components/common/CustomSelect";
 import { TeasyDateTimeInput, TeasyFormLabel, TeasyInput, TeasyTextarea, TeasyPhoneInput, TeasyFormGroup } from "@/components/common/UIComponents";
@@ -13,12 +14,13 @@ import { getCircledNumber } from "@/components/features/asset/AssetModalUtils";
 import { PhotoGrid } from "../common/PhotoGrid";
 
 // --- Sub Component for Reorder Item (Shared Style with PurchaseConfirm) ---
-const ListItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef, colorScheme = "brand" }: {
+const ListItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef, onDragEnd, colorScheme = "brand" }: {
     item: SelectedItem,
     idx: number,
     isReadOnly: boolean,
     onUpdateQty: (id: string, delta: number) => void,
     constraintsRef: React.RefObject<HTMLDivElement>,
+    onDragEnd?: () => void,
     colorScheme?: string
 }) => {
     const controls = useDragControls();
@@ -31,6 +33,7 @@ const ListItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef, colorSch
             value={item}
             dragListener={false}
             dragControls={controls}
+            onDragEnd={onDragEnd}
             style={{ marginBottom: "8px", userSelect: "none" }}
         >
             <HStack
@@ -144,6 +147,7 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
     isReadOnly = false,
     defaultManager = ""
 }, ref) => {
+    const toast = useToast();
     const { managerOptions, products, inventoryItems, rawAssets } = useReportMetadata();
     const {
         formData, setFormData,
@@ -333,12 +337,15 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                 <HStack spacing={4}>
                     <FormControl isRequired>
                         <TeasyFormLabel>시공 일시</TeasyFormLabel>
-                        <TeasyDateTimeInput
-                            value={formData.date}
-                            onChange={(val: string) => !isReadOnly && setFormData({ ...formData, date: val })}
-                            isDisabled={isReadOnly}
-                            limitType="past"
-                        />
+                        {isReadOnly ? (
+                            <TeasyInput value={formData.date} isReadOnly />
+                        ) : (
+                            <TeasyDateTimeInput
+                                value={formData.date}
+                                onChange={(val: string) => setFormData({ ...formData, date: val })}
+                                limitType="past"
+                            />
+                        )}
                     </FormControl>
                     <FormControl isRequired>
                         <TeasyFormLabel>담당자</TeasyFormLabel>
@@ -363,20 +370,23 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                     <TeasyFormLabel>방문 주소</TeasyFormLabel>
                     <TeasyInput
                         value={formData.location}
-                        onChange={(e: any) => !isReadOnly && setFormData({ ...formData, location: e.target.value })}
+                        onChange={(e: any) => setFormData({ ...formData, location: e.target.value })}
                         placeholder="전국 시공 주소 입력"
-                        isDisabled={isReadOnly}
+                        isReadOnly={isReadOnly}
                     />
                 </FormControl>
 
                 <FormControl isRequired>
                     <TeasyFormLabel>연락처</TeasyFormLabel>
-                    <TeasyPhoneInput
-                        value={formData.phone}
-                        onChange={(val: string) => !isReadOnly && setFormData({ ...formData, phone: val })}
-                        placeholder="000-0000-0000"
-                        isDisabled={isReadOnly}
-                    />
+                    {isReadOnly ? (
+                        <TeasyInput value={formatPhone(formData.phone)} isReadOnly />
+                    ) : (
+                        <TeasyPhoneInput
+                            value={formData.phone}
+                            onChange={(val: string) => setFormData({ ...formData, phone: val })}
+                            placeholder="000-0000-0000"
+                        />
+                    )}
                 </FormControl>
 
                 <FormControl isRequired>
@@ -407,6 +417,7 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                                             isReadOnly={isReadOnly}
                                             onUpdateQty={(id, delta) => handleUpdateQty("product", id, delta)}
                                             constraintsRef={productScrollRef}
+                                            onDragEnd={() => toast({ title: "순서가 변경되었습니다.", status: "success", position: "top", duration: 1500 })}
                                         />
                                     ))}
                                 </Reorder.Group>
@@ -449,6 +460,7 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                                                     onUpdateQty={(id, delta) => handleUpdateQty("supply", id, delta)}
                                                     constraintsRef={supplyScrollRef}
                                                     colorScheme="brand"
+                                                    onDragEnd={() => toast({ title: "순서가 변경되었습니다.", status: "success", position: "top", duration: 1500 })}
                                                 />
                                             </React.Fragment>
                                         );

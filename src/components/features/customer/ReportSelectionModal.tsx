@@ -1,6 +1,6 @@
 // src/components/features/customer/ReportSelectionModal.tsx
 "use client";
-import { FormControl, IconButton, Box, VStack, Flex } from "@chakra-ui/react";
+import { FormControl, IconButton, Box, VStack, Flex, Spinner, Text } from "@chakra-ui/react";
 import { ArrowBackIcon } from "@chakra-ui/icons";
 import { CustomSelect } from "@/components/common/CustomSelect";
 import { InquiryForm } from "./reports/InquiryForm/index";
@@ -11,8 +11,9 @@ import { DemoCompleteForm } from "./reports/DemoCompleteForm/index";
 import { InstallScheduleForm } from "./reports/InstallScheduleForm/index";
 import { InstallCompleteForm } from "./reports/InstallCompleteForm/index";
 import { AsScheduleForm } from "./reports/AsScheduleForm/index";
+import { AsCompleteForm } from "./reports/AsCompleteForm/index";
 import { TeasyButton, TeasyModalHeader, TeasyModalOverlay, TeasyModalContent, TeasyModalBody, TeasyModalFooter, TeasyModal } from "@/components/common/UIComponents";
-import { useState, useRef, useEffect } from "react";
+import React, { forwardRef, useImperativeHandle, useRef, useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 
 /**
@@ -24,6 +25,7 @@ const ReportSelectionModalContent = ({ onClose, customer, activities = [] }: { o
     const [selectedReport, setSelectedReport] = useState("");
     const [isWriting, setIsWriting] = useState(false);
     const [defaultManager, setDefaultManager] = useState("");
+    const [isSaving, setIsSaving] = useState(false);
     const formRef = useRef<any>(null);
 
     const reports = [
@@ -137,10 +139,15 @@ const ReportSelectionModalContent = ({ onClose, customer, activities = [] }: { o
     };
 
     const handleSave = async () => {
-        if (formRef.current) {
-            const success = await formRef.current.submit();
-            if (success) onClose();
-        } else {
+        if (formRef.current && !isSaving) {
+            setIsSaving(true);
+            try {
+                const success = await formRef.current.submit();
+                if (success) onClose();
+            } finally {
+                setIsSaving(false);
+            }
+        } else if (!isSaving) {
             onClose();
         }
     };
@@ -168,6 +175,8 @@ const ReportSelectionModalContent = ({ onClose, customer, activities = [] }: { o
                 return <InstallCompleteForm {...props} />;
             case "as_schedule":
                 return <AsScheduleForm {...props} />;
+            case "as_complete":
+                return <AsCompleteForm {...props} />;
             default:
                 return (
                     <StandardReportForm
@@ -185,7 +194,15 @@ const ReportSelectionModalContent = ({ onClose, customer, activities = [] }: { o
     };
 
     return (
-        <TeasyModalContent>
+        <TeasyModalContent position="relative">
+            {isSaving && (
+                <Flex position="absolute" top={0} left={0} right={0} bottom={0} bg="whiteAlpha.800" zIndex={100} align="center" justify="center" borderRadius="2xl" backdropFilter="blur(2px)">
+                    <VStack spacing={4}>
+                        <Spinner size="xl" color="brand.500" thickness="4px" />
+                        <Text fontWeight="medium" color="brand.600">처리 중...</Text>
+                    </VStack>
+                </Flex>
+            )}
             <TeasyModalHeader position="relative">
                 {isWriting && (
                     <IconButton
@@ -258,10 +275,11 @@ const ReportSelectionModalContent = ({ onClose, customer, activities = [] }: { o
                 )}
             </TeasyModalBody>
             <TeasyModalFooter>
-                <TeasyButton version="secondary" onClick={onClose} w="108px" h="45px">취소</TeasyButton>
+                <TeasyButton version="secondary" onClick={onClose} w="108px" h="45px" isDisabled={isSaving}>취소</TeasyButton>
                 <TeasyButton
                     onClick={isWriting ? handleSave : handleWriteReport}
                     isDisabled={!selectedReport}
+                    isLoading={isSaving}
                     w="108px"
                     h="45px"
                 >

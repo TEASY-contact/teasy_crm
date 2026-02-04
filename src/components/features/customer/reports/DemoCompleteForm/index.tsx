@@ -2,13 +2,14 @@
 import React, { forwardRef, useImperativeHandle, useRef, useCallback } from "react";
 import {
     VStack, FormControl, Box, Flex, Spinner,
-    HStack, Text
+    HStack, Text, Badge
 } from "@chakra-ui/react";
 import { CustomSelect } from "@/components/common/CustomSelect";
-import { TeasyDateTimeInput, TeasyFormLabel, TeasyInput, TeasyTextarea, TeasyPhoneInput } from "@/components/common/UIComponents";
+import { TeasyDateTimeInput, TeasyFormLabel, TeasyInput, TeasyTextarea, TeasyPhoneInput, TeasyUniversalViewer, TeasyFormGroup } from "@/components/common/UIComponents";
 import { useReportMetadata } from "@/hooks/useReportMetadata";
 import { useDemoCompleteForm } from "./useDemoCompleteForm";
 import { PhotoGrid } from "../common/PhotoGrid";
+import { ReportFileList } from "../common/ReportFileList";
 import { DEMO_CONSTANTS, ManagerOption, DemoCompleteFormData } from "./types";
 
 interface DemoCompleteFormProps {
@@ -29,15 +30,20 @@ export const DemoCompleteForm = forwardRef<any, DemoCompleteFormProps>(({
     defaultManager = ""
 }, ref) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const quoteInputRef = useRef<HTMLInputElement>(null);
 
     const { managerOptions, products } = useReportMetadata();
     const {
         formData, setFormData,
+        quotes,
+        handleQuoteAdd, handleQuoteRemove,
         isLoading,
         handleFileUpload, removePhoto,
         submit,
         handleDelete
     } = useDemoCompleteForm({ customer, activities, activityId, initialData, defaultManager });
+
+    const [viewerState, setViewerState] = React.useState({ isOpen: false, files: [] as any[], index: 0 });
 
     const handleCashInput = useCallback((val: string) => {
         const num = val.replace(/[^0-9]/g, "");
@@ -228,6 +234,60 @@ export const DemoCompleteForm = forwardRef<any, DemoCompleteFormProps>(({
                 </FormControl>
 
                 <FormControl>
+                    <TeasyFormLabel>견적서 ({quotes.length}/1)</TeasyFormLabel>
+                    <TeasyFormGroup p={2}>
+                        <VStack align="stretch" spacing={2}>
+                            {isReadOnly ? (
+                                <ReportFileList
+                                    files={quotes}
+                                    type="quote"
+                                    isReadOnly={true}
+                                    onConfirm={(file: any) => setViewerState({ isOpen: true, files: quotes, index: quotes.indexOf(file) })}
+                                    onDelete={() => { }}
+                                />
+                            ) : (
+                                <>
+                                    <Badge
+                                        as="button"
+                                        cursor="pointer"
+                                        onClick={() => quoteInputRef.current?.click()}
+                                        bg="gray.100"
+                                        color="gray.600"
+                                        border="1px solid"
+                                        borderColor="gray.200"
+                                        _hover={{ bg: "gray.200" }}
+                                        w="full"
+                                        h="32px"
+                                        borderRadius="10px"
+                                        fontSize="xs"
+                                        fontWeight="600"
+                                        display="flex"
+                                        alignItems="center"
+                                        justifyContent="center"
+                                        textTransform="none"
+                                    >
+                                        파일 업로드 ({quotes.length}/1)
+                                    </Badge>
+                                    <input
+                                        type="file"
+                                        ref={quoteInputRef}
+                                        style={{ display: "none" }}
+                                        onChange={(e) => handleQuoteAdd(e.target.files)}
+                                    />
+                                    <ReportFileList
+                                        files={quotes}
+                                        type="quote"
+                                        isReadOnly={false}
+                                        onConfirm={(file: any) => setViewerState({ isOpen: true, files: quotes, index: quotes.indexOf(file) })}
+                                        onDelete={handleQuoteRemove}
+                                    />
+                                </>
+                            )}
+                        </VStack>
+                    </TeasyFormGroup>
+                </FormControl>
+
+                <FormControl>
                     <TeasyFormLabel>현장 사진 ({formData.photos.length}/{DEMO_CONSTANTS.MAX_PHOTOS})</TeasyFormLabel>
                     <Box p={4} border="1px dashed" borderColor="gray.200" borderRadius="xl" bg="white">
                         <PhotoGrid
@@ -241,6 +301,13 @@ export const DemoCompleteForm = forwardRef<any, DemoCompleteFormProps>(({
                     </Box>
                 </FormControl>
             </VStack>
+
+            <TeasyUniversalViewer
+                isOpen={viewerState.isOpen}
+                onClose={() => setViewerState(prev => ({ ...prev, isOpen: false }))}
+                files={viewerState.files}
+                index={viewerState.index}
+            />
         </Box>
     );
 });

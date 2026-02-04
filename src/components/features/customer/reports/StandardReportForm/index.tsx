@@ -9,6 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { useReportMetadata } from "@/hooks/useReportMetadata";
 import { db } from "@/lib/firebase";
+import { formatPhone } from "@/utils/formatter";
 import {
     doc, updateDoc, deleteDoc, collection, addDoc,
     serverTimestamp, query, where, getDocs, runTransaction
@@ -108,7 +109,7 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
 
     useImperativeHandle(ref, () => ({
         submit: async () => {
-            if (!formData.manager || !formData.memo) {
+            if (!formData.manager) {
                 toast({ title: "입력 부족", status: "warning", duration: 2000, position: "top" });
                 return false;
             }
@@ -153,7 +154,7 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
                         transaction.update(activityRef, dataToSave);
                     } else {
                         // Sync sequence number based on pairing (v124.81)
-                        let nextSeq = (Number(currentMeta.lastSequence) || 0) + 1;
+                        let nextSeq = activities.filter(a => a.type === reportType).length + 1;
                         if (reportType === "as_complete") {
                             const lastSchedule = [...(activities || [])].reverse().find(a => a.type === "as_schedule");
                             if (lastSchedule) nextSeq = lastSchedule.sequenceNumber || nextSeq;
@@ -236,12 +237,15 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
                 <HStack spacing={4}>
                     <FormControl isRequired isReadOnly={isReadOnly} flex={1}>
                         <TeasyFormLabel>날짜 및 시간</TeasyFormLabel>
-                        <TeasyDateTimeInput
-                            value={formData.date}
-                            onChange={(val: string) => setFormData({ ...formData, date: val })}
-                            isDisabled={isReadOnly}
-                            limitType={reportType.includes("schedule") ? "past" : (reportType.includes("complete") ? "future" : undefined)}
-                        />
+                        {isReadOnly ? (
+                            <TeasyInput value={formData.date} isReadOnly />
+                        ) : (
+                            <TeasyDateTimeInput
+                                value={formData.date}
+                                onChange={(val: string) => setFormData({ ...formData, date: val })}
+                                limitType={reportType.includes("schedule") ? "past" : (reportType.includes("complete") ? "future" : undefined)}
+                            />
+                        )}
                     </FormControl>
 
                     <FormControl isRequired isReadOnly={isReadOnly} flex={1}>
@@ -268,9 +272,9 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
                         <TeasyFormLabel>{reportType.includes("schedule") ? "장소" : "방문처"}</TeasyFormLabel>
                         <TeasyInput
                             value={formData.location}
-                            onChange={(e: any) => setFormData({ ...formData, location: e.target.value })}
-                            placeholder="장소 또는 상세 주소 입력"
-                            isDisabled={isReadOnly}
+                            onChange={(e) => setFormData({ ...formData, location: normalizeText(e.target.value) })}
+                            placeholder="주소를 입력하세요"
+                            isReadOnly={isReadOnly}
                         />
                     </FormControl>
                 )}
@@ -279,29 +283,32 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
                     {hasPhone && (
                         <FormControl isReadOnly={isReadOnly} flex={1}>
                             <TeasyFormLabel>현장 연락처</TeasyFormLabel>
-                            <TeasyPhoneInput
-                                value={formData.phone}
-                                onChange={(val: string) => setFormData({ ...formData, phone: val })}
-                                placeholder="010-0000-0000"
-                                isDisabled={isReadOnly}
-                            />
+                            {isReadOnly ? (
+                                <TeasyInput value={formatPhone(formData.phone)} isReadOnly />
+                            ) : (
+                                <TeasyPhoneInput
+                                    value={formData.phone}
+                                    onChange={(val: string) => setFormData({ ...formData, phone: val })}
+                                    placeholder="010-0000-0000"
+                                />
+                            )}
                         </FormControl>
                     )}
 
                     {hasProduct && (
                         <FormControl isReadOnly={isReadOnly} flex={1}>
-                            <TeasyFormLabel>관련 상품</TeasyFormLabel>
+                            <TeasyFormLabel>품목</TeasyFormLabel>
                             <TeasyInput
                                 value={formData.product}
-                                onChange={(e: any) => setFormData({ ...formData, product: e.target.value })}
-                                placeholder="예: Teasy CRM, 스마트 도어락"
-                                isDisabled={isReadOnly}
+                                onChange={(e: any) => setFormData({ ...formData, product: normalizeText(e.target.value) })}
+                                placeholder="상품명을 입력하세요"
+                                isReadOnly={isReadOnly}
                             />
                         </FormControl>
                     )}
                 </HStack>
 
-                <FormControl isRequired isReadOnly={isReadOnly}>
+                <FormControl isReadOnly={isReadOnly}>
                     <TeasyFormLabel>보고 내용</TeasyFormLabel>
                     <TeasyTextarea
                         value={formData.memo}

@@ -2,8 +2,9 @@
 import React from "react";
 import {
     VStack, FormControl, Box, Flex, Text, Badge,
-    useToast, HStack, Spacer, Switch
+    useToast, HStack, Spacer, Switch, IconButton
 } from "@chakra-ui/react";
+import { ArrowBackIcon } from "@chakra-ui/icons";
 import { Reorder } from "framer-motion";
 import {
     TeasyModal, TeasyModalOverlay, TeasyModalContent,
@@ -50,7 +51,24 @@ export const AssetModal: React.FC<AssetModalProps> = ({
         <TeasyModal isOpen={isOpen} onClose={handleClose} size="md">
             <TeasyModalOverlay />
             <TeasyModalContent>
-                <TeasyModalHeader>{isProduct ? (isEdit ? "상품 정보 수정" : "상품 등록") : (isEdit ? "재고 물품 상세/수정" : "재고 물품 등록")}</TeasyModalHeader>
+                <TeasyModalHeader position="relative">
+                    <IconButton
+                        aria-label="Back"
+                        icon={<ArrowBackIcon />}
+                        size="md"
+                        position="absolute"
+                        left="8px"
+                        top="8px"
+                        color="white"
+                        variant="ghost"
+                        _hover={{ bg: "whiteAlpha.300" }}
+                        onClick={handleClose}
+                        type="button"
+                    />
+                    <Box as="span" ml={10}>
+                        {isProduct ? (isEdit ? "상품 정보 수정" : "상품 등록") : (isEdit ? "재고 물품 상세/수정" : "재고 물품 등록")}
+                    </Box>
+                </TeasyModalHeader>
                 <TeasyModalBody>
                     <VStack spacing={6} align="stretch" minH="300px">
                         <HStack spacing={4} align="flex-start">
@@ -141,6 +159,7 @@ export const AssetModal: React.FC<AssetModalProps> = ({
                                                         realNum={getCircledNumber(idx + 1)}
                                                         assets={assets}
                                                         onRemove={() => setSelectedComponents(prev => prev.filter((_, i) => i !== idx))}
+                                                        onDragEnd={() => toast({ title: "순서가 변경되었습니다.", status: "success", position: "top", duration: 1500 })}
                                                     />
                                                 ))}
                                             </Reorder.Group>
@@ -188,14 +207,6 @@ export const AssetModal: React.FC<AssetModalProps> = ({
                         <>
                             <TeasyButton
                                 version="danger"
-                                variant="outline"
-                                fontWeight="400"
-                                borderColor="rgba(229, 62, 62, 0.3)"
-                                bg="rgba(229, 62, 62, 0.02)"
-                                _hover={{
-                                    bg: "rgba(229, 62, 62, 0.08)",
-                                    borderColor: "red.500"
-                                }}
                                 onClick={() => {
                                     if (selectedAsset && window.confirm("정말 이 상품을 삭제하시겠습니까?")) {
                                         onDelete?.(selectedAsset.id);

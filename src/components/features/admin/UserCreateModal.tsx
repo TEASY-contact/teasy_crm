@@ -5,6 +5,7 @@ import {
     VStack, FormControl, useToast, Box, Grid,
     Flex, HStack, Switch, Divider, IconButton, Center
 } from "@chakra-ui/react";
+import { ArrowBackIcon } from "@chakra-ui/icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { CustomSelect } from "@/components/common/CustomSelect";
 import {
@@ -220,7 +221,24 @@ const UserCreateModalContent = ({ onClose, existingUsers }: { onClose: () => voi
 
     return (
         <TeasyModalContent>
-            <TeasyModalHeader>임직원 계정 생성</TeasyModalHeader>
+            <TeasyModalHeader position="relative">
+                <IconButton
+                    aria-label="Back"
+                    icon={<ArrowBackIcon />}
+                    size="md"
+                    position="absolute"
+                    left="8px"
+                    top="8px"
+                    color="white"
+                    variant="ghost"
+                    _hover={{ bg: "whiteAlpha.300" }}
+                    onClick={onClose}
+                    type="button"
+                />
+                <Box as="span" ml={10}>
+                    임직원 계정 생성
+                </Box>
+            </TeasyModalHeader>
             <TeasyModalBody>
                 {/* Focus Guard: Prevents automatic focus on the first input */}
                 <Box tabIndex={0} w={0} h={0} opacity={0} position="absolute" />
@@ -318,7 +336,7 @@ const UserCreateModalContent = ({ onClose, existingUsers }: { onClose: () => voi
                 </VStack>
             </TeasyModalBody>
             <TeasyModalFooter borderTop="1px" borderColor="gray.100">
-                <TeasyButton version="ghost" onClick={onClose}>취소</TeasyButton>
+                <TeasyButton version="secondary" onClick={onClose}>취소</TeasyButton>
                 <TeasyButton isLoading={isLoading} onClick={handleSubmit}>계정 생성</TeasyButton>
             </TeasyModalFooter>
         </TeasyModalContent>

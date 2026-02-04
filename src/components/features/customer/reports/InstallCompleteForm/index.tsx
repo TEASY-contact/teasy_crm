@@ -1,8 +1,9 @@
 // src/components/features/customer/reports/InstallCompleteForm/index.tsx
 "use client";
 import React, { forwardRef, useImperativeHandle, useRef } from "react";
-import { VStack, FormControl, Box, Spinner, HStack, Flex, Text, IconButton, Badge, Checkbox } from "@chakra-ui/react";
+import { VStack, FormControl, Box, Spinner, HStack, Flex, Text, IconButton, Badge, Checkbox, useToast } from "@chakra-ui/react";
 import { MdRemove, MdAdd, MdDragHandle } from "react-icons/md";
+import { formatPhone } from "@/utils/formatter";
 import { Reorder, useDragControls } from "framer-motion";
 import { CustomSelect } from "@/components/common/CustomSelect";
 import { TeasyDateTimeInput, TeasyFormLabel, TeasyInput, TeasyTextarea, TeasyPhoneInput, TeasyFormGroup } from "@/components/common/UIComponents";
@@ -14,12 +15,13 @@ import { getCircledNumber } from "@/components/features/asset/AssetModalUtils";
 import { PhotoGrid } from "../common/PhotoGrid";
 
 // --- Sub Component for Reorder Item ---
-const ListItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef, colorScheme = "brand" }: {
+const ListItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef, onDragEnd, colorScheme = "brand" }: {
     item: SelectedItem,
     idx: number,
     isReadOnly: boolean,
     onUpdateQty: (id: string, delta: number) => void,
     constraintsRef: React.RefObject<HTMLDivElement>,
+    onDragEnd?: () => void,
     colorScheme?: string
 }) => {
     const controls = useDragControls();
@@ -30,6 +32,7 @@ const ListItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef, colorSch
             value={item}
             dragListener={false}
             dragControls={controls}
+            onDragEnd={onDragEnd}
             style={{ marginBottom: "8px", userSelect: "none" }}
         >
             <HStack
@@ -143,6 +146,7 @@ export const InstallCompleteForm = forwardRef<InstallCompleteFormHandle, Install
     isReadOnly = false,
     defaultManager = ""
 }, ref) => {
+    const toast = useToast();
     const { managerOptions, products, inventoryItems, rawAssets } = useReportMetadata();
     const {
         formData, setFormData,
@@ -260,51 +264,29 @@ export const InstallCompleteForm = forwardRef<InstallCompleteFormHandle, Install
 
         const targetItem = list[idx];
         const newQty = targetItem.quantity + delta;
-        if (newQty <= 0) {
-            if (window.confirm("항목을 삭제하시겠습니까?")) {
-                if (type === "product") {
-                    const remainingProducts = formData.selectedProducts.filter(p => p.id !== id);
-                    const updatedSupplies = formData.selectedSupplies.map(s => {
-                        if (s.isAuto && s.linkedId && s.linkedId.split(",").includes(id)) {
-                            const remainingLinks = s.linkedId.split(",").filter(lid => lid !== id);
-                            const newTotal = remainingProducts.reduce((sum, p) => {
-                                if (remainingLinks.includes(p.id)) return sum + p.quantity;
-                                return sum;
-                            }, 0);
-                            return { ...s, linkedId: remainingLinks.join(","), quantity: newTotal };
-                        }
-                        return s;
-                    }).filter(s => !s.isAuto || (s.linkedId && s.linkedId.length > 0));
 
-                    setFormData(prev => ({
-                        ...prev,
-                        selectedProducts: remainingProducts,
-                        selectedSupplies: updatedSupplies
-                    }));
-                    return;
+        // Block minus values, allow 0
+        if (newQty < 0) return;
+
+        list[idx].quantity = newQty;
+
+        // SYNC LOGIC: If product qty changes, update merged auto-supplies
+        if (type === "product") {
+            const updatedSupplies = formData.selectedSupplies.map(s => {
+                if (s.isAuto && s.linkedId && s.linkedId.split(",").includes(id)) {
+                    const productIds = s.linkedId.split(",");
+                    const totalQty = list.reduce((sum, p) => {
+                        if (productIds.includes(p.id)) return sum + p.quantity;
+                        return sum;
+                    }, 0);
+                    return { ...s, quantity: totalQty };
                 }
-                list.splice(idx, 1);
-            } else return;
-        } else {
-            list[idx].quantity = newQty;
-
-            // SYNC LOGIC: If product qty changes, update merged auto-supplies
-            if (type === "product") {
-                const updatedSupplies = formData.selectedSupplies.map(s => {
-                    if (s.isAuto && s.linkedId && s.linkedId.split(",").includes(id)) {
-                        const productIds = s.linkedId.split(",");
-                        const totalQty = list.reduce((sum, p) => {
-                            if (productIds.includes(p.id)) return sum + p.quantity;
-                            return sum;
-                        }, 0);
-                        return { ...s, quantity: totalQty };
-                    }
-                    return s;
-                });
-                setFormData(prev => ({ ...prev, selectedProducts: list, selectedSupplies: updatedSupplies }));
-                return;
-            }
+                return s;
+            });
+            setFormData(prev => ({ ...prev, selectedProducts: list, selectedSupplies: updatedSupplies }));
+            return;
         }
+
         setFormData({ ...formData, [field]: list });
     };
 
@@ -331,12 +313,15 @@ export const InstallCompleteForm = forwardRef<InstallCompleteFormHandle, Install
                 <HStack spacing={4}>
                     <FormControl isRequired>
                         <TeasyFormLabel>완료 일시</TeasyFormLabel>
-                        <TeasyDateTimeInput
-                            value={formData.date}
-                            onChange={(val: string) => !isReadOnly && setFormData({ ...formData, date: val })}
-                            isDisabled={isReadOnly}
-                            limitType="future"
-                        />
+                        {isReadOnly ? (
+                            <TeasyInput value={formData.date} isReadOnly />
+                        ) : (
+                            <TeasyDateTimeInput
+                                value={formData.date}
+                                onChange={(val: string) => setFormData({ ...formData, date: val })}
+                                limitType="future"
+                            />
+                        )}
                     </FormControl>
                     <FormControl isRequired>
                         <TeasyFormLabel>담당자</TeasyFormLabel>
@@ -361,20 +346,23 @@ export const InstallCompleteForm = forwardRef<InstallCompleteFormHandle, Install
                     <TeasyFormLabel>주소</TeasyFormLabel>
                     <TeasyInput
                         value={formData.location}
-                        onChange={(e: any) => !isReadOnly && setFormData({ ...formData, location: e.target.value })}
+                        onChange={(e: any) => setFormData({ ...formData, location: e.target.value })}
                         placeholder="전국 시공 주소 입력"
-                        isDisabled={isReadOnly}
+                        isReadOnly={isReadOnly}
                     />
                 </FormControl>
 
                 <FormControl isRequired>
                     <TeasyFormLabel>연락처</TeasyFormLabel>
-                    <TeasyPhoneInput
-                        value={formData.phone}
-                        onChange={(val: string) => !isReadOnly && setFormData({ ...formData, phone: val })}
-                        placeholder="000-0000-0000"
-                        isDisabled={isReadOnly}
-                    />
+                    {isReadOnly ? (
+                        <TeasyInput value={formatPhone(formData.phone)} isReadOnly />
+                    ) : (
+                        <TeasyPhoneInput
+                            value={formData.phone}
+                            onChange={(val: string) => setFormData({ ...formData, phone: val })}
+                            placeholder="000-0000-0000"
+                        />
+                    )}
                 </FormControl>
 
                 <FormControl>
@@ -403,6 +391,7 @@ export const InstallCompleteForm = forwardRef<InstallCompleteFormHandle, Install
                                             isReadOnly={isReadOnly}
                                             onUpdateQty={(id, delta) => handleUpdateQty("product", id, delta)}
                                             constraintsRef={productScrollRef}
+                                            onDragEnd={() => toast({ title: "순서가 변경되었습니다.", status: "success", position: "top", duration: 1500 })}
                                         />
                                     ))}
                                 </Reorder.Group>
@@ -445,6 +434,7 @@ export const InstallCompleteForm = forwardRef<InstallCompleteFormHandle, Install
                                                     onUpdateQty={(id, delta) => handleUpdateQty("supply", id, delta)}
                                                     constraintsRef={supplyScrollRef}
                                                     colorScheme="brand"
+                                                    onDragEnd={() => toast({ title: "순서가 변경되었습니다.", status: "success", position: "top", duration: 1500 })}
                                                 />
                                             </React.Fragment>
                                         );
@@ -554,10 +544,8 @@ export const InstallCompleteForm = forwardRef<InstallCompleteFormHandle, Install
                                         onChange={(e: any) => !isReadOnly && setFormData({ ...formData, incompleteReason: e.target.value })}
                                         placeholder="체크되지 않은 업무가 있습니다. 사유를 입력해주세요."
                                         size="sm"
-                                        bg="red.50"
-                                        pl="56px"
-                                        borderColor="red.100"
-                                        _focus={{ borderColor: "red.300", bg: "red.50" }}
+                                        bg="gray.50"
+                                        pl={3}
                                         isDisabled={isReadOnly}
                                         w="full"
                                     />
@@ -593,13 +581,15 @@ export const InstallCompleteForm = forwardRef<InstallCompleteFormHandle, Install
                     </TeasyFormGroup>
                 </FormControl>
 
+
+
                 <FormControl>
                     <TeasyFormLabel>참고 사항</TeasyFormLabel>
                     <TeasyTextarea
                         value={formData.memo}
-                        onChange={(e: any) => !isReadOnly && setFormData({ ...formData, memo: e.target.value })}
+                        onChange={(e: any) => setFormData({ ...formData, memo: e.target.value })}
                         placeholder="특이사항 또는 고객 전달사항 입력"
-                        isDisabled={isReadOnly}
+                        isReadOnly={isReadOnly}
                     />
                 </FormControl>
             </VStack>

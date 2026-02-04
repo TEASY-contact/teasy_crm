@@ -128,8 +128,15 @@ export interface Activity extends BaseDoc {
     discountValue?: string;
 
     // A/S specific
-    symptoms?: string[];
-    actions?: string[];
+    symptoms?: any[];
+    tasks?: any[];
+    symptomIncompleteReason?: string;
+    taskIncompleteReason?: string;
+    asType?: string;
+    actions?: any[];
+    commitmentFiles?: InquiryFile[];
+    collectionVideo?: InquiryFile | null;
+    reinstallationVideo?: InquiryFile | null;
 
     // Compatibility for work_requests or nested content
     category?: string;

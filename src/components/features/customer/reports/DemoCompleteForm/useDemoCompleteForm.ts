@@ -6,7 +6,8 @@ import { collection, serverTimestamp, doc, query, where, getDocs, runTransaction
 import { ref as sRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { useAuth } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { applyColonStandard } from "@/utils/textFormatter";
+import { applyColonStandard, normalizeText, getTeasyStandardFileName } from "@/utils/textFormatter";
+import { InquiryFile } from "../InquiryForm/types";
 import { DemoCompleteFormData, DemoCompleteActivity, ManagerOption, DEMO_CONSTANTS } from "./types";
 
 interface UseDemoCompleteFormProps {
@@ -26,6 +27,8 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
 
     // File upload state for UI only
     const [pendingFiles, setPendingFiles] = useState<{ url: string, file: File }[]>([]);
+    const [quotes, setQuotes] = useState<InquiryFile[]>(initialData?.quotes || []);
+    const [pendingQuotesMap, setPendingQuotesMap] = useState<Record<string, File>>({});
 
     const [formData, setFormData] = useState<DemoCompleteFormData>({
         date: "",
@@ -37,7 +40,8 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
         discountType: "",
         discountValue: "",
         memo: "",
-        photos: []
+        photos: [],
+        quotes: []
     });
 
     // Populate Initial Data
@@ -59,8 +63,10 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
                 ...prev,
                 ...initialData,
                 manager: initialData.manager || defaultManager || "",
-                photos: deduplicate(initialData.photos || [])
+                photos: deduplicate(initialData.photos || []),
+                quotes: initialData.quotes || []
             }));
+            setQuotes(initialData.quotes || []);
         } else {
             // New report: Auto-fill current date
             const now = new Date();
@@ -115,7 +121,7 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
             }
             return prev;
         });
-    }, [toast]);
+    }, [toast, pendingFiles]);
 
     const removePhoto = useCallback((index: number) => {
         setFormData(prev => {
@@ -130,6 +136,48 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
             };
         });
     }, []);
+
+    const handleQuoteAdd = useCallback((files: FileList | null) => {
+        if (!files || files.length === 0) return;
+
+        const currentCount = quotes.length;
+        const newFiles = Array.from(files).map((file, index) => {
+            const id = Math.random().toString(36).substring(7);
+            const url = URL.createObjectURL(file);
+
+            setPendingQuotesMap(prev => ({ ...prev, [id]: file }));
+
+            const dateValue = formData.date || new Date().toISOString();
+            const displayName = getTeasyStandardFileName(
+                customer.name,
+                '견적',
+                dateValue,
+                currentCount + index,
+                currentCount + files.length
+            ) + `.${file.name.split('.').pop()}`;
+
+            return {
+                id,
+                url,
+                name: file.name,
+                displayName,
+                ext: file.name.split('.').pop()?.toUpperCase() || "FILE"
+            };
+        });
+
+        setQuotes(prev => [...prev, ...newFiles]);
+    }, [customer.name, quotes.length, formData.date]);
+
+    const handleQuoteRemove = useCallback((fileId: string) => {
+        const target = quotes.find(q => q.id === fileId);
+        if (target?.url.startsWith('blob:')) URL.revokeObjectURL(target.url);
+        setQuotes(prev => prev.filter(q => q.id !== fileId));
+        setPendingQuotesMap(prev => {
+            const next = { ...prev };
+            delete next[fileId];
+            return next;
+        });
+    }, [quotes]);
 
     // --- Core Resource Management (Physics) ---
     const cleanupOrphanedPhotos = useCallback(async (urlsToDelete: string[]) => {
@@ -191,6 +239,26 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
                 finalPhotos = finalPhotos.filter(url => !url.startsWith('blob:')).concat(uploadedUrls);
             }
 
+            // 3. Parallel Quote Uploads (Optimized)
+            const uploadQueue = async (fileList: InquiryFile[], folder: string) => {
+                return Promise.all(fileList.map(async (f) => {
+                    if (!f.url.startsWith('blob:')) return f;
+
+                    const file = pendingQuotesMap[f.id];
+                    if (!file) throw new Error(`파일 유실: ${f.displayName}`);
+
+                    const filename = `demo_quote_${Date.now()}_${Math.random().toString(36).substring(7)}.${f.ext.toLowerCase()}`;
+                    const storagePath = `${folder}/${customer.id}/${filename}`;
+                    const storageRef = sRef(storage, storagePath);
+
+                    await uploadBytes(storageRef, file);
+                    const url = await getDownloadURL(storageRef);
+                    return { ...f, url };
+                }));
+            };
+
+            const finalQuotes = await uploadQueue(quotes, 'quotes');
+
             // High-reliability deduplication by base URL (v124.76)
             const finalSeen = new Set();
             finalPhotos = finalPhotos.filter(url => {
@@ -219,14 +287,15 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
                     manager: formData.manager,
                     managerName: selectedManager?.label || formData.manager,
                     managerRole: selectedManager?.role || "employee",
-                    location: formData.location,
+                    location: normalizeText(formData.location),
                     phone: cleanPhone,
-                    product: formData.product,
+                    product: normalizeText(formData.product),
                     result: formData.result,
                     discountType: formData.discountType,
                     discountValue: formData.discountValue,
                     memo: applyColonStandard(formData.memo || ""),
                     photos: finalPhotos,
+                    quotes: finalQuotes,
                     updatedAt: serverTimestamp(),
                     createdByName: userData?.name || "알 수 없음"
                 };
@@ -243,7 +312,7 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
                 } else {
                     // Sync sequence number with the authorizing schedule (v124.81)
                     const lastSchedule = [...(activities || [])].reverse().find(a => a.type === "demo_schedule");
-                    const nextSeq = lastSchedule?.sequenceNumber || (Number(currentMeta.lastSequence) || 0) + 1;
+                    const nextSeq = lastSchedule?.sequenceNumber || ((activities || []).filter(a => a.type === DEMO_CONSTANTS.TYPE).length + 1);
 
                     transaction.set(activityRef, {
                         ...dataToSave,
@@ -264,12 +333,22 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
 
             if (saveResult.success) {
                 // 4. POST-DB Resource Cleanup (Safe transition) (v123.04)
-                if (activityId && initialData?.photos) {
-                    const removedPhotos = initialData.photos.filter((oldUrl: string) => !finalPhotos.includes(oldUrl));
-                    await cleanupOrphanedPhotos(removedPhotos);
+                if (activityId && initialData) {
+                    const oldPhotos = initialData.photos || [];
+                    const removedPhotos = oldPhotos.filter((oldUrl: string) => !finalPhotos.includes(oldUrl));
+
+                    const oldQuotes = (initialData as any).quotes || [];
+                    const removedQuotes = oldQuotes.filter((oldQ: any) => !finalQuotes.some(newQ => newQ.url === oldQ.url));
+                    const urlsToDelete = [
+                        ...removedPhotos,
+                        ...removedQuotes.map((q: any) => q.url)
+                    ];
+
+                    await cleanupOrphanedPhotos(urlsToDelete);
                 }
 
                 setPendingFiles([]);
+                setPendingQuotesMap({});
                 // Delay for Firestore indexing (v123.03)
                 await new Promise(resolve => setTimeout(resolve, 500));
                 await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
@@ -287,7 +366,7 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
             setIsLoading(false);
             isSubmitting.current = false;
         }
-    }, [isLoading, formData, pendingFiles, activityId, initialData?.photos, customer.id, customer.name, userData?.name, userData?.uid, toast, cleanupOrphanedPhotos]);
+    }, [isLoading, formData, pendingFiles, quotes, pendingQuotesMap, activityId, initialData, customer.id, customer.name, userData?.name, userData?.uid, toast, cleanupOrphanedPhotos]);
 
     const handleDelete = useCallback(async () => {
         if (!activityId) return false;
@@ -301,8 +380,10 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
 
                 if (!activitySnap.exists()) return { success: false, msg: "데이터가 존재하지 않습니다." };
 
-                const activityData = activitySnap.data() as DemoCompleteActivity;
+                const activityData = activitySnap.data() as any;
                 const photosToDelete = activityData.photos || [];
+                const quotesToDelete = (activityData.quotes || []).map((q: any) => q.url);
+                const urlsToDelete = [...photosToDelete, ...quotesToDelete];
 
                 const metaRef = doc(db, "customer_meta", `${customer.id}_demo`);
                 const metaSnap = await transaction.get(metaRef);
@@ -316,13 +397,13 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
                 }
 
                 transaction.delete(activityRef);
-                return { success: true, photos: photosToDelete };
+                return { success: true, urls: urlsToDelete };
             });
 
             if (cleanupResult.success) {
                 // Physical Cleanup after successful DB deletion
-                if (cleanupResult.photos && cleanupResult.photos.length > 0) {
-                    await cleanupOrphanedPhotos(cleanupResult.photos);
+                if (cleanupResult.urls && cleanupResult.urls.length > 0) {
+                    await cleanupOrphanedPhotos(cleanupResult.urls);
                 }
                 // Delay for Firestore indexing
                 await new Promise(resolve => setTimeout(resolve, 500));
@@ -346,6 +427,8 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
 
     return {
         formData, setFormData,
+        quotes,
+        handleQuoteAdd, handleQuoteRemove,
         isLoading,
         handleFileUpload, removePhoto,
         submit,

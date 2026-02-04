@@ -5,8 +5,10 @@ import {
     FormControl,
     VStack,
     useToast,
-    Box
+    Box,
+    IconButton
 } from "@chakra-ui/react";
+import { ArrowBackIcon } from "@chakra-ui/icons";
 import {
     TeasyButton,
     TeasyInput,
@@ -104,7 +106,24 @@ const CustomerRegistrationModalContent = ({ onClose }: { onClose: () => void }) 
 
     return (
         <TeasyModalContent>
-            <TeasyModalHeader>신규 고객 등록</TeasyModalHeader>
+            <TeasyModalHeader position="relative">
+                <IconButton
+                    aria-label="Back"
+                    icon={<ArrowBackIcon />}
+                    size="md"
+                    position="absolute"
+                    left="8px"
+                    top="8px"
+                    color="white"
+                    variant="ghost"
+                    _hover={{ bg: "whiteAlpha.300" }}
+                    onClick={onClose}
+                    type="button"
+                />
+                <Box as="span" ml={10}>
+                    신규 고객 등록
+                </Box>
+            </TeasyModalHeader>
             <TeasyModalBody>
                 {/* Focus Guard: Prevents automatic focus on the first input */}
                 <Box tabIndex={0} w={0} h={0} opacity={0} position="absolute" />

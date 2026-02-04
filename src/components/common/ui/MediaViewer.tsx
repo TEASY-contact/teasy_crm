@@ -123,13 +123,49 @@ export const triggerTeasyDownload = async (fileObj: any) => {
         if (!response.ok) throw new Error("Fetch failed");
         const blob = await response.blob();
         const blobUrl = window.URL.createObjectURL(blob);
-        let fileName = fileObj.displayName || fileObj.name || "file";
-        const parts = fileObj.url.split('.');
-        const realExt = (parts.pop()?.split('?')[0] || "bin").toLowerCase();
-        if (!fileName.toLowerCase().endsWith("." + realExt)) fileName = `${fileName}.${realExt}`;
+
+        let baseName = fileObj.displayName || fileObj.name || "file";
+
+        // 1. Remove existing extension from baseName to avoid duplication or corrupted names (v126.87)
+        if (baseName.includes('.')) {
+            const parts = baseName.split('.');
+            parts.pop();
+            baseName = parts.join('.');
+        }
+
+        // 2. Determine Extension with blob-safety
+        let ext = (fileObj.ext || "").toLowerCase();
+
+        // If no explicit ext, try to parse from Cloud Storage URL (if not a blob)
+        if (!ext && !fileObj.url.startsWith('blob:')) {
+            const urlWithoutQuery = fileObj.url.split('?')[0];
+            const parts = urlWithoutQuery.split('.');
+            if (parts.length > 1) {
+                ext = parts.pop()?.toLowerCase() || "";
+            }
+        }
+
+        // 3. Last fallback: determine from blob's MIME type (especially for freshly uploaded blobs)
+        if (!ext || ext.length > 5 || ext.includes('/') || ext.includes(':') || ext.includes('?')) {
+            const mimeMap: Record<string, string> = {
+                'video/mp4': 'mp4',
+                'video/quicktime': 'mov',
+                'video/x-m4v': 'm4v',
+                'video/webm': 'webm',
+                'image/jpeg': 'jpg',
+                'image/jpg': 'jpg',
+                'image/png': 'png',
+                'image/webp': 'webp',
+                'application/pdf': 'pdf'
+            };
+            ext = mimeMap[blob.type] || blob.type.split('/').pop() || "bin";
+        }
+
+        const finalName = `${baseName}.${ext}`;
+
         const link = document.createElement('a');
         link.href = blobUrl;
-        link.download = fileName;
+        link.download = finalName;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -166,7 +202,7 @@ export const TeasyAudioPlayer = ({ isOpen, onClose, file }: any) => {
                         </Text>
                     </HStack>
                     <VStack align="flex-end" spacing={0}>
-                        <Text color="gray.400" fontSize="10px" fontWeight="normal">{file.timestamp || ""}</Text>
+                        <Text color="gray.400" fontSize="10px" fontWeight="normal" whiteSpace="pre"><ThinParen text={file.timestamp || ""} /></Text>
                         <Text color="gray.400" fontSize="xs" fontWeight="300">{file.uploader || file.author || ""}</Text>
                     </VStack>
                 </Flex>
@@ -247,7 +283,7 @@ export const TeasyUniversalViewer = ({ isOpen, onClose, files = [], initialIndex
                             </HStack>
                         </HStack>
                         <VStack align="flex-end" spacing={0}>
-                            <Text color="gray.400" fontSize="10px" fontWeight="normal">{currentFile.timestamp || ""}</Text>
+                            <Text color="gray.400" fontSize="10px" fontWeight="normal" whiteSpace="pre"><ThinParen text={currentFile.timestamp || ""} /></Text>
                             <Text color="gray.400" fontSize="xs" fontWeight="300">{currentFile.uploader || currentFile.author || ""}</Text>
                         </VStack>
                     </Flex>
