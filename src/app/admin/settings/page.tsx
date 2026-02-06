@@ -10,8 +10,7 @@ import {
     Icon
 } from "@chakra-ui/react";
 import {
-    MdAdd, MdRemove, MdArrowBack, MdHorizontalRule,
-    MdMenu
+    MdAdd, MdRemove, MdArrowBack, MdMenu
 } from "react-icons/md";
 import { useRouter } from "next/navigation";
 import { Reorder, useDragControls } from "framer-motion";
@@ -19,7 +18,7 @@ import {
     TeasyButton, TeasyInput, TeasyFormLabel,
 } from "@/components/common/UIComponents";
 import { useDistributorMaster, DistributorItem } from "@/hooks/useDistributorMaster";
-import { useAsTypeMaster, AsTypeItem } from "@/hooks/useAsTypeMaster";
+import { useAsTypeMaster } from "@/hooks/useAsTypeMaster";
 
 const COLOR_THEMES = [
     { bg: "rgba(107, 70, 193, 0.1)", color: "#6B46C1" }, // Purple
@@ -58,18 +57,40 @@ export default function SettingsPage() {
     } = useDistributorMaster();
 
     const {
-        asTypes,
-        isLoading: isAsTypeLoading,
-        addAsType,
-        addDivider: addAsDivider,
-        removeAsType,
-        updateOrder: updateAsOrder
-    } = useAsTypeMaster();
+        asTypes: visitAsTypes,
+        isLoading: isVisitAsLoading,
+        addAsType: addVisitAsType,
+        addDivider: addVisitAsDivider,
+        removeAsType: removeVisitAsType,
+        updateOrder: updateVisitAsOrder
+    } = useAsTypeMaster("as_type_master");
+
+    const {
+        asTypes: remoteAsTypes,
+        isLoading: isRemoteAsLoading,
+        addAsType: addRemoteAsType,
+        addDivider: addRemoteAsDivider,
+        removeAsType: removeRemoteAsType,
+        updateOrder: updateRemoteAsOrder
+    } = useAsTypeMaster("remote_as_type_master");
+
+    const {
+        asTypes: remoteAsProducts,
+        isLoading: isRemoteAsProductLoading,
+        addAsType: addRemoteAsProduct,
+        addDivider: addRemoteAsProductDivider,
+        removeAsType: removeRemoteAsProduct,
+        updateOrder: updateRemoteAsProductOrder
+    } = useAsTypeMaster("remote_as_product_master");
 
     const [name, setName] = useState("");
-    const [asTypeName, setAsTypeName] = useState("");
+    const [visitAsTypeName, setVisitAsTypeName] = useState("");
+    const [remoteAsTypeName, setRemoteAsTypeName] = useState("");
+    const [remoteAsProductName, setRemoteAsProductName] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isAsSubmitting, setIsAsSubmitting] = useState(false);
+    const [isVisitAsSubmitting, setIsVisitAsSubmitting] = useState(false);
+    const [isRemoteAsSubmitting, setIsRemoteAsSubmitting] = useState(false);
+    const [isRemoteAsProductSubmitting, setIsRemoteAsProductSubmitting] = useState(false);
     const [selectedTarget, setSelectedTarget] = useState<DistributorItem | null>(null);
     const colorDisclosure = useDisclosure();
 
@@ -101,7 +122,7 @@ export default function SettingsPage() {
                 </Flex>
             </VStack>
 
-            <SimpleGrid columns={{ base: 1, lg: 6 }} spacing={6}>
+            <SimpleGrid columns={{ base: 1, lg: 5 }} spacing={6}>
                 {/* 1. Distributor Management Card */}
                 <Box
                     bg="white"
@@ -110,8 +131,9 @@ export default function SettingsPage() {
                     shadow="sm"
                     border="1px"
                     borderColor="gray.100"
+                    h="420px"
                 >
-                    <VStack align="stretch" spacing={5}>
+                    <VStack align="stretch" spacing={5} h="full">
                         <Box borderBottom="1px" borderColor="gray.100" pb={3}>
                             <Text fontSize="md" fontWeight="bold" color="gray.700">관리 총판 설정</Text>
                         </Box>
@@ -169,7 +191,7 @@ export default function SettingsPage() {
                             </HStack>
                         </FormControl>
 
-                        <Box bg="gray.50" p={2} borderRadius="xl" minH="200px" border="1px" borderColor="gray.100" maxH="400px" overflowY="auto">
+                        <Box bg="gray.50" p={2} borderRadius="xl" border="1px" borderColor="gray.100" overflowY="auto" flex={1}>
                             {isLoading ? (
                                 <Center h="100px"><Spinner /></Center>
                             ) : distributors.length === 0 ? (
@@ -194,7 +216,7 @@ export default function SettingsPage() {
                     </VStack>
                 </Box>
 
-                {/* 2. A/S Type Management Card */}
+                {/* 2. Visit A/S Type Management Card */}
                 <Box
                     bg="white"
                     p={5}
@@ -202,37 +224,38 @@ export default function SettingsPage() {
                     shadow="sm"
                     border="1px"
                     borderColor="gray.100"
+                    h="420px"
                 >
-                    <VStack align="stretch" spacing={5}>
+                    <VStack align="stretch" spacing={5} h="full">
                         <Box borderBottom="1px" borderColor="gray.100" pb={3}>
-                            <Text fontSize="md" fontWeight="bold" color="gray.700">A/S 유형 설정</Text>
+                            <Text fontSize="md" fontWeight="bold" color="gray.700">방문 A/S '유형선택' 설정</Text>
                         </Box>
 
                         <FormControl isRequired>
                             <TeasyFormLabel>신규 유형명</TeasyFormLabel>
                             <HStack spacing={2}>
                                 <TeasyInput
-                                    value={asTypeName}
-                                    onChange={(e) => setAsTypeName(e.target.value)}
+                                    value={visitAsTypeName}
+                                    onChange={(e) => setVisitAsTypeName(e.target.value)}
                                     placeholder="유형명 입력"
                                     onKeyDown={(e) => e.key === 'Enter' && (async () => {
-                                        if (!asTypeName.trim()) { toast({ title: "유형명을 입력해주세요.", status: "warning", position: "top" }); return; }
-                                        setIsAsSubmitting(true);
-                                        try { await addAsType(asTypeName); setAsTypeName(""); toast({ title: "추가 완료", status: "success", position: "top" }); }
+                                        if (!visitAsTypeName.trim()) { toast({ title: "유형명을 입력해주세요.", status: "warning", position: "top" }); return; }
+                                        setIsVisitAsSubmitting(true);
+                                        try { await addVisitAsType(visitAsTypeName); setVisitAsTypeName(""); toast({ title: "추가 완료", status: "success", position: "top" }); }
                                         catch (e: any) { toast({ title: e.message || "추가 실패", status: "error", position: "top" }); }
-                                        finally { setIsAsSubmitting(false); }
+                                        finally { setIsVisitAsSubmitting(false); }
                                     })()}
                                 />
                                 <TeasyButton
                                     version="secondary"
                                     borderColor="brand.500"
                                     onClick={async () => {
-                                        setIsAsSubmitting(true);
-                                        try { await addAsDivider(); toast({ title: "구분선 추가 완료", status: "success", position: "top" }); }
+                                        setIsVisitAsSubmitting(true);
+                                        try { await addVisitAsDivider(); toast({ title: "구분선 추가 완료", status: "success", position: "top" }); }
                                         catch (e: any) { toast({ title: "지원되지 않는 항목", status: "error", position: "top" }); }
-                                        finally { setIsAsSubmitting(false); }
+                                        finally { setIsVisitAsSubmitting(false); }
                                     }}
-                                    isLoading={isAsSubmitting}
+                                    isLoading={isVisitAsSubmitting}
                                     h="45px"
                                     fontSize="12px"
                                     fontWeight="800"
@@ -244,13 +267,13 @@ export default function SettingsPage() {
                                     aria-label="Add"
                                     icon={<MdAdd size={22} />}
                                     onClick={async () => {
-                                        if (!asTypeName.trim()) { toast({ title: "유형명을 입력해주세요.", status: "warning", position: "top" }); return; }
-                                        setIsAsSubmitting(true);
-                                        try { await addAsType(asTypeName); setAsTypeName(""); toast({ title: "추가 완료", status: "success", position: "top" }); }
+                                        if (!visitAsTypeName.trim()) { toast({ title: "유형명을 입력해주세요.", status: "warning", position: "top" }); return; }
+                                        setIsVisitAsSubmitting(true);
+                                        try { await addVisitAsType(visitAsTypeName); setVisitAsTypeName(""); toast({ title: "추가 완료", status: "success", position: "top" }); }
                                         catch (e: any) { toast({ title: e.message || "추가 실패", status: "error", position: "top" }); }
-                                        finally { setIsAsSubmitting(false); }
+                                        finally { setIsVisitAsSubmitting(false); }
                                     }}
-                                    isLoading={isAsSubmitting}
+                                    isLoading={isVisitAsSubmitting}
                                     h="45px"
                                     w="45px"
                                     colorScheme="brand"
@@ -261,19 +284,205 @@ export default function SettingsPage() {
                             </HStack>
                         </FormControl>
 
-                        <Box bg="gray.50" p={2} borderRadius="xl" minH="200px" border="1px" borderColor="gray.100" maxH="400px" overflowY="auto">
-                            {isAsTypeLoading ? (
+                        <Box bg="gray.50" p={2} borderRadius="xl" border="1px" borderColor="gray.100" overflowY="auto" flex={1}>
+                            {isVisitAsLoading ? (
                                 <Center h="100px"><Spinner /></Center>
-                            ) : asTypes.length === 0 ? (
+                            ) : visitAsTypes.length === 0 ? (
                                 <Center h="100px" color="gray.300" fontSize="xs">등록된 유형이 없습니다.</Center>
                             ) : (
-                                <Reorder.Group axis="y" values={asTypes} onReorder={updateAsOrder} style={{ listStyle: "none", padding: 0 }}>
+                                <Reorder.Group axis="y" values={visitAsTypes} onReorder={updateVisitAsOrder} style={{ listStyle: "none", padding: 0 }}>
                                     <VStack align="stretch" spacing={2}>
-                                        {asTypes.map((d) => renderItem(
+                                        {visitAsTypes.map((d) => renderItem(
                                             d,
                                             async (id) => {
                                                 if (!window.confirm("정말 삭제하시겠습니까?")) return;
-                                                try { await removeAsType(id); toast({ title: "삭제 완료", status: "info", position: "top" }); }
+                                                try { await removeVisitAsType(id); toast({ title: "삭제 완료", status: "info", position: "top" }); }
+                                                catch (e) { toast({ title: "삭제 실패", status: "error", position: "top" }); }
+                                            },
+                                            undefined,
+                                            false
+                                        ))}
+                                    </VStack>
+                                </Reorder.Group>
+                            )}
+                        </Box>
+                    </VStack>
+                </Box>
+
+                {/* 3. Remote A/S Type Management Card */}
+                <Box
+                    bg="white"
+                    p={5}
+                    borderRadius="2xl"
+                    shadow="sm"
+                    border="1px"
+                    borderColor="gray.100"
+                    h="420px"
+                >
+                    <VStack align="stretch" spacing={5} h="full">
+                        <Box borderBottom="1px" borderColor="gray.100" pb={3}>
+                            <Text fontSize="md" fontWeight="bold" color="gray.700">원격 A/S '유형선택' 설정</Text>
+                        </Box>
+
+                        <FormControl isRequired>
+                            <TeasyFormLabel>신규 유형명</TeasyFormLabel>
+                            <HStack spacing={2}>
+                                <TeasyInput
+                                    value={remoteAsTypeName}
+                                    onChange={(e) => setRemoteAsTypeName(e.target.value)}
+                                    placeholder="유형명 입력"
+                                    onKeyDown={(e) => e.key === 'Enter' && (async () => {
+                                        if (!remoteAsTypeName.trim()) { toast({ title: "유형명을 입력해주세요.", status: "warning", position: "top" }); return; }
+                                        setIsRemoteAsSubmitting(true);
+                                        try { await addRemoteAsType(remoteAsTypeName); setRemoteAsTypeName(""); toast({ title: "추가 완료", status: "success", position: "top" }); }
+                                        catch (e: any) { toast({ title: e.message || "추가 실패", status: "error", position: "top" }); }
+                                        finally { setIsRemoteAsSubmitting(false); }
+                                    })()}
+                                />
+                                <TeasyButton
+                                    version="secondary"
+                                    borderColor="brand.500"
+                                    onClick={async () => {
+                                        setIsRemoteAsSubmitting(true);
+                                        try { await addRemoteAsDivider(); toast({ title: "구분선 추가 완료", status: "success", position: "top" }); }
+                                        catch (e: any) { toast({ title: "지원되지 않는 항목", status: "error", position: "top" }); }
+                                        finally { setIsRemoteAsSubmitting(false); }
+                                    }}
+                                    isLoading={isRemoteAsSubmitting}
+                                    h="45px"
+                                    fontSize="12px"
+                                    fontWeight="800"
+                                    px={3}
+                                >
+                                    구분선
+                                </TeasyButton>
+                                <IconButton
+                                    aria-label="Add"
+                                    icon={<MdAdd size={22} />}
+                                    onClick={async () => {
+                                        if (!remoteAsTypeName.trim()) { toast({ title: "유형명을 입력해주세요.", status: "warning", position: "top" }); return; }
+                                        setIsRemoteAsSubmitting(true);
+                                        try { await addRemoteAsType(remoteAsTypeName); setRemoteAsTypeName(""); toast({ title: "추가 완료", status: "success", position: "top" }); }
+                                        catch (e: any) { toast({ title: e.message || "추가 실패", status: "error", position: "top" }); }
+                                        finally { setIsRemoteAsSubmitting(false); }
+                                    }}
+                                    isLoading={isRemoteAsSubmitting}
+                                    h="45px"
+                                    w="45px"
+                                    colorScheme="brand"
+                                    bg="brand.500"
+                                    color="white"
+                                    borderRadius="md"
+                                />
+                            </HStack>
+                        </FormControl>
+
+                        <Box bg="gray.50" p={2} borderRadius="xl" border="1px" borderColor="gray.100" overflowY="auto" flex={1}>
+                            {isRemoteAsLoading ? (
+                                <Center h="100px"><Spinner /></Center>
+                            ) : remoteAsTypes.length === 0 ? (
+                                <Center h="100px" color="gray.300" fontSize="xs">등록된 유형이 없습니다.</Center>
+                            ) : (
+                                <Reorder.Group axis="y" values={remoteAsTypes} onReorder={updateRemoteAsOrder} style={{ listStyle: "none", padding: 0 }}>
+                                    <VStack align="stretch" spacing={2}>
+                                        {remoteAsTypes.map((d) => renderItem(
+                                            d,
+                                            async (id) => {
+                                                if (!window.confirm("정말 삭제하시겠습니까?")) return;
+                                                try { await removeRemoteAsType(id); toast({ title: "삭제 완료", status: "info", position: "top" }); }
+                                                catch (e) { toast({ title: "삭제 실패", status: "error", position: "top" }); }
+                                            },
+                                            undefined,
+                                            false
+                                        ))}
+                                    </VStack>
+                                </Reorder.Group>
+                            )}
+                        </Box>
+                    </VStack>
+                </Box>
+
+                {/* 4. Remote A/S Product Management Card */}
+                <Box
+                    bg="white"
+                    p={5}
+                    borderRadius="2xl"
+                    shadow="sm"
+                    border="1px"
+                    borderColor="gray.100"
+                    h="420px"
+                >
+                    <VStack align="stretch" spacing={5} h="full">
+                        <Box borderBottom="1px" borderColor="gray.100" pb={3}>
+                            <Text fontSize="md" fontWeight="bold" color="gray.700">원격 A/S '관련상품' 설정</Text>
+                        </Box>
+
+                        <FormControl isRequired>
+                            <TeasyFormLabel>신규 상품명</TeasyFormLabel>
+                            <HStack spacing={2}>
+                                <TeasyInput
+                                    value={remoteAsProductName}
+                                    onChange={(e) => setRemoteAsProductName(e.target.value)}
+                                    placeholder="상품명 입력"
+                                    onKeyDown={(e) => e.key === 'Enter' && (async () => {
+                                        if (!remoteAsProductName.trim()) { toast({ title: "상품명을 입력해주세요.", status: "warning", position: "top" }); return; }
+                                        setIsRemoteAsProductSubmitting(true);
+                                        try { await addRemoteAsProduct(remoteAsProductName); setRemoteAsProductName(""); toast({ title: "추가 완료", status: "success", position: "top" }); }
+                                        catch (e: any) { toast({ title: e.message || "추가 실패", status: "error", position: "top" }); }
+                                        finally { setIsRemoteAsProductSubmitting(false); }
+                                    })()}
+                                />
+                                <TeasyButton
+                                    version="secondary"
+                                    borderColor="brand.500"
+                                    onClick={async () => {
+                                        setIsRemoteAsProductSubmitting(true);
+                                        try { await addRemoteAsProductDivider(); toast({ title: "구분선 추가 완료", status: "success", position: "top" }); }
+                                        catch (e: any) { toast({ title: "지원되지 않는 항목", status: "error", position: "top" }); }
+                                        finally { setIsRemoteAsProductSubmitting(false); }
+                                    }}
+                                    isLoading={isRemoteAsProductSubmitting}
+                                    h="45px"
+                                    fontSize="12px"
+                                    fontWeight="800"
+                                    px={3}
+                                >
+                                    구분선
+                                </TeasyButton>
+                                <IconButton
+                                    aria-label="Add"
+                                    icon={<MdAdd size={22} />}
+                                    onClick={async () => {
+                                        if (!remoteAsProductName.trim()) { toast({ title: "상품명을 입력해주세요.", status: "warning", position: "top" }); return; }
+                                        setIsRemoteAsProductSubmitting(true);
+                                        try { await addRemoteAsProduct(remoteAsProductName); setRemoteAsProductName(""); toast({ title: "추가 완료", status: "success", position: "top" }); }
+                                        catch (e: any) { toast({ title: e.message || "추가 실패", status: "error", position: "top" }); }
+                                        finally { setIsRemoteAsProductSubmitting(false); }
+                                    }}
+                                    isLoading={isRemoteAsProductSubmitting}
+                                    h="45px"
+                                    w="45px"
+                                    colorScheme="brand"
+                                    bg="brand.500"
+                                    color="white"
+                                    borderRadius="md"
+                                />
+                            </HStack>
+                        </FormControl>
+
+                        <Box bg="gray.50" p={2} borderRadius="xl" border="1px" borderColor="gray.100" overflowY="auto" flex={1}>
+                            {isRemoteAsProductLoading ? (
+                                <Center h="100px"><Spinner /></Center>
+                            ) : remoteAsProducts.length === 0 ? (
+                                <Center h="100px" color="gray.300" fontSize="xs">등록된 상품이 없습니다.</Center>
+                            ) : (
+                                <Reorder.Group axis="y" values={remoteAsProducts} onReorder={updateRemoteAsProductOrder} style={{ listStyle: "none", padding: 0 }}>
+                                    <VStack align="stretch" spacing={2}>
+                                        {remoteAsProducts.map((d) => renderItem(
+                                            d,
+                                            async (id) => {
+                                                if (!window.confirm("정말 삭제하시겠습니까?")) return;
+                                                try { await removeRemoteAsProduct(id); toast({ title: "삭제 완료", status: "info", position: "top" }); }
                                                 catch (e) { toast({ title: "삭제 실패", status: "error", position: "top" }); }
                                             },
                                             undefined,

@@ -12,6 +12,11 @@ export const theme = extendTheme({
       "html, body, button, input, select, textarea, label, span, div": {
         letterSpacing: "0.5px",
       },
+      // 글로벌 스크롤바 표준 (Section 4 스타일: thin, 0.25)
+      "*": {
+        scrollbarWidth: "thin",
+        scrollbarColor: "rgba(0, 0, 0, 0.25) transparent",
+      },
       "input::placeholder, textarea::placeholder": {
         color: "gray.300",
         fontSize: "14px",
@@ -19,6 +24,12 @@ export const theme = extendTheme({
       body: {
         bg: "gray.50",
         color: "gray.800",
+      },
+      // 모달 오픈 시 배경 스크롤 차단 (v124.90)
+      ".chakra-ui-light--lock, .chakra-ui-dark--lock": {
+        ".teasy-main-container": {
+          overflow: "hidden !important",
+        }
       },
       // S25 Portrait Lock & Optimization
       "@media screen and (max-width: 430px)": {

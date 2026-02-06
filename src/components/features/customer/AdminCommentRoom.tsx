@@ -147,18 +147,7 @@ export const AdminCommentRoom = ({ customerId }: { customerId: string }) => {
                     py={4}
                     ref={scrollRef}
                     bg="gray.50/10"
-                    css={{
-                        '&::-webkit-scrollbar': {
-                            width: '4px',
-                        },
-                        '&::-webkit-scrollbar-track': {
-                            background: 'transparent',
-                        },
-                        '&::-webkit-scrollbar-thumb': {
-                            background: '#E2E8F0',
-                            borderRadius: '10px',
-                        },
-                    }}
+
                 >
                     {isLoading ? (
                         <Flex h="full" align="center" justify="center">

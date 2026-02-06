@@ -32,15 +32,7 @@ export const AssetTable: React.FC<AssetTableProps> = ({
             overflowY="auto"
             overflowX="hidden"
             maxH="calc(100vh - 300px)"
-            css={{
-                '&::-webkit-scrollbar': { width: '4px' },
-                '&::-webkit-scrollbar-track': { background: 'transparent' },
-                '&::-webkit-scrollbar-thumb': {
-                    background: 'rgba(0,0,0,0.08)',
-                    borderRadius: '10px'
-                },
-                '&::-webkit-scrollbar-thumb:hover': { background: 'rgba(0,0,0,0.15)' }
-            }}
+
         >
             <Table variant="simple" style={{ tableLayout: "fixed" }}>
                 {viewMode === "inventory" ? (

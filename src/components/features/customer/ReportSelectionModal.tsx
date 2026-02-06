@@ -12,6 +12,7 @@ import { InstallScheduleForm } from "./reports/InstallScheduleForm/index";
 import { InstallCompleteForm } from "./reports/InstallCompleteForm/index";
 import { AsScheduleForm } from "./reports/AsScheduleForm/index";
 import { AsCompleteForm } from "./reports/AsCompleteForm/index";
+import { RemoteAsCompleteForm } from "./reports/RemoteAsCompleteForm/index";
 import { TeasyButton, TeasyModalHeader, TeasyModalOverlay, TeasyModalContent, TeasyModalBody, TeasyModalFooter, TeasyModal } from "@/components/common/UIComponents";
 import React, { forwardRef, useImperativeHandle, useRef, useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -177,6 +178,8 @@ const ReportSelectionModalContent = ({ onClose, customer, activities = [] }: { o
                 return <AsScheduleForm {...props} />;
             case "as_complete":
                 return <AsCompleteForm {...props} />;
+            case "remoteas_complete":
+                return <RemoteAsCompleteForm {...props} />;
             default:
                 return (
                     <StandardReportForm
@@ -225,11 +228,7 @@ const ReportSelectionModalContent = ({ onClose, customer, activities = [] }: { o
                 {/* Focus Guard */}
                 <Box tabIndex={0} w={0} h={0} opacity={0} position="absolute" />
                 {!isWriting ? (
-                    <Box maxH="400px" overflowY="auto" sx={{
-                        '&::-webkit-scrollbar': { width: '4px' },
-                        '&::-webkit-scrollbar-track': { bg: 'transparent' },
-                        '&::-webkit-scrollbar-thumb': { bg: 'gray.200', borderRadius: 'full' },
-                    }}>
+                    <Box maxH="400px" overflowY="auto">
                         <VStack spacing={0} align="stretch" py={2}>
                             {reports.map((report) => {
                                 if (report.isDivider) {

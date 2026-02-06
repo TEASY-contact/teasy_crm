@@ -159,7 +159,7 @@ export const AsCompleteForm = forwardRef<AsCompleteFormHandle, AsCompleteFormPro
     defaultManager = ""
 }, ref) => {
     const toast = useToast();
-    const { managerOptions, asTypeOptions, products, inventoryItems } = useReportMetadata();
+    const { managerOptions, visitAsTypeOptions: asTypeOptions, products, inventoryItems } = useReportMetadata();
     const {
         formData, setFormData,
         isLoading,
@@ -314,6 +314,9 @@ export const AsCompleteForm = forwardRef<AsCompleteFormHandle, AsCompleteFormPro
                     <FormControl isRequired>
                         <TeasyFormLabel>점검 증상</TeasyFormLabel>
                         <TeasyFormGroup>
+                            <Flex justify="flex-end" mb={1} pr={5.5}>
+                                <Text fontSize="11px" color="gray.400" fontWeight="bold" mt={-1}>✓</Text>
+                            </Flex>
                             <VStack spacing={2} align="stretch">
                                 {formData.symptoms.map((item, idx) => (
                                     <HStack
@@ -371,6 +374,9 @@ export const AsCompleteForm = forwardRef<AsCompleteFormHandle, AsCompleteFormPro
                     <FormControl isRequired>
                         <TeasyFormLabel>수행 결과</TeasyFormLabel>
                         <TeasyFormGroup>
+                            <Flex justify="flex-end" mb={1} pr={5.5}>
+                                <Text fontSize="11px" color="gray.400" fontWeight="bold" mt={-1}>✓</Text>
+                            </Flex>
                             <VStack spacing={2} align="stretch">
                                 {formData.tasks.map((item, idx) => (
                                     <HStack

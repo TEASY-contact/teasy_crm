@@ -130,6 +130,7 @@ export interface Activity extends BaseDoc {
     // A/S specific
     symptoms?: any[];
     tasks?: any[];
+    supportContent?: string;
     symptomIncompleteReason?: string;
     taskIncompleteReason?: string;
     asType?: string;

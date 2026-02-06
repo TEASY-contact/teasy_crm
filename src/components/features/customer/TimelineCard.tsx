@@ -81,7 +81,7 @@ export const TimelineCard = ({
     const prepareFiles = (rawFiles: any[], typeLabel: string) => {
         const isWorkReport = (item.stepType || "").includes("install") || (item.stepType || "").includes("as");
         const category = typeLabel === '사진'
-            ? (isWorkReport ? '시공사진' : '현장사진')
+            ? (item.stepType === 'remoteas_complete' ? 'PC사양' : (isWorkReport ? '시공사진' : '현장사진'))
             : (typeLabel === '견적' ? '견적서' : typeLabel);
 
         return rawFiles.map((f: any, i: number) => ({
@@ -242,7 +242,7 @@ export const TimelineCard = ({
                 specificItems.push({ label: "전화", value: formatPhone(content.phone) });
             }
             const validProducts = (content.selectedProducts || []).filter((p: any) => p.name && p.name.trim() !== "");
-            const productLabel = (stepType === 'as_complete' || stepType === 'as_schedule') ? "점검" : "상품";
+            const productLabel = (stepType === 'as_complete' || stepType === 'as_schedule' || stepType === 'remoteas_complete') ? "점검" : "상품";
             if (validProducts.length > 0) {
                 const productList = validProducts.map((p: any, idx: number) => {
                     const circle = validProducts.length > 1 ? String.fromCharCode(9312 + idx) : "";
@@ -267,7 +267,7 @@ export const TimelineCard = ({
                 if (isChecklist && stepType === 'as_complete') {
                     const symptomLines = rawSymptoms.map((s: any, i: number) => {
                         const circle = rawSymptoms.length > 1 ? String.fromCharCode(9312 + i) : "";
-                        const completed = s.completed ?? false;
+                        const completed = s.completed ?? s.isResolved ?? false;
                         return (
                             <HStack key={`symptom-${i}`} align="start" spacing={1.5} w="full">
                                 <Box w="20px" flexShrink={0} display="flex" justifyContent="center">
@@ -292,15 +292,44 @@ export const TimelineCard = ({
                 } else {
                     const validSymptoms = rawSymptoms.filter((s: any) => (typeof s === 'string' ? s : s.text) && (typeof s === 'string' ? s : s.text).trim() !== "");
                     if (validSymptoms.length > 0) {
-                        const symptomList = validSymptoms.map((s: any, idx: number) => {
+                        const symptomLines = validSymptoms.map((s: any, i: number) => {
                             const text = typeof s === 'string' ? s : s.text;
-                            const circle = validSymptoms.length > 1 ? String.fromCharCode(9312 + idx) : "";
+                            const circle = validSymptoms.length > 1 ? String.fromCharCode(9312 + i) : "";
+                            const completed = typeof s === 'object' ? (s.completed ?? s.isResolved ?? false) : false;
+                            const hasStatus = typeof s === 'object' && (s.completed !== undefined || s.isResolved !== undefined);
+
+                            if (hasStatus && stepType === 'remoteas_complete') {
+                                return (
+                                    <HStack key={`symptom-${i}`} align="start" spacing={1.5} w="full">
+                                        <Box w="20px" flexShrink={0} display="flex" justifyContent="center">
+                                            <Box
+                                                bg={completed ? "blue.50" : "red.50"} color={completed ? "blue.500" : "red.500"}
+                                                fontSize="10px" fontWeight="900" w="15px" h="15px" borderRadius="3px"
+                                                display="flex" alignItems="center" justifyContent="center" mt="4px"
+                                            >
+                                                {completed ? "✓" : "✕"}
+                                            </Box>
+                                        </Box>
+                                        <Text fontSize="sm" whiteSpace="pre-wrap" lineHeight="1.6" flex={1}>
+                                            <ThinParen text={`${circle}${text}`} />
+                                        </Text>
+                                    </HStack>
+                                );
+                            }
                             return `${circle}${text}`;
-                        }).join("\n");
-                        specificItems.push({
-                            label: "증상",
-                            value: <Text whiteSpace="pre-wrap" lineHeight="1.6" verticalAlign="top"><ThinParen text={symptomList} /></Text>
                         });
+
+                        if (stepType === 'remoteas_complete' && typeof symptomLines[0] !== 'string') {
+                            specificItems.push({
+                                label: "증상",
+                                value: <VStack align="start" spacing={0} w="full" mt="1px">{symptomLines}</VStack>
+                            });
+                        } else {
+                            specificItems.push({
+                                label: "증상",
+                                value: <Text whiteSpace="pre-wrap" lineHeight="1.6" verticalAlign="top"><ThinParen text={symptomLines.join("\n")} /></Text>
+                            });
+                        }
                     }
                 }
             }
@@ -323,6 +352,9 @@ export const TimelineCard = ({
 
             if (content.result) {
                 specificItems.push({ label: "결과", value: content.result });
+            }
+            if (stepType === 'remoteas_complete' && content.supportContent) {
+                specificItems.push({ label: "지원", value: content.supportContent });
             }
 
             // Tasks
@@ -416,34 +448,6 @@ export const TimelineCard = ({
             }
 
             // [Visit A/S Complete Only] 수행 불가 사유
-            if (stepType === 'as_complete' && content.taskIncompleteReason) {
-                specificItems.push({
-                    label: (
-                        <Box bg="red.50" color="red.500" fontSize="10px" px={1.5} h="18px" borderRadius="4px" display="inline-flex" alignItems="center" justifyContent="center" fontWeight="bold" mt="-2px" verticalAlign="middle">
-                            사유
-                        </Box>
-                    ) as any,
-                    value: content.taskIncompleteReason,
-                    isSubItem: true,
-                    isFirstSubItem: true,
-                    pl: "56px"
-                });
-            }
-
-            // Supplies (Moved here to be above Photos/Files)
-            const supplies = content.content?.selectedSupplies || content.selectedSupplies;
-            const validSupplies = (Array.isArray(supplies) ? supplies : []).filter((s: any) => s.name && s.name.trim() !== "");
-            if (validSupplies.length > 0) {
-                const displaySupplies = validSupplies.map((s: any, idx: number) => {
-                    const circle = validSupplies.length > 1 ? String.fromCharCode(9312 + idx) : "";
-                    return `${circle}${s.name} × ${s.quantity}`;
-                }).join("\n");
-                specificItems.push({
-                    label: (stepType === 'install_complete' || stepType === 'as_complete') ? "사용" : ((stepType || "").includes("schedule") ? "준비" : "물품"),
-                    value: <Text whiteSpace="pre-wrap" lineHeight="1.6" verticalAlign="top"><ThinParen text={displaySupplies} /></Text>
-                });
-            }
-
             if (isCompleteMode && content.incompleteReason && stepType !== 'as_complete') {
                 specificItems.push({
                     label: (
@@ -456,6 +460,36 @@ export const TimelineCard = ({
                     isFirstSubItem: true,
                     pl: "56px"
                 });
+            }
+
+            // Supplies (Moved up for remoteas_complete to be above deliveryInfo)
+            const supplies = content.content?.selectedSupplies || content.selectedSupplies;
+            const validSupplies = (Array.isArray(supplies) ? supplies : []).filter((s: any) => s.name && s.name.trim() !== "");
+            if (validSupplies.length > 0) {
+                const supplyLabel = stepType === 'remoteas_complete' ? "발송" : ((stepType === 'install_complete' || stepType === 'as_complete') ? "사용" : ((stepType || "").includes("schedule") ? "준비" : "물품"));
+                const displaySupplies = validSupplies.map((s: any, idx: number) => {
+                    const circle = validSupplies.length > 1 ? String.fromCharCode(9312 + idx) : "";
+                    return `${circle}${s.name} × ${s.quantity}`;
+                }).join("\n");
+                specificItems.push({
+                    label: supplyLabel,
+                    value: <Text whiteSpace="pre-wrap" lineHeight="1.6" verticalAlign="top"><ThinParen text={displaySupplies} /></Text>
+                });
+            }
+
+            if (stepType === 'remoteas_complete' && content.deliveryInfo) {
+                const { courier, trackingNumber, shipmentDate, deliveryAddress } = content.deliveryInfo;
+                const datePart = (shipmentDate || "").split(" ")[0];
+                if (datePart || deliveryAddress) {
+                    const separator = (datePart && deliveryAddress) ? "  /  " : "";
+                    specificItems.push({ label: "배송", value: `${datePart}${separator}${deliveryAddress || ""}` });
+                }
+                if (courier) {
+                    specificItems.push({ label: "업체", value: courier, isSubItem: true, isFirstSubItem: true });
+                }
+                if (trackingNumber) {
+                    specificItems.push({ label: "송장", value: trackingNumber, isSubItem: true, isFirstSubItem: !courier });
+                }
             }
 
             if (stepType === 'demo_complete') {
@@ -551,12 +585,7 @@ export const TimelineCard = ({
                             <Box px={4} py={2.5} bg="gray.50">
                                 <Text fontSize="xs" color="gray.500" fontWeight="bold">· 참고사항</Text>
                             </Box>
-                            <Box flex={1} p={4} overflowY="auto" css={{
-                                '&::-webkit-scrollbar': { width: '4px' },
-                                '&::-webkit-scrollbar-track': { background: 'transparent' },
-                                '&::-webkit-scrollbar-thumb': { background: 'rgba(0,0,0,0.08)', borderRadius: '10px' },
-                                '&::-webkit-scrollbar-thumb:hover': { background: 'rgba(0,0,0,0.15)' },
-                            }}>
+                            <Box flex={1} p={4} overflowY="auto">
                                 <Text fontSize="sm" color="gray.600" fontWeight="medium" whiteSpace="pre-wrap" lineHeight="1.6">{content.memo}</Text>
                             </Box>
                         </Box>

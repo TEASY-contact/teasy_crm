@@ -143,32 +143,86 @@ export const useReportMetadata = () => {
         };
     }, [rawAssets]);
 
-    // 3.5. Fetch A/S Types (v1.3)
-    const { data: asTypes = [] } = useQuery({
-        queryKey: ["as_types", "metadata"],
+    // 3.5. Fetch A/S Types (v1.3: Separated Visit/Remote)
+    const { data: visitAsTypes = [] } = useQuery({
+        queryKey: ["as_types", "visit"],
         queryFn: async () => {
             const q = query(collection(db, "as_type_master"), orderBy("orderIndex", "asc"));
             const snap = await getDocs(q);
             return snap.docs.map(d => ({
-                value: d.id,
+                id: d.id,
+                value: d.data().name, // Use name instead of ID
                 label: d.data().name,
                 isDivider: !!d.data().isDivider
             }));
         }
     });
 
-    const asTypeOptions = useMemo(() => {
-        if (asTypes.length === 0) return [
+    const { data: remoteAsTypes = [] } = useQuery({
+        queryKey: ["as_types", "remote"],
+        queryFn: async () => {
+            const q = query(collection(db, "remote_as_type_master"), orderBy("orderIndex", "asc"));
+            const snap = await getDocs(q);
+            return snap.docs.map(d => ({
+                id: d.id,
+                value: d.data().name, // Use name instead of ID
+                label: d.data().name,
+                isDivider: !!d.data().isDivider
+            }));
+        }
+    });
+
+    const { data: remoteAsProducts = [] } = useQuery({
+        queryKey: ["as_products", "remote"],
+        queryFn: async () => {
+            const q = query(collection(db, "remote_as_product_master"), orderBy("orderIndex", "asc"));
+            const snap = await getDocs(q);
+            return snap.docs.map(d => ({
+                id: d.id,
+                value: d.data().name, // Use name instead of ID
+                label: d.data().name,
+                isDivider: !!d.data().isDivider
+            }));
+        }
+    });
+
+    const visitAsTypeOptions = useMemo(() => {
+        if (visitAsTypes.length === 0) return [
             { value: "일반점검", label: "일반점검" },
             { value: "기기수리", label: "기기수리" },
             { value: "소프트웨어", label: "소프트웨어" }
         ];
-        return asTypes.map(t => ({
+        return visitAsTypes.map(t => ({
+            value: t.isDivider ? `divider_${t.value}` : t.label, // t.label is the name
+            label: t.label,
+            isDivider: t.isDivider
+        }));
+    }, [visitAsTypes]);
+
+    const remoteAsTypeOptions = useMemo(() => {
+        if (remoteAsTypes.length === 0) return [
+            { value: "원격점검", label: "원격점검" },
+            { value: "원격수리", label: "원격수리" },
+            { value: "소프트웨어", label: "소프트웨어" }
+        ];
+        return remoteAsTypes.map(t => ({
             value: t.isDivider ? `divider_${t.value}` : t.label,
             label: t.label,
             isDivider: t.isDivider
         }));
-    }, [asTypes]);
+    }, [remoteAsTypes]);
+
+    const remoteAsProductOptions = useMemo(() => {
+        if (remoteAsProducts.length === 0) return [
+            { value: "뷰라클", label: "뷰라클" },
+            { value: "CRM", label: "CRM" }
+        ];
+        return remoteAsProducts.map(t => ({
+            value: t.isDivider ? `divider_${t.value}` : t.label,
+            label: t.label,
+            isDivider: t.isDivider
+        }));
+    }, [remoteAsProducts]);
 
     // 4. Process Manager Options (Memoized)
     const managerOptions = useMemo(() => {
@@ -204,7 +258,9 @@ export const useReportMetadata = () => {
         managerOptions,
         products: processedAssets.products,
         inventoryItems: processedAssets.inventoryItems,
-        asTypeOptions,
+        visitAsTypeOptions,
+        remoteAsTypeOptions,
+        remoteAsProductOptions,
         rawAssets,
         holidayMap,
         isLoadingMetadata: isLoadingAssets || isLoadingUsers

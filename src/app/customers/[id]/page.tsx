@@ -47,7 +47,7 @@ export default function CustomerDetailPage({ params: paramsPromise }: { params: 
 
     return (
         <Box p={8} bg="gray.50" minH="100vh" position="relative" pb={20}>
-            <Global styles={{ 'html, body': { scrollbarWidth: 'none', msOverflowStyle: 'none', '&::-webkit-scrollbar': { display: 'none' } } }} />
+
 
             <Flex
                 align="center" mb={8} onClick={() => router.back()} cursor="pointer"

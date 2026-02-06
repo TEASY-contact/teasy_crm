@@ -13,6 +13,7 @@ import { InstallScheduleForm } from "./reports/InstallScheduleForm/index";
 import { InstallCompleteForm } from "./reports/InstallCompleteForm/index";
 import { AsScheduleForm } from "./reports/AsScheduleForm/index";
 import { AsCompleteForm } from "./reports/AsCompleteForm/index";
+import { RemoteAsCompleteForm } from "./reports/RemoteAsCompleteForm/index";
 import { Activity, Customer } from "@/types/domain";
 import {
     TeasyButton,
@@ -132,6 +133,7 @@ const ReportDetailModalContent = ({ onClose, customer, activity, activities = []
         if (activity.type === "install_complete") return <InstallCompleteForm {...commonProps} />;
         if (activity.type === "as_schedule") return <AsScheduleForm {...commonProps} />;
         if (activity.type === "as_complete") return <AsCompleteForm {...commonProps} />;
+        if (activity.type === "remoteas_complete") return <RemoteAsCompleteForm {...commonProps} />;
         return <StandardReportForm {...commonProps} />;
     };
 
@@ -168,15 +170,6 @@ const ReportDetailModalContent = ({ onClose, customer, activity, activities = []
                 p={8}
                 maxH="calc(100vh - 250px)"
                 overflowY="auto"
-                css={{
-                    '&::-webkit-scrollbar': { width: '4px' },
-                    '&::-webkit-scrollbar-track': { background: 'transparent' },
-                    '&::-webkit-scrollbar-thumb': {
-                        background: 'rgba(0,0,0,0.08)',
-                        borderRadius: '10px'
-                    },
-                    '&::-webkit-scrollbar-thumb:hover': { background: 'rgba(0,0,0,0.15)' },
-                }}
             >
                 {/* Focus Guard: Prevent initial focus from jumping to the first active button (like File Confirm) */}
                 <Box tabIndex={0} w={0} h={0} opacity={0} position="absolute" />

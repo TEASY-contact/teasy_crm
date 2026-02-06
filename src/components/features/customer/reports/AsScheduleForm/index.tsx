@@ -138,7 +138,7 @@ export const AsScheduleForm = forwardRef<AsScheduleFormHandle, AsScheduleFormPro
     defaultManager = ""
 }, ref) => {
     const toast = useToast();
-    const { managerOptions, asTypeOptions, products, inventoryItems } = useReportMetadata();
+    const { managerOptions, visitAsTypeOptions: asTypeOptions, products, inventoryItems } = useReportMetadata();
     const {
         formData, setFormData,
         isLoading,

@@ -457,7 +457,7 @@ export const InstallCompleteForm = forwardRef<InstallCompleteFormHandle, Install
                             <Box>
                                 <HStack justify="space-between" align="center">
                                     <TeasyFormLabel sub mb={2}>시공 전</TeasyFormLabel>
-                                    <Text fontSize="11px" color="gray.400" pr={3.5} fontWeight="bold" mt={-1}>✓</Text>
+                                    <Text fontSize="11px" color="gray.400" pr={5.5} fontWeight="bold" mt={-1}>✓</Text>
                                 </HStack>
                                 <VStack spacing={2} align="stretch">
                                     {formData.tasksBefore.map((task, idx) => (
@@ -498,7 +498,7 @@ export const InstallCompleteForm = forwardRef<InstallCompleteFormHandle, Install
                             <Box>
                                 <HStack justify="space-between" align="center">
                                     <TeasyFormLabel sub mb={2}>시공 후</TeasyFormLabel>
-                                    <Text fontSize="11px" color="gray.400" pr={3.5} fontWeight="bold" mt={-1}>✓</Text>
+                                    <Text fontSize="11px" color="gray.400" pr={5.5} fontWeight="bold" mt={-1}>✓</Text>
                                 </HStack>
                                 <VStack spacing={2} align="stretch">
                                     {formData.tasksAfter.map((task, idx) => (

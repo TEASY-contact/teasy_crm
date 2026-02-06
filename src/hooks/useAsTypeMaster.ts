@@ -23,13 +23,13 @@ export interface AsTypeItem {
     orderIndex?: number;
 }
 
-export const useAsTypeMaster = () => {
+export const useAsTypeMaster = (collectionName: string = "as_type_master") => {
     const [asTypes, setAsTypes] = useState<AsTypeItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         const q = query(
-            collection(db, "as_type_master"),
+            collection(db, collectionName),
             orderBy("orderIndex", "asc")
         );
 
@@ -43,14 +43,14 @@ export const useAsTypeMaster = () => {
         });
 
         return () => unsubscribe();
-    }, []);
+    }, [collectionName]);
 
     const addAsType = async (name: string) => {
         if (!name.trim()) return;
         const exists = asTypes.some(d => d.name === name.trim() && !d.isDivider);
         if (exists) throw new Error("이미 존재하는 유형명입니다.");
 
-        await addDoc(collection(db, "as_type_master"), {
+        await addDoc(collection(db, collectionName), {
             name: name.trim(),
             isDivider: false,
             orderIndex: asTypes.length > 0 ? Math.max(...asTypes.map(d => d.orderIndex || 0)) + 1 : 0,
@@ -59,7 +59,7 @@ export const useAsTypeMaster = () => {
     };
 
     const addDivider = async () => {
-        await addDoc(collection(db, "as_type_master"), {
+        await addDoc(collection(db, collectionName), {
             name: "---",
             isDivider: true,
             orderIndex: asTypes.length > 0 ? Math.max(...asTypes.map(d => d.orderIndex || 0)) + 1 : 0,
@@ -68,13 +68,13 @@ export const useAsTypeMaster = () => {
     };
 
     const removeAsType = async (id: string) => {
-        await deleteDoc(doc(db, "as_type_master", id));
+        await deleteDoc(doc(db, collectionName, id));
     };
 
     const updateOrder = async (newOrder: AsTypeItem[]) => {
         const batch = writeBatch(db);
         newOrder.forEach((item, index) => {
-            const ref = doc(db, "as_type_master", item.id);
+            const ref = doc(db, collectionName, item.id);
             batch.update(ref, { orderIndex: index });
         });
         await batch.commit();

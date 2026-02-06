@@ -308,7 +308,7 @@ export const TeasyUniversalViewer = ({ isOpen, onClose, files = [], initialIndex
                             )}
                         </Box>
                         <Box px={6} py={3} bg="white" borderTop="1px solid" borderColor="gray.100" h="65px" display="flex" alignItems="center" justifyContent="center" overflow="hidden">
-                            <HStack spacing={1.5} justify="center" wrap="nowrap" mx="auto" overflowX="auto" overflowY="hidden" sx={{ '&::-webkit-scrollbar': { display: 'none' } }}>
+                            <HStack spacing={1.5} justify="center" wrap="nowrap" mx="auto" overflowX="auto" overflowY="hidden">
                                 {files.map((file: any, idx: number) => {
                                     const isCurrent = idx === currentIndex;
                                     const fExt = getTeasyFileExt(file);

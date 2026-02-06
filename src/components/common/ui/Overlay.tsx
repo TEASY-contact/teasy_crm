@@ -33,16 +33,7 @@ export const TeasyModalBody = (props: any) => (
         flex="1"
         overflowY="auto"
         overflowX="hidden"
-        css={{
-            '&::-webkit-scrollbar': { width: '4px' },
-            '&::-webkit-scrollbar-track': { background: 'transparent' },
-            '&::-webkit-scrollbar-thumb': {
-                background: 'rgba(0,0,0,0.08)',
-                borderRadius: '10px'
-            },
-            '&::-webkit-scrollbar-thumb:hover': { background: 'rgba(0,0,0,0.15)' },
-            '&::-webkit-scrollbar:horizontal': { display: 'none' }
-        }}
+        overscrollBehavior="contain"
         {...props}
     />
 );

@@ -15,14 +15,7 @@ export const SideStatusCard = ({ title, count, children, placeholder, isEmpty, .
             display={!isEmpty ? "block" : "flex"}
             alignItems="center"
             justifyContent={!isEmpty ? "flex-start" : "center"}
-            sx={{
-                '&::-webkit-scrollbar': { width: '4px' },
-                '&::-webkit-scrollbar-track': { background: 'transparent' },
-                '&::-webkit-scrollbar-thumb': {
-                    background: '#CBD5E0',
-                    borderRadius: '10px'
-                },
-            }}
+
         >
             {!isEmpty ? children : <TeasyPlaceholderText>{placeholder}</TeasyPlaceholderText>}
         </Box>

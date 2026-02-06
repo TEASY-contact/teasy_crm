@@ -38,20 +38,12 @@ export const ClientLayout = ({ children }: { children: React.ReactNode }) => {
         <>
             <Sidebar />
             <Box
+                className="teasy-main-container"
                 ml="221px"
                 bg="gray.50"
                 h="100vh"
                 overflowY="auto"
                 p={5}
-                css={{
-                    '&::-webkit-scrollbar': { width: '6px' },
-                    '&::-webkit-scrollbar-track': { background: 'transparent' },
-                    '&::-webkit-scrollbar-thumb': {
-                        background: 'rgba(0,0,0,0.05)',
-                        borderRadius: '10px'
-                    },
-                    '&::-webkit-scrollbar-thumb:hover': { background: 'rgba(0,0,0,0.1)' }
-                }}
             >
                 {children}
             </Box>
