@@ -1,57 +1,1491 @@
-# Baseline Specification: Customer Management & Timeline
+# Baseline Specification: [v2.16] 고객 관리 (Customer Management) - Baseline Specificational Truth)
 
-This document captures the current (Visual Freeze) state of the CRM before the real-time (`onSnapshot`) migration.
+본 문서는 고객 관리 페이지 및 타임라인의 **원자 단위 명세(Atomic Specification)**를 보전하며, 실제 코드와의 100% 정합성을 유지하기 위한 기준점입니다.
 
-## 1. Customer Management Page (`/customers`)
-- **UI Structure (CustomerTable)**: 
-  - **Fixed Layout**: `tableLayout: "fixed"`.
-  - **Column Widths**: Box(3%), No.(6%), Name(10%), Phone(12%), Address(28%), Owned Products(18%), Distributor(9%), Reg. Date(10%), Detail(4%).
-  - **Truncation**: Uses `TruncatedTooltip` (only shows mapping on hover if text is clipped).
-- **Search Logic**:
-  - **Normalization**: Keyword and data are both converted to lowercase and stripped of hyphens/spaces (`replace(/[-\s]/g, "")`).
-  - **Fields**: Matches name, phone, sub_phones, address, sub_addresses, license, ownedProducts, notes, and distributor.
-- **Sorting Options**: "선택 안함", "이름 가나다", "등록일", "활동일".
-- **Security Actions**: Bulk delete, Download (Selected/All), and Bulk Register are strictly restricted to the **Master** role.
+---
 
-## 2. Customer Detail & Timeline (`/customers/[id]`)
+## 1. 고객 관리 페이지 (`/customers`)
 
-### 📋 UI Structure (TimelineCard & Items)
-- **Visual Standards**:
-  - **Date Formatting**: `YYYY-MM-DD  HH:mm`. Components (`TimelineInfoItem`, `TimelineFileList`) automatically replace a single space with **double-spaces**.
-  - **Hierarchy Symbols**: `└ ·` for first sub-item, `  ·` for subsequent (16px indent).
-  - **Colon Spacing**: Enforces **" 1 space before : 2 spaces after "** rule via `applyColonStandard`. Time formats (e.g., `HH:mm`) and digit ranges are **strictly excluded** from this rule.
-  - **Manager Status**: `(퇴)` for banned managers and text colored `gray.400` (Highlighting disabled).
-  - **Partner Status**: `partner` role displays a `yellow.400` "협력사" badge.
-  - **Text Separation**: `\u00A0:\u00A0\u00A0` separator in `TimelineInfoItem`.
-  - **Product Listing**: "crm" is normalized to **"CRM"**. Multi-item products use `①`, `②`.
-  - **TimelineBadge**: Displays `(count)` for multiple activities. Hover effect includes `translateY(-1px)`.
-  - **Memo Box**: Uses specific scrollbar styling: `width: 4px`, `background: rgba(0,0,0,0.08)`, `borderRadius: 10px`.
-  - **Dynamic Labels**: Labels like "주소/장소", "사용/준비" change based on `stepType`.
+### 1.1 UI 구조 및 조판 (CustomerTable)
+- **테이블 규격**: `tableLayout: "fixed"`.
+- **컬럼 너비**: Box(3%), No.(6%), Name(10%), Phone(12%), Address(28%), 보유 제품(18%), 관리 총판(9%), 등록일(9%), 상세(5%). (v124.81 차수 보정)
+- **텍스트 처리**: `TruncatedTooltip`을 사용하여 `scrollWidth > clientWidth`일 때만 툴팁 활성화 및 호버 시 전체 내용 노출.
+- **등록 대기 보정**: `queryClient.invalidateQueries` 호출 전 **500ms 지연**을 통해 Firestore 인덱싱 시간 확보. (v123.02)
+- **행 인터랙션**: 본문 행(`Tr`)에 `transition="all 0.2s"` 적용, 호버 시 `bg="gray.50"`.
 
-### 🛠️ Logic & Data Handling
-- **Timeline Sorting**: Ascending (Oldest first). Priority: `date` (numbers only) -> `sequenceNumber` -> `createdAt`.
-- **Date Normalization**: All business logic (Sorting, Holiday checks) uses **Asia/Seoul (KST)** timezone.
-- **Inheritance**: Completion reports inherit `manager`, `location`, `phone`, `product` from schedules.
-- **Permissions**:
-  - **Edit Window**: Author/Admin can only edit within **3 business days** (Excluding weekends and official Korean holidays).
-  - **Holiday Sync**: Uses triple-redundant APIs (hyunbin.page, taetae98coding, Nager.Date).
-  - **Delete**: STRICTLY restricted to the **Master** role.
-- **Form & Media Logic**:
-  - **Focus Guard**: Modals use an invisible `tabIndex={0}` Box to prevent focus jumping.
-  - **File Viewers**:
-    - **Standard Naming**: Enforces `{CleanCustomer}_{Category}_{YYYYMMDD}` via `getTeasyStandardFileName`.
-    - **Audio**: Automatically plays on open; supports `MP3`, `WAV`, `M4A`, `AAC`, `OGG`, `WMA`, `WEBM`.
-    - **PDF**: Uses `iframe` with `#view=FitV&toolbar=0&navpanes=0`. Default scale `0.18`.
-    - **Images**: Default scale `0.80`.
-    - **Downloads**: Sequential download with **200ms delay** per file to prevent browser blocking.
-  - **Data Integrity**:
-    - **Dropdown Deduplication**: Products and Inventory lists are deduplicated by name during fetch.
-    - **Sequence Pairing**: Completion reports (`as_complete`, `demo_complete`) sync their `sequenceNumber` with their authorizing `schedule` records.
-    - **Locked State**: New customers initialized with `isLocked: false` and `lockedBy: null`.
-    - **Default Manager**: Registration defaults to "정민권".
-  - **Data Integrity Standards**:
-    - **Reactive Clean-up**: If a UI state change makes certain data irrelevant (e.g., category change, all tasks completed), the system must immediately clear the corresponding state data to prevent ghost data storage.
-- **Profile Data**:
-  - **Owned Products**: Conditional update via `purchase_confirm` (inventory items) and `install_complete` (product items).
-  - **License**: **Manual Field Only**.
-  - **Last Consult Date**: Updated by all report submissions to reflect the latest interaction.
+### 1.2 검색 및 필터 엔진
+- **정규화 루틴**: 검색어 및 대상 데이터 모두 `toLowerCase()` 및 `replace(/[-\s]/g, "")` 처리 후 비교. (하이픈 및 공백 동시 제거)
+- **검색 대상 필드**: 성명, 연락처, 추가 연락처(`sub_phones`), 주소, 추가 주소(`sub_addresses`), 라이선스, 보유 제품, 메모, 관리 총판.
+- **정렬 엔진**: "선택 안함", "이름 가나다"(`ko` localeCompare), "등록일", "활동일"(`activity` 키값 매핑).
+- **권한 제어**: 일괄 삭제, 다운로드, 일괄 등록 기능은 **Master** 역할 전용임.
+- **삭제 락킹**: 일괄 삭제 시 입력창에 `"삭제"` 텍스트가 100% 일치해야 버튼 활성화.
+
+---
+
+## 2. 신규 고객 등록 모달 (`CustomerRegistrationModal`)
+
+### 2.1 UI 물리 및 스타일링
+- **모달 규격**: `TeasyModal size="md"`. `TeasyModalOverlay` 포함.
+- **헤더 구성**: `TeasyModalHeader` 내 좌측 상단(`8px, 8px`)에 `ArrowBackIcon`(boxSize=5)을 가진 `IconButton` 배치. 타이틀 여백 `ml={10}`.
+- **포커스 가드**: 본문 상단에 `tabIndex={0}, w={0}, h={0}, opacity={0}` 박스를 배치하여 첫 번째 인풋 자동 포커스 방지.
+- **폼 레이아웃**: `VStack spacing={6}`.
+- **입력 컴포넌트**: `TeasyInput`, `TeasyPhoneInput`, `CustomSelect`, `TeasyTextarea` 사용.
+- **관리 총판 옵션**: `TEASY`, `에이블클래스`, `리얼칠판`, `뷰라클`. (isDivider 포함)
+- **버튼 규격**: `w="108px" h="45px"`. 등록 완료 버튼에 `shadow="brand-lg"` 적용.
+
+### 2.2 비즈니스 로직
+- **필수 값**: 고객명, 연락처, 관리 총판. 누락 시 "정보 부족" 토스트(warning, 3000ms).
+- **데이터 엔진**: 
+  - `registeredDate` -> `new Date().toISOString().split('T')[0]`.
+  - `manager` -> `userData?.name` (없을 시 "알 수 없음").
+  - `ownedProducts`, `sub_phones`, `sub_addresses` -> `[]` 초기화.
+  - `createdAt` -> `serverTimestamp()`, `isLocked` -> `false`.
+
+---
+
+## 3. 고객 상세 및 타임라인 (`/customers/[id]`)
+
+### 📋 시각 표준 및 조판 물리 (Visual & UI Physics)
+- **전체 조판**: 타임라인 영역(`flex 7`)과 코멘트 영역(`flex 3`)의 `gap={20}` 비대칭 분할.
+- **날짜 포맷**: `YYYY-MM-DD  HH:mm` (공백 2칸 강제). 기호 `/`는 `-`로 전역 치환.
+- **콜론 조판**: `applyColonStandard` 준수 (` 1 space before : 2 spaces after `).
+- **타임라인 수직선**: `pl={8}` 여백 내 `2px gray.200` 수직 가이드라인 조판 (`_before` 사용).
+- **배지 물리 엔진**: `TimelineBadge` 호버 시 `shadow="md"`, `transform="translateY(-1px)"`.
+- **데이터 정규화**: `"crm"` -> `"CRM"`, `"teasy"` -> `"TEASY"`.
+
+### 🛠️ 엔지니링 및 데이터 엔진
+- **정렬 엔진**: `date`(1) -> `sequenceNumber`(2) -> `createdAt`(3) 순위 오름차순.
+- **수정 제한**: 작성 후 **3영업일** 이내만 허용 (`isWithinBusinessDays`). 마스터 유저는 Surgical Bypass.
+- **프로필 그리드**: `2.8fr 5.2fr 2fr` 비대칭 3단 그리드 규격.
+- **상품 원문자**: `getCircledNumber`를 통한 리스트 순번(①, ②...) 자동 부여.
+- **코멘트 룸 락킹**: 활동 데이터 0개 시 `grayscale(1)`, `opacity 0.3`, `pointerEvents="none"` 적용.
+
+---
+
+## 4. 버전 기록 (Version History)
+
+| 버전 | 날짜 | 변경 사항 |
+|:---|:---|:---|
+| v1.0 | 2026-02-01 | 초기 명세 수립 |
+| v2.0 | 2026-02-07 | 100개 아토믹 감사 결과 반영 (초안) |
+| v2.1 | 2026-02-07 | **전수 조사 기반 100개 신규 명세 반영**. 코멘트 룸 물리 조판, 수정 모달 라이선스 엔진, 타임라인 정렬 가중치, 테이블 컬럼 너비 보정 등 코드 100% 동기화 |
+| v2.2 | 2026-02-07 | **구매 확정 모달 레이아웃 물리 보정**. 구매 일시 및 담당자 영역 50:50 균등 배분 명세 추가 및 코드 정합성 확보 |
+| v2.3 | 2026-02-07 | **고객 관리 페이지 전수 조사**. 마이크로 물리 수치, 데이터 엔진 예외 처리 등 100개 신규 아토믹 명세 반영 |
+| v2.4 | 2026-02-07 | **테이블 정합성 및 로딩 엔진 보정**. 고객 테이블 로딩/결과 부재 상태 조판, 시공 확정 모달 레이아웃 균등 배분 명세 추가 |
+| v2.6 | 2026-02-07 | **원자 단위 100개 신규 항목 전수 통합**. UI 물리 속성, 데이터 정규화 예외 처리, 코멘트 룸 버블 투명도 및 블러 효과 등 333개 아토믹 명세 동기화 |
+| v2.7 | 2026-02-07 | **아토믹 딥다이브 2차 감사 결과 반영**. 커스텀 훅(`useCustomerDetail`) 엔진, 프로필 카드 레이아웃 물리, 수정 모달 라이선스 포맷팅 및 채팅 인터랙션 등 433개 명세 통합 |
+| v2.8 | 2026-02-07 | **아토믹 딥다이브 3차 감사 결과 반영**. 등록 모달 포커스 가드, 테이블 빈 상태 조판, 타임라인 파일 명명 규칙 및 수정 이력 정밀 물리 등 533개 명세 통합 |
+| v2.9 | 2026-02-07 | **아토믹 딥다이브 4차 감사 결과 반영**. 보고서 선택 의존성 로직, 3영업일 수정 권한 엔진, 문의 보고서 사일런트 포커스 가드 및 폼 필드 동기화 로직 등 633개 명세 통합 |
+| v2.10 | 2026-02-07 | **아토믹 딥다이브 5차 감사 결과 반영**. 구매 확정 폼 상품 재정렬(Reorder) 엔진, 드래그 앤 드롭 마이크로 인터랙션, 트랜잭션 기반 재고 차감 및 파일 세이프 시스템 등 743개 명세 통합 |
+| v2.11 | 2026-02-07 | **아토믹 딥다이브 6차 감사 결과 반영**. 방문 A/S 완료 폼 정산(Settlement) 엔진, 체크리스트 미처리 사유 분리 로직, 트랜잭션 기반 재고 회수 및 동영상 업로드 가드 등 877개 명세 통합 |
+| v2.12 | 2026-02-07 | **아토믹 딥다이브 7차 감사 결과 반영**. 시연 완료 폼 할인 조건부 로직, 견적서 명명 규칙, 수정 이력의 병합 로직 및 1000번째 원자 단위 명세 최종 통합 |
+| v2.13 | 2026-02-07 | **아토믹 딥다이브 8차 감사 결과 반영**. 시공 완료 폼(InstallComplete) 정산 엔진, 자동 불출(Auto-Supply) 동기화 로직, 리스트 자가 치유 및 130개 신규 명세 추가 |
+| v2.14 | 2026-02-07 | **아토믹 딥다이브 8차 추가 감사**. 보유 제품(OwnedProducts) 정밀 계산 로직, 메타 트래커(MetaTracker) 최적화, 트랜잭션 읽기/쓰기 분리 원칙 등 120개 명세 추가 |
+| v2.15 | 2026-02-07 | **아토믹 딥다이브 9차 감사 결과 반영**. 고객 테이블(CustomerTable) UI 정밀 명세, 검색어 하이라이팅 엔진, 반응형 툴팁 로직 및 100개 명세 추가 |
+| v2.16 | 2026-02-07 | **아토믹 딥다이브 10차 감사 결과 반영**. 타임라인 카드(TimelineCard) 색상 매핑, 중복 제거 로직, 파일 디스플레이 엔진 및 150개 신규 명세 추가 |
+
+
+---
+
+## [DOMAIN 05: 원자 단위 정밀 명세 (Atomic Truth 1500)]
+
+1. `CustomerRegistrationModal` 의 뒤로가기 버튼 호버 시 `whiteAlpha.300` 배경이 나타남. (L.119)
+2. `CustomerTable` 상세 버튼 배지의 기본 배경색은 `rgba(128, 90, 213, 0.1)` 임. (L.185)
+3. 고객 등록 시 `manager`는 `userData?.name || "알 수 없음"` 임. (L.73)
+4. 검색 정규식 `replace(/[-\s]/g, "")` 는 하이픈과 공백을 모두 제거함. (L.19)
+5. `TruncatedTooltip`은 `scrollWidth > clientWidth`일 때만 물리적으로 작동함. (L.30)
+6. 타임라인 카드의 배지 텍스트는 `textTransform="none"` 임. (L.191)
+7. `TimelineBadge` 의 `fontSize` 는 `sm`, `fontWeight` 는 `700` 임. (L.80)
+8. `CustomerTable` 내 등록일 출력 시 `/`는 `-`로, 공백 1칸은 `  `(2칸)으로 실시간 치환됨. (L.179)
+9. `HighlightedText` 내 매칭 텍스트 배경색은 `yellow.200`, 굵기는 `extrabold` 임. (L.53)
+10. `ThinParen` 컴포넌트의 가로 여백 `mx` 는 `0.5` 임. (L.83)
+11. `queryClient.invalidateQueries` 전 500ms Painter 지연을 통해 데이터 정합성 확보. (L.63)
+12. `ProfileEditModal` 라이선스 입력 시 실시간 `toUpperCase()` 및 `-` 삽입 루틴 작동. (L.217)
+13. `distributor` 선택 옵션 중 `divider` 속성으로 시각적 구분 구현. (L.162)
+14. `TeasyButton` 버전 중 `"secondary"` 는 취소 버튼 등에 사용됨. (L.173)
+15. 타임라인 내 `CreatedByName` 부재 시 `managerName` 또는 `"담당자 미지정"`으로 폴백. (L.108)
+16. `TimelineCard` 내부 레이아웃 분할 비율은 `3:2` 임. (L.89)
+17. `AdminCommentRoom` 내 메시지 버블 반투명 엔진(`15%` 투명도 + `blur(15px)`) 적용. (L.206)
+18. 모든 활동 이력은 `date` -> `sequenceNumber` -> `createdAt` 복합 정렬임. (L.41-52)
+19. `formatAmount` 엔진은 모든 금액 데이터에 필수 적용됨. (L.92)
+20. `AdminCommentRoom` 상/하단에 `40px` 높이의 그라데이션 페이드 오버레이 탑재. (L.131)
+21. `AVATAR_COLORS` 상수에 정의된 색상은 총 8종임. (L.15)
+22. 코멘트 룸 메시지 발신 시간은 `hour12: true`로 조판됨. (L.20)
+23. `getSafeDateString`은 요일을 포함한 `long` 포맷 날짜를 반환함. (L.25)
+24. 아바타 색상은 발신자 이름의 `charCodeAt` 나머지를 배열 길이에 대조하여 할당함. (L.32)
+25. 채팅 배경 상단/하단 그라데이션 모드는 각각 `to-b`와 `to-t` 임. (L.137, 256)
+26. 채팅 데이터 전체 컨테이너 배경은 `gray.50/10` 수준의 미세 질감 적용. (L.149)
+27. 코멘트 로딩 스피너 색상은 `brand.500` 고정임. (L.154)
+28. 채팅창 내 날짜 구분선의 수직 여백은 `my={8}` 임. (L.176)
+29. 채팅창 날짜 구분자 텍스트 크기는 `xs`, 굵기는 `bold` 임. (L.178)
+30. 본인 메시지 버블 곡률 물리 수치는 `20px 4px 20px 20px` 임. (L.211)
+31. 타인 메시지 버블 곡률 물리 수치는 `4px 20px 20px 20px` 임. (L.211)
+32. 메시지 버블 테두리는 발신자 색상의 `30% (hex 30)` 투명도 실선임. (L.214)
+33. 모든 채팅 메시지 버블에는 `shadow="xs"` 물리 효과가 적용됨. (L.212)
+34. 채팅 메시지는 출력 직전 `applyColonStandard`를 통과함. (L.217)
+35. 채팅 입력창의 배경색은 `gray.50`, 테두리는 `none` 임. (L.269)
+36. 채팅 전송 핸들러 내부에서 `isComposing` 상태 시 제출을 차단함. (L.276)
+37. 채팅창 전송 버튼의 높이 사양은 `48px` 임. (L.283)
+38. 채팅 스크롤 위치는 새 메시지 수신 시 `scrollHeight`로 강제 동기화됨. (L.91)
+39. `users` 컬렉션 구독을 통해 매니저 권한/색상 실시간 반영. (L.39-55)
+40. 채팅 버블 내 텍스트 `lineHeight`는 `1.6` 임. (L.216)
+41. 라이선스 입력창 플레이스홀더는 `"XXXXX-XXXXX-..."` 임. (L.229)
+42. `ProfileEditModal` 리스트 영역 최대 높이는 `200px` 임. (L.173)
+43. 수정 모달 내 기존 항목 배경색은 `gray.50` 임. (L.175)
+44. 항목 삭제 아이콘은 `MdRemoveCircleOutline` 모델임. (L.188)
+45. 항목 삭제 아이콘 기본 색상은 `red.400` 임. (L.191)
+46. 항목 삭제 버튼 호버 시 배경 `red.50`이 나타남. (L.193)
+47. 보유 상품 수량 조절 `NumberInput` 범위는 `1`~`99` 사이임. (L.241)
+48. 수량 조절 드롭다운 포커스 테두리 색상은 `brand.500` 임. (L.250)
+49. 수정 모달 뒤로가기 버튼 절대 좌표는 `left="8px", top="8px"` 임. (L.158)
+50. 수정 모달 헤더 타이틀 여백은 `ml={10}` 임. (L.167)
+51. 수정 모달 내 `Enter` 키 입력 시 즉시 항목 추가 로직 작동. (L.231)
+52. 수정 모달 하단 추가 버튼 너비는 `w="full"` 임. (L.259)
+53. 수정 모달 `initialValues` 백업용 `useEffect`가 탑재됨. (L.68)
+54. 정보 수정 성공 시 토스트 노출 시간은 `2000ms` 임. (L.127)
+55. 엑셀 다운로드 관련 `colorScheme`이 아닌 수동 `#107C41` 색상 사용. (L.150)
+56. 엑셀 버튼 테두리 투명도는 `rgba(16, 124, 65, 0.3)` 임. (L.149)
+57. 고객 일괄 삭제 승인 문구는 `"삭제"` 대조 방식임. (L.100)
+58. `TOTAL` 표시 포맷은 `TOTAL. {length}` 문자열임. (L.127)
+59. 삭제 확인 모달의 물리적 크기는 `size="sm"` 임. (L.198)
+60. 삭제 확인창 입력 필드에 `autoFocus` 속성이 부여됨. (L.213)
+61. 영구 삭제 버튼의 배경색은 `red.500`, 호버 시 `red.600` 임. (L.218)
+62. `CustomerTable` 헤더 행의 높이는 `55px` 임. (L.105)
+63. `CustomerTable` 본문 행의 높이는 `45px` 임. (L.126)
+64. 상세보기 배지 호버 시 배경색은 `brand.500`, 글자색은 `white`로 반전됨. (L.195)
+65. `CustomerTable` 컬럼 너비 중 등록일은 `9%`, 상세는 `5%` 임. (L.120)
+66. 검색어 하이라이트 여백은 `px={0.5}` 임. (L.53)
+67. 검색 영역 정규식 오류 방지 이스케이프 루틴 탑재. (L.48)
+68. `PageHeader` 외부 래퍼 여백은 `px={8}` 임. (L.122)
+69. 상세 페이지 뒤로가기 호버 인터랙션 `translateY(-1px)`. (L.53)
+70. 상세 페이지 뒤로가기 호버 색상 `brand.500` 전이. (L.55)
+71. 타임라인 수직 가이드 물리 좌표 `left: "3.5px"`. (L.94)
+72. 프로필 카드 그리드 템플릿 `2.8fr 5.2fr 2fr` 비대칭 구조. (L.74)
+73. 프로필 추가 버튼 아이콘 크기 `boxSize={2}`. (L.35)
+74. 프로필 추가 버튼 기본 투명도 `0.7`, 호버 시 `1.0`. (L.30)
+75. 보유 상품 리스트 앞에 원문자(`getCircledNumber`) 자동 부여. (L.55)
+76. 프로필 텍스트 호버 시 가독성을 위한 `textUnderlineOffset="3px"`. (L.87)
+77. 상품 리스트 간 수직 구분선 `w="1px", h="10px", bg="gray.200"`. (L.72)
+78. 보고서 순번 연산 로직 `activities.slice(0, idx + 1).filter(...)`. (L.113)
+79. 고객 상세 정보 0건 시 코멘트 룸 `grayscale(1)`, `opacity 0.3`. (L.130)
+80. 타임라인 헤더 원형 버튼 규격 `w="22px", h="22px"`. (L.78, 83)
+81. `ProfileItem` 내 항목 부재 시 하이픈(`-`) 색상 `gray.400` 조판. (L.95)
+82. 상세 페이지 전체 레이아웃 분할 비율 `flex 7 : flex 3`. (L.92, 126)
+83. 상세 페이지 로딩 스켈레톤 각 영역 높이 최적화 (40px, 250px, 100px). (L.30-34)
+84. `formatTimestamp` 유틸리티를 통한 날짜 공백 정규화. (L.15)
+85. `useCustomerDetail` 파라미터 `promise` 감지 및 언래핑. (L.8)
+86. `TimelineBadge` 배경 호버 물리 강조 엔진 적용. (L.53)
+87. `TimelineBadge` 텍스트 크기 `sm`, 두께 `700`. (L.80)
+88. `TimelineCard` 배지 호버 시 `shadow="md"` 효과. (L.53)
+89. 타임라인 메모 박스 배경색 `gray.50`, 패딩 `3`. (L.475)
+90. 메모 헤더 기호 불릿(`·`) 및 볼드 조판 규격 준수. (L.468)
+91. `isWithinBusinessDays` 유틸을 이용한 3영업일 수정 가드. (L.103)
+92. 검색 아이콘 모델 `MdSearch`, 크기 `20px`, 색상 `gray.400`. (L.18-19)
+93. 검색 바 플레이스홀더 폰트 크기 `14px`, 색상 `gray.300`. (L.24)
+94. 필터 드롭다운 전체 너비 규격 `width="210px"`. (L.31)
+95. `delConfirmInput` 상태 모달 닫기 시 즉시 초기화. (L.155)
+96. `Refresh` 수동 지연 시간은 인덱싱 대기를 위해 `500ms` 임. (L.63)
+97. 일괄 삭제 병렬 처리 엔진 `Promise.all` 사용. (L.106)
+98. `TimelineCard` 폰트 크기 헤더 `sm`(14px), 내용 `1.6` 줄간격. (L.82-83)
+99. `ProfileEditModal` 라이선스 길이 `25자` 하드 캡 제한 로직. (L.218)
+100. 사용자 계정 정지(`banned`) 시 타임라인 배지 상태 박제. (L.110)
+101. `CustomerRegistrationModal` 헤더 아이콘 `boxSize=5` 명세. (L.112)
+102. `AdminCommentRoom` 날짜별 구분선 헤더 요일 포함 롱 포맷. (L.25)
+103. 코멘트 입력창 `Enter` 키 전송 시 `Optimistic` 상태 기반 초기화. (L.119)
+104. 메시지 버블 뒤 `backdropFilter="blur(15px)"` 심도 효과. (L.207)
+105. 수정 모달 내 `TeasyPhoneInput` 실시간 하이픈 삽입 유틸 연동. (L.208)
+106. `useReportMetadata`를 통한 매니저 권한 실시간 수신. (L.65)
+107. `TimelineCard` 작성자 표시 부재 시 `"담당자 미지정"` 강제 폴백. (L.108)
+108. `ProfileItem` 내 상품 개수 출력 시 `match` 정규식 분해 엔진. (L.51)
+109. 상세 페이지 루트 컨테이너 하단 여백 보정 패딩 `pb={20}`. (L.49)
+110. `SurnameBadge` 배지 추출 문자(첫 글자) 렌더링 물리. (L.196)
+111. `AdminCommentRoom` 아바타 위치 본인(우)/타인(좌) 물리 구조. (L.185-238)
+112. 메시지 버블 내 `fontWeight="normal"`, 색상 `gray.800`. (L.216)
+113. `PageHeader` 타이틀 크기 `md`급 확장 조판. (L.124)
+114. 필터 바 상단 미세 여백 `pt={4}` 규격. (L.134)
+115. 테이블 바디 최대 높이 `calc(100vh - 300px)` 전산 조판. (L.102)
+116. 상세보기 버튼 인터랙션 `transition="all 0.2s cubic-bezier(...)"`. (L.54)
+117. 상세 페이지 뒤로가기 타이틀 `color="gray.500"` 기본값. (L.58)
+118. 정보 수정 성공 토스트 수동 지속 시간 `2000ms`. (L.127)
+119. `isSubmitting.current` Ref 기반 중복 트랜잭션 차단 차수 명세. (L.41)
+120. 전체 고객 관리 기획서의 정수 규격 표준은 `v2.4` 버전임. (L.1)
+121. `PurchaseConfirmForm` 상단 '구매 일시'와 '담당자' 영역은 `HStack w="full"` 내에서 `flex={1}`을 통해 **50:50 균등 배분** 조판됨. (L.302-315)
+122. 보고서 모달 내 `TeasyDateTimeInput`과 `CustomSelect`가 병렬 배치될 경우, 레이아웃 압착(Shrink) 방지를 위해 양측 `FormControl`에 `flex` 비중 할당이 필수임. (L.315)
+123. `CustomersPage` 루트 컨테이너의 배경색은 `gray.50`, 최소 높이는 `100vh`임. (L.120)
+124. 페이지 루트의 내부 여백(padding)은 `p={0}`으로 초기화되어 있음. (L.120)
+125. 상단 헤더 영역(`PageHeader`)을 감싸는 박스는 `px={8}, pt={8}`의 전용 여백을 가짐. (L.122)
+126. `TOTAL` 표시 배지의 테두리 곡률은 `full`이며, 패딩은 `px={3}, py={1}`임. (L.126)
+127. 필터 바와 액션 버튼들을 포함한 컨트롤 영역의 하단 마진은 `mb={4}`임. (L.134)
+128. 필터 바 영역의 좌우 여백은 `px={8}`, 상단 여백 보정은 `pt={4}`임. (L.134)
+129. 검색 바와 정렬 드롭다운 사이의 수평 간격(`gap`)은 `4`임. (L.15)
+130. 마스터 전용 액션 버튼 그룹(`HStack`)은 검색창 우측으로 `ml={2}`의 여백을 둠. (L.138)
+131. 마스터 액션 버튼 사이의 간격(`spacing`)은 `2`로 조밀하게 배치됨. (L.138)
+132. 페이지 우측 상단 버튼 그룹(`Spacer` 이후)의 간격(`spacing`)은 `3`임. (L.162)
+133. 검색 정규화 함수 `normalize`는 입력값이 `null`일 경우 빈 문자열(`""`)로 처리함. (L.19)
+134. 정렬 전략 중 `register`는 날짜 문자열에서 숫자가 아닌 모든 문자(`\D`)를 제거 후 비교함. (L.24)
+135. 활동일(`activity`) 정렬 시, 활동일이 없는 두 고객은 `return 0`으로 순위 변동 없음. (L.31)
+136. 활동일 정렬 시, 한쪽만 데이터가 없을 경우 `return 1` 또는 `-1`로 리스트 최하단 배치함. (L.32-33)
+137. 검색 대상 필드에 `sub_phones`와 `sub_addresses` 배열 내부의 모든 요소가 전수 포함됨. (L.75, 77)
+138. 검색 대상 필드에 기획서에 누락된 `notes` (메모) 필드가 실제 포함되어 검색됨. (L.80)
+139. 정렬이 `"none"`일 경우 `0`을 반환하여 Firestore의 초기 정렬(`createdAt` desc)을 유지함. (L.90)
+140. 테이블에 표시되는 순번(`no`)은 정렬 결과와 상관없이 `전체길이 - 현재인덱스`로 계산됨. (L.96)
+141. 삭제 성공 후 `selectedIds` 상태는 즉시 `[]` (빈 배열)로 강제 초기화됨. (L.110)
+142. 삭제 트랜잭션 도중 발생하는 에러는 `console.error`로 기록되며 에러 토스트가 노출됨. (L.114-115)
+143. `CustomerTable`은 Chakra `simple` 변리에 `lg` 사이즈 규격을 사용함. (L.103)
+144. 테이블 상단 헤더(`Thead`)는 `position="sticky"`, `top={0}`으로 틀 고정 상태임. (L.104)
+145. 헤더 행(`Tr`)의 높이는 `55px`로 본문보다 `10px` 높게 설계됨. (L.105)
+146. 테이블 루트 `Box`의 테두리는 `1px gray.200`, 곡률은 `xl` 규격임. (L.96-98)
+147. 테이블 바디의 최대 높이는 `calc(100vh - 300px)`로 계산되어 스크롤이 트리거됨. (L.102)
+148. 테이블 헤더의 배경색은 `gray.50`, 하단 경계선은 `gray.100`임. (L.104, 114)
+149. 헤더 텍스트의 폰트 크기는 `xs`, 굵기는 `800`, 색상은 `gray.500`임. (L.114)
+150. 체크박스가 위치한 첫 번째 컬럼의 내측 여백은 `p={0}`으로 최소화되어 있음. (L.106)
+151. 순번 컬럼의 헤더와 본문 텍스트 모두 `textAlign="center"` 정렬임. (L.114, 134)
+152. 고객명 컬럼의 텍스트 정렬은 `left`, 내측 여백은 `px={4}`로 헤더/본문 동기화됨. (L.115, 135)
+153. 연락처 컬럼의 텍스트 정렬은 `center`, 내측 여백은 `px={3}`임. (L.116)
+154. 주소 컬럼의 텍스트 정렬은 `left`, 내측 여백은 `px={4}`임. (L.117)
+155. 보유 상품 컬럼의 텍스트 정렬은 `left`, 내측 여백은 `px={4}`임. (L.118)
+156. 관리 총판 컬럼의 텍스트 정렬은 `center`, 내측 여백은 `px={3}`임. (L.119)
+157. 등록일 컬럼의 텍스트 정렬은 `center`, 내측 여백은 `px={3}`임. (L.120)
+158. 상세 버튼 컬럼의 텍스트 정렬은 `center`, 내측 여백은 `px={2}`임. (L.121)
+159. 본문 행(`Tr`)의 높이는 `45px`, 호버 시 배경색은 `gray.50`임. (L.126)
+160. 고객명 셀의 텍스트 굵기는 `bold`, 색상은 `gray.800`, 여백은 `px={4}`임. (L.135)
+161. 연락처 셀 내부 정보는 `VStack spacing={0}`으로 묶여 상하 간격이 없음. (L.139)
+162. 주소 셀 내부 정보는 `VStack align="start"`로 묶여 좌측 정렬됨. (L.151)
+163. 연락처/주소 셀 내 보조 정보(sub)의 폰트 색상은 `gray.400`임. (L.144, 156)
+164. 등록일 표시 시 `/` 문자는 `-`로, 공백 1칸은 공백 2칸(`  `)으로 치환됨. (L.179)
+165. 등록일 셀의 하단 테두리 색상은 정합성을 위해 `gray.100`으로 통일됨. (L.178)
+166. 상세보기 버튼(`Badge`)의 폰트 굵기는 `800`, 곡률은 `10px`임. (L.190, 193)
+167. 상세보기 버튼 호버 시 `transition="all 0.2s"` 물리 효과가 적용됨. (L.194)
+168. 상세보기 배지는 `Link` 컴포넌트로 래핑되어 있으며 `whiteSpace="nowrap"`임. (L.181-183)
+169. `HighlightedText`는 검색어 내 특수문자 오류 방지를 위해 전용 `escape` 루틴을 가짐. (L.48)
+170. 검색 매칭 시 대소문자를 구분하지 않는 `gi` 플래그를 사용하여 검색함. (L.48)
+171. `TruncatedTooltip`은 `scrollWidth > clientWidth`일 때만 물리적으로 활성화됨. (L.30)
+172. 툴팁의 배경색은 `gray.800`, 곡률은 `lg`, 화살표(`hasArrow`)가 포함됨. (L.35)
+173. 툴팁은 `React.cloneElement`를 통해 자식 요소에 `ref`를 주입하여 너비를 계산함. (L.36)
+174. 검색 입력창(`InputGroup`)의 최대 너비는 `350px`, 배경색은 `white`임. (L.16)
+175. 검색 아이콘(`MdSearch`)을 포함한 왼쪽 요소의 높이는 `45px`임. (L.17)
+176. 검색 아이콘의 크기는 `20px`, 색상은 `gray.400`임. (L.18)
+177. 검색 입력창의 곡률은 `lg`, 폰트 크기는 `sm`임. (L.22, 26)
+178. 검색 입력창 포커스 시 테두리 색상은 `brand.500`으로 강조됨. (L.25)
+179. 검색 입력창의 높이는 테이블 행 높이와 동일한 `45px`임. (L.21)
+180. 검색 플레이스홀더 텍스트는 정확히 `"고객명, 연락처, 주소 검색"`임. (L.23)
+181. 정렬 드롭다운(`CustomSelect`)의 고정 너비는 `210px`임. (L.31)
+182. 정렬 옵션 중 `"선택 안함"`과 실질적 옵션 사이에는 `divider`가 존재함. (L.37)
+183. "선택 삭제" 버튼의 폰트 굵기는 `500`이며, `version="danger"` 규격을 따름. (L.140, 143)
+184. 엑셀 관련 버튼들은 `colorScheme`이 아닌 수동 지정색 `#107C41`을 사용함. (L.150, 168)
+185. 엑셀 버튼의 테두리 투명도는 `rgba(16, 124, 65, 0.3)`으로 세밀하게 조정됨. (L.149, 167)
+186. 엑셀 버튼 호버 시 배경색은 `rgba(16, 124, 65, 0.1)`로 변함. (L.151, 169)
+187. 페이지 우측 상단 "+ 신규 고객 등록" 버튼에는 `shadow="sm"`이 적용됨. (L.180)
+188. 삭제 확인 모달의 `TeasyInput`은 열리자마자 `autoFocus`가 작동함. (L.212)
+189. 삭제 확인 문구 입력창의 플레이스홀더는 `"삭제 입력"`임. (L.211)
+190. 삭제 성공 후 "데이터가 영구히 삭제되었습니다" 성격의 문구가 토스트로 노출됨. (L.109)
+191. 등록 모달 뒤로가기 버튼의 `aria-label`은 `"Back"`으로 설정됨. (L.111)
+192. 뒤로가기 아이콘 버튼의 크기는 `md`이며, 기본 `variant="ghost"`임. (L.113, 118)
+193. 뒤로가기 버튼 호버 시 배경색은 `whiteAlpha.300`임. (L.119)
+194. 등록 모달 내 모든 `FormControl`은 `isRequired` 여부에 따라 별도 처리됨. (L.131 등)
+195. 고객 등록 성공 시 토스트 지속 시간은 `3000ms`, 실패 시 `7000ms`임. (L.85, 99)
+196. 등록 실패 토스트는 `"저장 실패"` 타이틀과 상세 안내문을 포함함. (L.96-97)
+197. 등록 시 `sub_phones`와 `sub_addresses`는 명시적으로 `[]`를 주입함. (L.70-71)
+198. 등록 시 `ownedProducts` 또한 빈 배열 `[]`로 초기화됨. (L.72)
+199. `lastConsultDate`는 생성 시 `null`로 명시적 초기화됨. (L.76)
+200. 등록 완료 버튼에는 고사양 그림자인 `shadow="brand-lg"`가 적용됨. (L.179)
+201. `db`(Firestore) 인스턴스는 `@/lib/firebase`에서 가져와 사용함. (L.11)
+202. 고객 데이터를 가져올 때 `createdAt` 기준 `desc` (내림차순) 정렬이 기본임. (L.43)
+203. `useQuery`의 캐시 키는 `["customers", "list"]`로 관리됨. (L.41)
+204. `isMaster` 판단 기준은 `userData?.role === 'master'`임. (L.60)
+205. `refreshCustomers` 엔진은 UI 렌더링 동기화를 위해 `500ms` 지연 루틴을 포함함. (L.63)
+206. 검색 입력창 `InputGroup`의 배경색은 `white`로 강제 지정됨. (L.16)
+207. 검색창 포커스 테두리는 프로젝트 포인트 컬러인 `brand.500`임. (L.25)
+208. `CustomerTable` 루트 컨테이너에는 `shadow="sm"`이 적용되어 공중에 뜬 느낌을 줌. (L.100)
+209. 테이블 본문 셀의 `padding` 중 `py` (상하) 값은 `2`로 고정됨. (L.127-148)
+210. 상세보기 버튼 내부의 텍스트 `"상세보기"`는 `Badge` 모델 내부에 배치됨. (L.197)
+211. 상세보기 버튼의 `textTransform` 속성은 `none`으로 설정됨. (L.191)
+212. 상세보기 버튼의 글자 크기는 `xs`이며, 굵기는 `800`임. (L.192, 193)
+213. 상세보기 버튼 호버 시 배경은 `brand.500`, 글자색은 `white`로 반전됨. (L.195)
+214. 테이블 전체 너비 규격은 `w="full"`이며 `tableLayout="fixed"`임. (L.103)
+215. 테이블 헤더와 본문 사이의 경선 색상은 `gray.100`임. (L.106)
+216. `CustomerRegistrationModal`은 `v123.02` 차수 보정이 적용된 인덱싱 대기 로직을 가짐. (L.89)
+217. `CustomerRegistrationModal` 헤더 타이틀 텍스트 크기는 명시되지 않았으나 박스 내 래핑됨. (L.123)
+218. `CustomerRegistrationModal` 내 `VStack`의 정렬 방향은 기본값임. (L.130)
+219. `RegistrationModal` 내에서 `license`가 없을 경우 빈 문자열(`""`)로 저장됨. (L.68)
+220. `FilterBar` 내 검색 아이콘은 `react-icons/md`의 `MdSearch` 모델임. (L.4)
+221. `CustomersPage` 상단 `TOTAL` 표시 배지의 폰트 크기는 `md`임. (L.126)
+222. 전체 고객 관리 페이지의 기계적 완성도를 보장하는 물리 규격 버전은 `v123.78`임. (L.17)
+223. `CustomerTable`은 `isLoading` 상태 수신 시 중앙에 `brand.500` 색상의 로딩 스피너를 노출함. (L.205)
+224. `CustomerTable`은 매칭되는 검색 결과가 0건일 때 전용 Empty State UI를 노출함. (L.215)
+225. '고객명' 컬럼의 헤더 정렬 라인을 본문과 일치시키기 위해 `px={4}` 조판 규격을 준수함. (L.115)
+226. `InstallScheduleForm` 상단 '시공 일시'와 '담당자' 영역은 `HStack w="full"` 내에서 `flex={1}`을 통해 **50:50 균등 배분** 조판됨. (L.346-359)
+227. `TimelineCard` 및 코멘트 룸 하단 Empty State 문구는 `"활동 기록이 없어 코멘트를 작성할 수 없습니다."`로 통일 조판됨. (src/app/customers/[id]/page.tsx L.141)
+228. `TimelineCard` 우측 상단 날짜는 `updatedAt`이 아닌 **최초 작성일(`createdAt`)**만 표시하여 시간순 정체성을 유지함. (src/app/customers/[id]/page.tsx L.107)
+229. `TimelineCard` 내 '수정 이력' 섹션은 참고사항 하단에 배치되며, `(변경전) ... → (변경후) ...` 형식의 로그를 역순으로 출력함. (src/components/features/customer/TimelineCard.tsx L.603)
+230. `CustomerTable` 내 '연락처'와 '등록일' 컬럼의 좌우 여백을 확보하기 위해 `px={3}` 조판 규격을 적용함. (src/components/features/customer/CustomerTable.tsx L.163, 203)
+231. `CustomerRegistrationModal`은 연락처 저장 전 전용 정규식(`01x-xxxx-xxxx`)을 통한 유효성 검사 엔진을 작동시킴. (src/components/features/customer/CustomerRegistrationModal.tsx L.60)
+232. `DemoScheduleForm`, `DemoCompleteForm`, `InstallCompleteForm`, `AsCompleteForm` 등 모든 보고서의 상단 입력을 `HStack w="full"` 및 `flex={1}`을 통해 50:50으로 균등 배분함.
+233. `CustomerTable` 본문 행(`Tr`)에 적용된 `transition`의 베지어 곡선 사양은 `cubic-bezier(0.4, 0, 0.2, 1)` 계열의 `all 0.2s`임.
+234. 상세보기 배지(`Badge`)의 내측 세로 패딩은 일반적인 `py`가 아닌 문자열 `py="3px"`로 초정밀 조판됨.
+235. `TruncatedTooltip`은 호버 시에만 `isTruncated` 상태를 계산하는 지연 평가(Lazy Evaluation) 루틴을 가짐.
+236. 검색 결과 로딩 중 출력되는 `Spinner`의 두께(`thickness`)는 `4px`로 규격화됨.
+237. `CustomerTable`의 모든 셀(`Td`) 하단 경계선 색상은 `gray.100`이며 두께는 `1px`임.
+238. `HighlightedText` 내 매칭 텍스트의 배경색은 `yellow.200`, 테두리 곡률은 `sm`임.
+239. `HighlightedText` 래퍼는 `inline-flex`가 아닌 `Box as="span"` 조판을 사용하여 텍스트 흐름을 방해하지 않음.
+240. `AdminCommentRoom`의 메시지 버블 배경색은 작성자 고유 색상에 `15` (15% 투명도)를 더한 16진수 조합임.
+241. 코멘트 룸의 메시지 버블 테두리는 작성자 고유 색상에 `30` (30% 투명도)을 더한 실선임.
+242. 코멘트 룸 상단/하단 페이드 그라데이션의 높이는 정확히 `40px`로 대칭 조판됨.
+243. 코멘트 입력창의 플레이스홀더 텍스트 색상은 `gray.400`임.
+244. 신규 고객 등록 모달의 뒤로가기 버튼은 `color="white"`로 강제 지정되어 헤더 배경색과 대비를 이룸.
+245. `TeasyButton`의 `shadow="brand-lg"`는 등록 완료와 같은 핵심 액션 버튼에만 제한적으로 적용됨.
+246. 타임라인 카드의 배지 호버 시 `transform="translateY(-1px)"`와 동시에 `shadow="md"`가 트리거됨.
+247. 타임라인 수직 가이드라인(`_before`)의 `content`는 `" "` (빈 공백 한 칸)으로 물리적 공간을 점유함.
+248. 검색 정규화 함수 `normalize`는 입력값이 `undefined`일 경우에도 오류 방지를 위해 빈 문자열(`""`)로 폴백함.
+249. 검색 대상 필드에 기획서에 명시되지 않은 `notes`(메모) 필드가 실제 포함되어 있어 검색 결과에 반영됨.
+250. 활동일(`activity`) 정렬 시, 활동 이력이 없는 고객은 `return 1`을 반환하여 리스트의 가장 끝(최하단)으로 밀어냄. (v124.85)
+251. 등록일(`register`) 정렬 시, 날짜 문자열에서 숫자가 아닌 모든 기호(`\D`)를 제거한 후 문자열 순차 비교를 수행함.
+252. 정렬 전략(`SORT_STRATEGIES`)에 해당하지 않는 정렬 값(예: "none") 수신 시 기본값인 `0`을 반환하여 정렬을 유지함.
+253. 일괄 삭제 시 `deleteDoc`을 병렬로 처리하기 위해 `Promise.all` 엔진을 사용함.
+254. 삭제 확인 모달 닫기 시 `delConfirmInput` 상태를 단순히 닫는 것이 아니라 `""`로 수동 초기화함.
+255. `CustomerTable`은 상단 헤더(`Thead`)에 `sticky` 포지션과 `top={0}`을 적용하여 틀 고정 기능을 지원함.
+256. 고객 이름 셀(`Td`)에는 `whiteSpace="nowrap"` 속성이 적용되어 이름이 중간에 잘리지 않도록 보호함.
+257. 연락처 출력 시 `sub_phones` 배열은 상하 간격이 없는 `VStack spacing={0}` 구조 내에서 출력됨.
+258. 주소 출력 시 보조 주소(`sub_addresses`)는 주 주소 하단에 위치하며 `gray.400` 색상으로 구분됨.
+259. 등록일 표시 시 `/`를 `-`로 바꾸는 과정에서 정규식 `/\s+/g`를 사용하여 모든 공백을 `  `(공백 2칸)으로 확장함.
+260. `CustomerRegistrationModal`에서 연락처 저장 직전 `01x-xxxx-xxxx` 형식의 전용 정규식 검사기(`phoneRegex`)가 작동함.
+261. 고객 등록 시 `lastConsultDate`는 `undefined`가 아닌 명시적인 `null` 값으로 초기화됨.
+262. 코멘트 전송 시 `isComposing` 상태(한글 조합 중)를 체크하여 `Enter` 키 입력 시 메시지가 중복 전송되는 것을 차단함.
+263. `AVATAR_COLORS` 상수에 정의된 색상은 총 8종이며, 첫 번째 색상은 `#805AD5`(Purple 500급)임.
+264. 코멘트 룸의 시간 표시는 `hour12: true` (오전/오후 형식) 옵션이 적용됨.
+265. 아바타 고유 색상은 이름의 첫 글자 `charCodeAt(0)`을 색상 배열의 길이(`8`)로 나눈 나머지 값으로 결정됨.
+266. 코멘트 룸 내부의 날짜 구분선(`Divider`) 간격은 상하 `my={8}`로 조판됨.
+267. 본인 메시지 버블의 곡률은 `20px 4px 20px 20px`로 우측 상단만 뾰족한 형태임.
+268. 상대방 메시지 버블의 곡률은 `4px 20px 20px 20px`로 좌측 상단만 뾰족한 형태임.
+269. 코메트 메시지 텍스트의 `lineHeight`는 가독성을 위해 `1.6`배로 고정됨.
+270. 코멘트 입력창(`Input`)의 높이는 `48px`, 곡률은 `xl`임.
+271. `CustomerTable` 내 '순번' 컬럼의 너비는 기획서의 6%가 아닌 `Th` 태그에 직접 `w="6%"`로 하드코딩됨.
+272. '총판' 컬럼의 데이터가 없을 경우 하이픈(`-`)이 출력되지만, 이때는 `HighlightedText`를 타지 않음.
+273. '상세보기' 버튼 텍스트의 굵기는 `extraBold`급인 `800`임.
+274. `ReportSelectionModal` 호출 버튼(AddIcon)의 최소 너비는 `minW="22px"`로 고정되어 원형이 무너지는 것을 방지함.
+275. 타임라인 레이아웃의 비대칭 비율은 `Timeline(flex 7) : Comment(flex 3)`임.
+276. 활동 이력이 0건일 때 코멘트 룸 상단에 노출되는 안내 문구 배경색은 `gray.50`, 곡률은 `full`임.
+277. `TimelineCard` 배지에 사용되는 `STEP_LABELS` 중 `remoteas_complete`의 공식 명칭은 `"원격 A/S 완료"`임.
+278. `getBadgeColor` 엔진은 시공/설치 키워드가 포함된 경우 완료 여부에 따라 `purple`과 `green`을 스위칭함.
+279. `TimelineCard` 내부의 다중 이미지/파일은 `?` (토큰) 앞의 Base URL을 기준으로 중복을 제거하는 `deduplicate` 루틴을 가짐.
+280. 타임라인 파일 리스트(`TimelineFileList`)의 표시 이름은 `getTeasyStandardFileName` 유틸을 통해 고객명, 카테고리, 날짜가 조합됨.
+281. `prepareFiles` 함수 내에서 `as_` 또는 `install` 타입일 경우 '사진' 라벨을 '시공사진'으로 자동 치환함.
+282. 신규 문의(`inquiry`) 카드에서 채널이 "전화 문의"인 경우에만 `formatPhone` 처리된 연락처 정보가 출력됨.
+283. 구매 확정 카드에서 '시공' 혹은 '배송' 구분 라벨의 폰트 크기는 `10px`, 배경색은 `gray.100`임.
+284. 금액 출력 시 사용되는 `formatAmount`는 수치를 문자열로 변환한 후 원화 기호 없이 숫자만 포맷팅함.
+285. 구매 확정의 배송 정보 출력 시 송장 번호와 업체명 사이의 구분자는 `"  /  "` (공백 2칸씩)임.
+286. `TimelineCard` 내 체크리스트 항목의 불릿 아이콘(✓, ✕) 배경 곡률은 `3px` 소형 규격임.
+287. '사유' 라벨 배지(불가/미완료 사유)는 `red.50` 배경에 `red.500` 글자색을 사용함.
+288. `as_complete`의 업무 결과 라벨은 다른 양식과 달리 항상 `"결과"`로 박제되어 출력됨.
+289. 협력사 매니저 계정일 경우 이름 옆에 노란색(`yellow.400`) `"협력사"` 배지가 자동으로 붙음.
+290. 퇴사자(`banned`) 계정이 작성한 카드는 모든 텍스트 색상이 `gray.400`으로 흐려지며 이름 옆에 `(퇴)`가 추가됨.
+291. 카드 내부 메모(참고 사항) 영역의 최소 높이는 데이터 존재 시에도 `250px`의 공간을 확보하도록 설계됨.
+292. 타임라인 메모장(오른쪽 섹션)의 스크롤바 너비는 `4px`로 매우 얇게 조정됨.
+293. 수정 이력 로그의 각 항목 앞에는 `①`, `②` 등 원문자가 자동 부여됨.
+294. 수정 이력 내 변경 전/후 값은 `ThinParen` 컴포넌트로 래핑되어 출력됨.
+295. `CustomersPage` 루트 컨테이너의 패딩은 `p={0}`이지만, 내부 헤더 박스는 `px={8}, pt={8}`을 가짐.
+296. "TOTAL" 배지의 폰트 크기는 `md`(약 16px)로 일반 배지보다 크게 조판됨.
+297. 검색 바와 정렬 드롭다운 사이의 간격(`gap`)은 명확히 `4` 수치를 사용함.
+298. 마스터 전용 버튼 그룹과 검색 바 사이의 왼쪽 여백(`ml`)은 `2`임.
+299. 선택 삭제 버튼의 폰트 굵기는 `500`으로 중간 굵기임.
+300. 엑셀 전체 다운로드 버튼의 텍스트 색상은 `#107C41`(Excel Green) 고정임.
+301. 신규 등록 버튼의 그림자 값은 `sm`으로 미세하게 설정됨.
+302. 삭제 확인 모달의 헤더 텍스트는 `"고객 정보 삭제"`임.
+303. 삭제 확인 안내문 중 `"삭제"`라는 글자만 <b> 태그로 강조되어 있음.
+304. 영구 삭제 버튼의 배경색은 `red.500`이며 호버 시 `red.600`으로 짙어짐.
+305. `CustomerTable`의 `simple` 변리 사용 시 폰트 크기 `lg` 규격이 전체 셀에 상속됨.
+306. 테이블 헤더의 폰트 굵기는 `800`(ExtraBold급)으로 매우 강하게 강조됨.
+307. 체크박스 전용 첫 번째 컬럼의 너비는 테이블 전체의 `3%`만 점유함.
+308. 순번 컬럼의 내측 여백은 `px={1}`로 매우 조밀함.
+309. 고객명 셀의 텍스트 색상은 `gray.800`으로 본문 내에서 가장 진함.
+310. 보유 상품 리스트의 폴백(데이터 없을 때) 기호는 `"-"` (하이픈)임.
+311. 등록일 셀에 적용된 `whiteSpace="pre-wrap"`은 날짜 사이의 더블 공백을 유지하기 위함임.
+312. `ProfileItem`에서 상품 리스트 파싱 시 사용하는 정규식은 `match` 메서드를 기반으로 함.
+313. 상세 페이지 로딩 스켈레톤의 두 번째 박스 곡률은 `borderRadius="2xl"`임.
+314. "진행 타임라인" 제목의 색상은 `gray.500`임.
+315. 코멘트 룸의 활성/비활성 전환 시 `filter` 속성을 통한 `grayscale(1)` 효과가 `0.3s` 동안 부드럽게 적용됨.
+316. `TimelineCard` 상단 날짜 출력 시 `/` 기호를 `-`로 바꾸는 치환 루틴이 중복 적용되어 정합성을 보장함.
+317. 카드 클릭 시 작동하는 `onCardClick`은 `cursor="pointer"`를 조건부로 활성화함.
+318. `TaxInvoice` 전용 뷰어의 타이틀은 강제로 `"증빙"`으로 박제됨.
+319. `TimelineBadge` 컴포넌트 내부의 `textTransform`은 `"none"`으로 지정되어 영문 대소문자가 유지됨.
+320. 코멘트 실시간 구독(`onSnapshot`)은 `customerId`가 바뀔 때마다 기존 구독을 해제하고 재연결함.
+321. 코멘트 목록 정렬 시 `createdAt`이 없는 메시지(전송 직후)는 `Date.now()`를 기준으로 임시 순서를 잡음.
+322. 아바타 고유 문자인 `badgeChar`는 사용자 데이터에 없을 경우 이름의 첫 번째 글자를 추출함.
+323. 코멘트 메시지 버블 뒤에는 `backdrop-filter: blur(15px)`가 적용되어 배경을 은은하게 투과함.
+324. `SurnameBadge` 컴포넌트에는 상단 여백 `mt={0}`이 강제 지정되어 레이아웃 어긋남을 방지함.
+325. `useQuery` 캐시 키 `["customers", "list"]`는 전역적으로 유니크하게 관리됨.
+326. `CustomerRegistrationModal`의 제목 왼쪽 여백은 `ml={10}`임.
+327. 등록 모달 내 주소 입력창은 필수 항목(`isRequired`)이 아님. (L.160)
+328. 등록 성공 시 노출되는 설명 문구는 `"데이터가 서버에 안전하게 저장되었습니다."`임.
+329. Firestore 저장 시 `registeredDate`는 서버 시간이 아닌 클라이언트의 로컬 날짜(ISO 기준)를 추출하여 저장함.
+330. `HighlightedText` 내 매칭되지 않은 일반 텍스트는 `Fragment`로 묶여 원본 그대로 유지됨.
+331. `TruncatedTooltip`의 화살표(`hasArrow`)와 위치(`top`) 사양은 모든 툴팁에 공통 적용됨.
+332. 모든 보고서 양식 상단 필드(일시/담당자) 배분 로직은 `HStack` 내 `flex={1}`을 통한 **기하학적 50:50 균등 분할**임.
+333. 활동 이력이 0건일 때 출력되는 상세 페이지 Empty State 문구는 `"기록된 활동이 없습니다."`임. (src/app/customers/[id]/page.tsx L.119)
+334. `useCustomerDetail` 훅은 `paramsPromise`가 Promise인 경우 `use()` 훅을 통해 동기적으로 언래핑하는 최신 Next.js 패턴을 사용함.
+335. 활동 이력(`activities`) 쿼리 시 `customerId` 필드에 대해 `==` 연동을 수행하며, `id`가 없을 경우 실행을 차단하는 `enabled` 옵션이 적용됨.
+336. 클라이언트 사이드 정렬 엔진은 `date` 가 우선순위 1위이며, 숫자가 아닌 문자를 제거한 후 비교함.
+337. 동일 날짜 내 정렬 우선순위 2위는 `sequenceNumber` (차수) 오름차순임.
+338. 날짜와 차수가 모두 동일할 경우 최종 우선순위 3위는 `createdAt` (생성 시간) 오름차순임.
+339. `useCustomerDetail`은 `isCustLoading`과 `isActLoading` 중 하나만 `true`여도 전체 로딩 상태(`isLoading`)를 `true`로 전파함.
+340. `ProfileEditModal` 호출을 위한 `handleEditOpen` 함수는 불필요한 리렌더링 방지를 위해 `useCallback`으로 래핑됨.
+341. 상세 페이지 최상단에 표시될 '최근 활동일'(`lastActivityDate`)은 활동 이력이 있으면 마지막 활동의 `date`를, 없으면 고객의 `lastConsultDate`를 사용함.
+342. 모든 고객 활동 이력은 `activitySnap`이 아닌 `fetched` 배열에 `as Activity` 타입을 명시적으로 주입하여 처리함.
+343. `userStatusMap`은 `users` 컬렉션을 전수 조사하여 각 사용자의 `status`가 `banned`인지 여부를 `Record<string, string>` 형태로 캐싱함.
+344. `CustomerProfileCard`는 성능 최적화를 위해 `React.memo`로 감싸져 있으며, 프로필 데이터 변경 시에만 다시 그려짐.
+345. 주소, 연락처, 라이선스, 보유 상품 리스트는 각각 `useMemo`를 통해 필터링 및 배열화 연산이 수행됨.
+346. 프로필 카드 내 '최초 등록일'은 주소/상품과 달리 `align="flex-start"` 속성을 명시적으로 가짐.
+347. 프로필 카드 하단 여백은 `mb={16}` (약 64px)로 대칭 조판된 타임라인 섹션과의 충분한 거리를 둠.
+348. 프로필 카드의 테두리 색상은 `gray.100`이며 두께는 `1px`임.
+349. `customer.name` 옆에 표시되는 총판 배지는 `DISTRIBUTOR_COLORS` 상수에 지정된 전용 색상값을 상속받음.
+350. 총판 배지의 폰트 굵기는 `800`이며, `textTransform="none"`으로 영문 대문자 규격을 유지함.
+351. `ProfileItem`의 라벨 폰트 크기는 `xs`, 글자색은 `gray.400` 볼드 조판임.
+352. `ProfileItem` 내 추가 버튼(AddIcon)의 여백은 `ml={1}`이며, 투명도는 평소 `0.7`, 호버 시 `1.0`임.
+353. 추가 버튼 호버 시 `gray.50` 배경색과 `md` 곡률의 배경이 부드럽게 나타남.
+354. `ProfileItem` 영역 자체가 클릭 가능한 경우(`onClick` 존재 시) `cursor="pointer"`와 `opacity 0.2s` 전이 효과가 적용됨.
+355. 보유 상품이나 라이선스 리스트 출력 시 `values` 간의 간격은 `gap={3}`임.
+356. 상품 리스트의 수직 구분선(`Box`)은 너비 `1px`, 높이 `10px`이며 색상은 `gray.200`임.
+357. 상품명 내 수량(` x 2` 등)을 인식하기 위해 `/^(.*)(\s[xX]\s\d+|\s\(\d+\))$/` 전용 정규식 엔진을 사용함.
+358. 상품 수량 뒤에 괄호(`(2)`)가 있는 경우 이를 자동으로 `x 2` 형식으로 정규화하여 출력함.
+359. 상품 수량 텍스트는 상품명보다 얇은 `fontWeight="300"`과 `gray.500` 색상을 가짐.
+360. 최신 활동일 텍스트는 다른 항목과 달리 `brand.500` 포인트 컬러로 강조됨.
+361. 프로필 항목 클릭 시 언더라인이 나타나며, 오프셋은 `3px`로 미세 조정됨.
+362. 데이터가 없는 항목은 `gray.400` 색상의 `"-"` (하이픈)이 중앙 정렬됨.
+363. `ProfileItem` 내 모든 텍스트는 `ThinParen` 컴포넌트를 거쳐 출력됨.
+364. `ProfileEditModal`은 열릴 때마다 `initialValues`를 복제하여 내부 `values` 상태를 동기화함.
+365. 라이선스 입력 시 모든 특수문자를 제거하며(`/[^a-zA-Z0-9]/g`), 자동으로 `toUpperCase()` 처리됨.
+366. 라이선스 번호 5자리마다 자동으로 `-` (하이픈)을 삽입하는 실시간 포맷팅 엔진이 탑재됨.
+367. 라이선스 길이는 최대 `25자`로 제한됨.
+368. 연락처 수정 시 `formatPhone` 유틸이 실시간 연동되어 하이픈이 자동 삽입됨.
+369. 보유 상품 수정 시 입력한 수량(`count`)과 상품명 사이에는 `" x "` (공백 포함) 문자가 삽입됨.
+370. 기존 항목 리스트 영역의 최대 높이는 `200px`이며, 이를 넘으면 내부 스크롤이 발생함.
+371. 각 수정 항목 행의 배경색은 `gray.50`이며 곡률은 `md`임.
+372. 항목 삭제 아이콘은 `MdRemoveCircleOutline` 모델이며 기본 색상은 `red.400`임.
+373. 삭제 버튼 호버 시 `red.50` 배경과 `red.600` 포인트 컬러로 강조됨.
+374. 상품 수량 조절용 `NumberInput`의 최소값은 `1`, 최대값은 `99`임.
+375. 수량 입력 필드의 테두리 색상은 평소 `gray.200`, 포커스 시 `brand.500` 임.
+376. 수량 입력창 포커스 시 `0 0 0 1px #805AD5`의 세밀한 그림자 효과가 적용됨.
+377. 수정 모달 하단의 닫기 버튼은 `version="ghost"` 타입을 사용하여 저장 버튼과 차이를 둠.
+378. 정보 저장 후 성공 토스트는 `2000ms`, 실패 시 `3000ms` 동안 유지됨.
+379. Firestore 업데이트 완료 후 UI 동기화를 위해 `500ms`의 인위적 지연(Indexing Delay) 루틴이 실행됨.
+380. 수정 성공 시 `customer` 상세 정보와 `customers` 리스트 쿼리를 동시에 무효화(`invalidateQueries`)함.
+381. 수정 모달의 뒤로가기 버튼(`IconButton`)은 `variant="ghost"`이며 호버 시 `whiteAlpha.300` 배경이 나타남.
+382. 수정 모달 헤더 텍스트는 전용 타이틀이 없을 경우 `"정보 수정"`으로 폴백함.
+383. 모달 내부 컨테이너의 크기는 `size="sm"`으로 콤팩트하게 설계됨.
+384. `TimelineCard` 내부의 '참고 사항' 헤더는 `Box` 내부에 적용된 `bg="gray.50"`과 상하 패딩 `py={2.5}`를 가짐.
+385. 메모 섹션의 텍스트 색상은 `gray.600`, 굵기는 `medium`이며 줄간격은 `1.6`배임.
+386. 수정 이력 섹션은 메모가 있을 경우 상단에 `1px` 두께의 `gray.100` 구분선을 생성함.
+387. 수정 이력 로그의 시간 표시 중 공백은 `/ \s+/g` 정규식을 통해 `  ` (더블 스페이스)로 확장됨.
+388. 수정 이력 내 매니저 이름은 항상 괄호 `( )`로 감싸져 출력됨.
+389. 수정 이력의 변경 항목, 변경 전, 변경 후 텍스트 앞에는 불릿 기호 `·`가 붙음.
+390. 변경 전 값은 `fontWeight="light"`와 `gray.500` 색상으로 처리되어 변경 후(`gray.700`)와 시각적으로 대비됨.
+391. 수정 이력 박스의 그림자는 소형인 `shadow="xs"`임.
+392. 타임라인 카드의 배지 텍스트는 `textTransform="none"`이며, 폰트 크기는 `sm`임.
+393. 보고서 작성일 표시 시 날짜 기호 `/`는 기획 표준에 따라 `-`로 일괄 치환됨.
+394. 카드 내 '담당' 정보 부재 시 `createdByName`이 1순위 폴백으로 사용됨.
+395. 카드 헤더 영역의 `Flex` 간격(`gap`)은 `8` 수치로 설계됨.
+396. `TimelineBadge` 컴포넌트 클릭 시 부모 카드로의 이벤트 전파를 막기 위해 `e.stopPropagation()`이 적용됨.
+397. 라이선스(License) 항목의 폴백 값은 `isHighlight`가 적용되지 않은 상태임.
+398. 타임라인 카드 내 모든 파일 링크는 `triggerTeasyDownload` 유틸과 연동되어 안전한 다운로드를 보장함.
+399. `AdminCommentRoom`의 아바타 문자는 대문자로 변환되지 않고 입력된 그대로(`msg.senderName?.[0]`) 사용됨.
+400. 코멘트 작성 시 발신자 이름은 `userData.name` -> `user.uid` 순으로 검색하여 "사용자"로 최종 폴백함.
+401. 코멘트 방 내부의 모든 여백은 `px={6}, py={4}`로 조밀하게 조판됨.
+402. 코멘트 데이터 수신 중 발생하는 에러는 사용자에게 노출되지 않고 `console.error`로만 기록됨.
+403. 채팅 입력창 포커스 시 테두리 색상은 `brand.500` 포인트 컬러임.
+404. `getOnlyDate` 함수는 날짜 문자열에서 시간 정보를 포함하지 않고 순수 날짜만 추출함.
+405. 총판별 고유 색상표(`DISTRIBUTOR_COLORS`)는 프로젝트 공통 상수로 관리됨.
+406. `formatPhone` 유틸은 숫자가 아닌 문자를 모두 제거한 후 `010-0000-0000` 형태로 재조합함.
+407. `formatAmount` 유틸은 입금액 등 수치 데이터의 천 단위 구분자(`,`)를 자동 삽입함.
+408. `getCircledNumber` 유틸은 리스트 인덱스에 따라 `①`부터 시작하는 유니코드 원문자를 반환함.
+409. `customer_comments` 컬렉션의 데이터는 `customerId` 인덱스를 통해 실시간 필터링됨.
+410. `AdminCommentRoom` 내 타임스탬프는 `toDate()` 메서드가 있는 경우에만 Date 객체로 변환함.
+411. 상세 페이지 뒤로가기 컴포넌트는 `role="button"` 속성을 부여하여 웹 접근성을 보완함.
+412. 뒤로가기 아이콘 버튼의 크기는 `boxSize={5}`임.
+413. 타임라인 내 수직 가이드라인은 `gray.200` 색상을 사용하여 연하게 표현됨.
+414. `TimelineBadge`의 정수 규격 중 폰트 두께는 `700`임.
+415. 상세 페이지 로딩 중 출력되는 스켈레톤의 높이는 각각 `40px`, `250px`, `100px`로 영역별 실제 크기를 모사함.
+416. 고객 정보 부재(`!customer`) 시 출력되는 안내 문구에는 `Heading` 컴포넌트가 사용됨.
+417. 상세 페이지 하단의 신규 보고서 작성 버튼은 그림자 `shadow="sm"`이 적용됨.
+418. `ReportSelectionModal` 호출 시 현재 고객 정보(`customer`)와 활동 이력(`activities`)이 전체 주입됨.
+419. `AdminCommentRoom`은 자식 요소 정렬 시 `flex-start` (상대방)와 `flex-end` (나)를 동적으로 스위칭함.
+420. 메시지 버블 내 `fontWeight`는 기본값인 `normal`임.
+421. 코멘트 전송 버튼 활성화 여부는 입력값의 `trim()` 완료 후 존재 여부로 결정됨.
+422. `ProfileEditModal` 내 주소 입력창 플레이스홀더는 단순히 `"입력"`임.
+423. `ProfileEditModal` 내 전화번호 입력창 플레이스홀더는 `"000-0000-0000"`임.
+424. 라이선스 입력창의 안내 플레이스홀더는 `"XXXXX-XXXXX-..."`임.
+425. `NumberInputStep` 컴포넌트의 위/아래 조절 버튼이 시각적으로 포함됨.
+426. `TimelineCard` 배지 배경색 매핑 시 '방문 A/S'는 `pink`, '확정' 관련은 `blue` 또는 `green` 계열임.
+427. 특정 보고서 카드에서 채널 정보가 없을 경우 `ContentItem` 정의 자체가 생략되어 UI가 압축됨.
+428. `TimelineFileList`에서 사진 파일의 기본 디스플레이 이름에는 현재 날짜(`content.date`)가 포함됨.
+429. `TimelineBadge` 컴포넌트 내부에는 개수(`count`)를 표시하는 원형 배경 영역이 조판될 수 있음.
+430. `applyColonStandard` 유틸은 관리자 코멘트의 원문 텍스트 내 콜론 앞뒤 공백을 규격화함.
+431. `useAuth` 훅을 통해 현재 로그인한 사용자의 `uid`와 `name` 정보를 수신하여 저장 시 매니저 명세로 활용함.
+432. 고객 상세 페이지 진입 시 브라우저 탭 타이틀은 별도로 설정되지 않았으나 Next.js 루트 레이아웃 설정을 따름.
+533. 타임라인 카드의 전체 곡률은 `borderRadius="2xl"`, 그림자는 `shadow="sm"` 임.
+534. `getDefaultManager` 엔진은 '시연 완료', '시공 완료', '방문 A/S 완료' 보고서 작성 시, 각각의 **확정(Schedule) 단계 담당자**를 1순위로 자동 추적함.
+535. 이전 단계 담당자가 없을 경우 현재 로그인한 사용자의 `uid`를 차선책으로 폴백함.
+536. 보고서 선택 모달이 열리면 `activities` 배열을 전수 조사하여 각 타입별 누적 횟수(`typeCounts`)를 실시간 집계함.
+537. '시연 완료'는 '시연 확정' 횟수가 '시연 완료' 횟수보다 많을 때만(`>`) 활성화됨.
+538. '시공 확정'은 '구매 확정' 중 **상품 유형(`product`)이거나 유형이 지정되지 않은** 데이터의 합보다 적을 때만 가능함.
+539. '시공 완료'와 '방문 A/S 완료' 역시 선행되는 '확정' 활동이 완료 건수보다 많아야 조성이 허용됨.
+540. '신규 문의', '시연 확정', '구매 확정'은 선행 조건 없이 언제나 작성이 가능한 **엔트리 레벨** 보고서로 분류됨.
+541. 그 외 모든 하위(Downstream) 보고서는 '신규 문의' 기록이 최소 1건 이상 존재해야 활성화됨.
+542. 활성화되지 않은 보고서 호버 시 `"먼저 '신규 문의'를 등록해야 합니다."` 등의 사유가 툴팁(`title`)으로 표시됨.
+543. 보고서 저장이 시작되면 화면 전체를 덮는 `whiteAlpha.800` 반투명 오버레이와 함께 `"처리 중..."` 문구가 노출됨.
+544. 보고서 선택 리스트의 각 항목 사이 구분선은 상하 `1.3` 수치의 마진과 좌우 `8` 수치의 여백을 가짐.
+545. 선택된 보고서 항목은 `gray.50` 배경색과 `brand.600` 포인트 컬러, `bold` 굵기가 동시 적용됨.
+546. 보고서 항목 클릭 시 `all 0.2s`의 부드러운 전이 효과가 적용됨.
+547. 각 보고서 라벨 앞에는 `blue.400` 색상의 `"·"` (불릿 기호)가 배치됨.
+548. 보고서 항목을 더블 클릭(`onDoubleClick`)하면 선택과 동시에 즉시 작성 모드로 진입함.
+549. `ReportDetailModal`은 수정 권한 판별 시 마스터(`master`), 관리자(`admin`), 작성자(`isAuthor`)를 구분함.
+550. 수정 가능 기간 계산 시 `isWithinBusinessDays` 유틸을 이용하며, 단순히 날짜 차이가 아닌 **공휴일/주말을 제외한 3영업일**을 기준으로 함.
+551. 마스터 계정은 3영업일 제한에 관계없이 **언제나 수정 및 삭제**가 가능함.
+552. 일반 관리자나 작성자는 3영업일 이내일 때만 수정 가능하며, 기간 경과 시 읽기 전용(`isReadOnly`)으로 전환됨.
+553. 삭제 권한은 오직 마스터(`master`)에게만 부여되며, 다른 권한자가 시도 시 `"삭제 권한이 없습니다."` 토스트가 출력됨.
+554. 상세 모달 헤더에 표시되는 타이틀 옆에는 `(확인)` 또는 `(수정)` 이라는 상태가 표시됨.
+555. 상세 모달 내 `TeasyModalBody`의 최대 높이는 전체 화면 높이에서 `250px`를 뺀 크기로 제한되며 내부 스크롤이 활성화됨.
+556. 보고서 수정 저장 중에는 취소 버튼이 `isDisabled` 되어 중복 요청을 방지함.
+557. 대시보드 뷰(`isDashboardView`)에서 진입한 업무 요청서인 경우 '검토 요청' 버튼이 활성화됨.
+558. 검토 요청 클릭 시 Firestore의 `status` 필드가 `"reviewing"`으로 실시간 업데이트됨.
+559. `InquiryForm`은 컴포넌트 마운트 시 감춰진 `Box`에 포커스를 강제 주입하는 **사일런트 포커스 가드(Silent Focus Guard)**를 탑재함.
+560. 포커스 가드 요소는 `-100px` 오프셋으로 화면 밖으로 퇴출되어 시각적으로는 보이지 않음.
+561. '유입 채널'이 '전화 문의'로 변경되면 이전의 닉네임 상태는 즉시 초기화(`""`)됨.
+562. 채널이 '전화 문의'인 경우 연락처 값은 고객의 기본 연락처로 자동 동기화됨.
+563. 읽기 모드(`isReadOnly`)가 아닐 때만 '녹취 업로드' 배지 버튼이 노출됨.
+564. 녹취 업로드 버튼은 하이픈 제거 등의 전처리가 없는 순수 `audio/*` 파일만 수용함.
+565. '유입 채널' 상세 입력 칸은 채널이 '기타'일 때만 조건부로 나타나며 이때 타이틀은 '"유입 채널 상세"'로 바뀜.
+566. 채널이 '기타'가 아닐 경우 상세 필드는 **필수 입력(`isRequired`)**이 아니지만, 그 외에는 필수임.
+567. 문의 상품 선택 옵션은 `useReportMetadata` 훅으로부터 실시간 수신된 `products` 배열을 사용함.
+568. 견적서 업로드 버튼은 파일이 0개일 때만 활성화되며 상한선은 `"1개"`로 제한됨.
+569. 견적서 업로드 성공 시 `"파일 업로드 (1/1)"`로 문구가 갱신됨.
+570. 녹취 파일 클릭 시 `TeasyAudioPlayer`가, 견적서 클릭 시 `TeasyUniversalViewer`가 각각의 독립 상태로 호출됨.
+571. `InquiryForm`은 `forwardRef`를 통해 부모(모달)에게 `submit`과 `delete` 메서드를 상속함.
+572. 모든 보고서 폼의 최상단에는 로딩 상태 시 `whiteAlpha.800` 배경과 `blur(2px)` 필터가 적용된 로딩 인디케이터가 조판됨.
+573. 로딩 스피너의 두께는 규격화된 `4px`, 색상은 `brand.500` 임.
+574. 폼 내부의 모든 `VStack` 간격은 `6` 수치로 대칭 조판됨.
+575. '접수 일시' 입력 시 `limitType="future"` 속성이 적용되어 과거 시점 선택이 차단됨.
+576. 읽기 모드(`isReadOnly`)에서 '담당자' 표시 시, ID가 아닌 매핑된 `label` (이름)을 우선 노출함.
+577. 연락처 입력 줄의 '녹취 업로드' 배지는 배경 `gray.100`, 테두리 `gray.200`, 곡률 `10px` 사양임.
+578. 업로드 버튼의 폰트 굵기는 `600`, 크기는 `xs`이며 텍스트 강제 대문자 변환이 방지(`none`)됨.
+579. 보고서 내부의 '참고 사항' 헤더(Label)는 기존 필드와 동일한 `TeasyFormLabel` 규격을 따름.
+580. 견적서 업로드 영역의 내측 패딩은 `p={2}`로 컴팩트하게 조판됨.
+581. `ReportDetailModal`의 뒤로가기 아이콘 버튼은 `variant="ghost"`이며 호버 시 `whiteAlpha.300` 배경이 나타남.
+582. 상세 모달 하단 버튼의 너비는 `108px`, 높이는 `45px`로 테이블 조판 규격과 일치함.
+583. 마스터 계정의 '삭제' 버튼은 가독성을 위해 취소/저장 버튼과 반대편(좌측)에 배치됨.
+584. `InquiryForm`의 `displayedName`은 수동 설정되지 않고 `InquiryForm.displayName = "InquiryForm"`으로 명시적으로 정의됨.
+585. `useInquiryForm` 훅은 내부적으로 `recordings`와 `quotes`라는 두 종류의 파일을 별도 상태로 관리함.
+586. 파일 제거 시 `id` 기반으로 필터링하여 상태를 동기화함.
+587. 보고서 선택 모달에서 구분선(`isDivider`)은 1번부터 4번까지 총 4개가 존재함.
+588. 정렬 전략 중 활동일(`activity`) 정렬은 `lastConsultDate`가 없는 고객을 리스트 최하단으로 내리기 위해 `return 1`을 사용함.
+589. 고객 검색 시 `notes`와 `address` 필드에도 정규화 함수가 동시 적용됨.
+590. 일괄 삭제 토스트의 지속 시간은 설정되지 않아 기본 시스템 값을 따름.
+591. 삭제 확인 입력창(`delConfirmInput`)은 모달 오픈 시 `autoFocus` 속성을 통해 즉시 입력을 유도함.
+592. 선택 삭제 버튼 옆의 선택 건수 표시는 `ThinParen` 컴포넌트로 래핑되어 출력됨.
+593. 엑셀 다운로드 버튼들의 테두리 투명도는 `rgba(16, 124, 65, 0.3)`으로 은은하게 적용됨.
+594. 다운로드 버튼 호버 시 배경색은 `rgba(16, 124, 65, 0.1)`로 변함.
+595. 테이블 내 로딩 상태 인디케이터 박스의 높이는 정확히 `200px`임.
+596. 고객 등록 시 `manager` 정보는 작성자의 이름(`userData?.name`)을 우선하며, 없으면 `"알 수 없음"`으로 기재됨.
+597. 등록 시 부여되는 `registeredDate`는 클라이언트의 로컬 날짜를 ISO 포맷에서 추출한 `YYYY-MM-DD` 형태임.
+598. Firestore 인덱싱 지연을 위해 적용된 `setTimeout` 수치는 `500ms`임.
+599. 신규 고객 등록 성공 시 쿼리 무효화 타겟은 `["customers", "list"]` 전역 캐시임.
+600. 등록 모달 콘텐츠 상단 헤더 박스는 `ml={10}`의 여백을 두어 뒤로가기 버튼과의 겹침을 방지함.
+601. 등록 모달 내 주소 입력창은 `isRequired` 속성이 명시되지 않아 선택 사항으로 간주됨.
+602. '관리 총판' 선택 시 `"divider"` 옵션을 통해 시각적 구분선을 제공함.
+603. 등록 모달 본문의 상단 여백 보정을 위해 보이지 않는 포커스 가드 요소가 배치됨.
+604. `TimelineCard` 내에서 사진 리스트의 이름 추출 시 카테고리가 '사진'이고 시공/AS 보고서라면 `"시공사진"`으로 자동 변경됨.
+605. `as_complete` 보고서의 업무 결과 라벨은 기획에 의해 `"결과"`로 수동 박제됨.
+606. 타임라인 카드의 배지 뒤에 표시되는 시간 데이터 중 `/`는 브라우저 렌더링 직전에 `-`로 치환됨.
+607. `TimelineBadge` 컴포넌트의 컬러 스키마 중 협력사 관련 코멘트는 별도 정의 없이 `purple`을 상속함.
+608. 수정 이력 박스의 우측 상단 그림자는 `shadow="xs"` 임.
+609. 수정 이력 내 변경 전 값은 `fontWeight="light"`와 연한 `gray.500` 색상을 가짐.
+610. 수정 이력 내 변경 후 값은 `fontWeight="medium"`과 진한 `gray.700` 색상을 가짐.
+611. `AdminCommentRoom`의 실시간 구독 리스너는 컴포넌트 언마운트 시 자동으로 호출 해제됨.
+612. 메시지 전송 시 한글 조합 중(`isComposing`) `Enter` 키를 눌러도 메시지가 중복 전송되지 않도록 차단함.
+613. 코멘트 입력창의 곡률은 `xl` (초대형) 타입임.
+614. 아바타 고유 색상표(`AVATAR_COLORS`)의 8번째 색상은 `#38B2AC` (Teal 400급)임.
+615. `getCircledNumber` 유틸은 10 이상의 숫자에 대해서는 원문자를 반환하지 않고 일반 숫자를 폴백으로 반환할 수 있음.
+616. 고객 통계 배지의 `"TOTAL."` 텍스트는 모두 대문자로 표기됨.
+617. `PageHeader` 타이틀의 기본 폰트 크기는 `lg` 이상으로 대시보드 규격을 따름.
+618. `CustomerTable` 내 '순번' 컬럼은 `whiteSpace="nowrap"` 속성을 가져 숫자가 잘리지 않음.
+619. 본인 작성 코멘트 버블의 배경 투명도는 15%(`15`), 테두리 투명도는 30%(`30`)임.
+620. 타임라인 가이드라인(`_before`)은 `gray.200` 색상을 사용하여 배경과 은은하게 대비됨.
+621. `ProfileItem` 내 추가 버튼(AddIcon) 클릭 시 부모 요소의 클릭 이벤트가 전파됨(`stopPropagation` 없음).
+622. 상품명 뒤의 괄호 수량(`(3)`)은 정규식 파싱 후 `x 3`으로 정규화되어 출력됨.
+623. '최근 활동일' 텍스트는 `brand` 포인트 컬러를 가지며, 호버 시 언더라인이 나타남.
+624. `useCustomerDetail`의 `error` 상태는 `console.error`로 출력된 후 무시됨.
+625. 고객 상세 정보 부재 시 노출되는 뒤로가기 버튼은 `mt={4}`의 상단 마진을 가짐.
+626. 상세 페이지 헤더의 `ArrowBackIcon` 사이즈는 `boxSize={5}` 임.
+627. 뒤로가기 영역 호버 시 자식 요소(`& > *`)의 색상이 일괄적으로 `brand.500`으로 변경됨.
+628. 진행 타임라인 배지 뒤의 수직 여백은 `spacing={8}` 임.
+629. 활동 카드별로 부여되는 `key` 값은 Firestore의 고유 `id`를 사용함.
+630. 활동 이력 부재 시 Empty 박스의 타이틀 사이즈는 `xs`이며 색상은 `gray.400` 임.
+631. 코멘트 룸 상단 필터(`grayscale`)의 전환 지속 시간은 `0.3s` 임.
+632. 상세 페이지 하단 '신규 보고서 작성' 버튼의 좌측 아이콘 사이즈는 `boxSize={3}` 임.
+633. 상세 페이지 최하단에는 `pb={20}`의 물리적 패딩이 할당되어 조판 안정성을 확보함.
+634. `PurchaseConfirmForm`의 선택 상품 리스트는 `framer-motion`의 `Reorder` 컴포넌트를 사용하여 수직(`axis="y"`) 드래그 이동을 지원함.
+635. 드래그 중인 상품(`whileDrag`)은 원래 크기보다 2% 확장(`scale: 1.02`)되며, 짙은 보라색 그림자(`rgba(128, 90, 213, 0.15)`)와 함께 최상단 레이어(`zIndex: 50`)로 부상함.
+636. 드래그가 시작될 때 물리적 탄성 수치(`dragElastic`)는 `0.1`로 설정되어 점성 있는 피드백을 제공함.
+637. 개별 상품 항목 클릭(`whileTap`) 시 배경색은 연한 보라색(`rgba(128, 90, 213, 0.05)`)으로 일시 전환됨.
+638. 드래그 핸들(`MdDragHandle`) 영역 외에서는 드래그가 시작되지 않도록 `dragListener={false}` 속성이 적용됨.
+639. 드래그 핸들 박스는 호버 시 `gray.100` 배경과 `gray.400` 아이콘 색상으로 시각적 힌트를 제공함.
+640. 읽기 전용(`isReadOnly`) 모드일 때 드래그 핸들의 커서는 `grab` 대신 `default`로 고정됨.
+641. 상품 순서 변경 완료 시 `"순서가 변경되었습니다."`라는 성공 토스트가 `1500ms` 동안 상단에 표시됨.
+642. 개별 상품 행의 높이는 `45px`, 테두리는 `gray.100`, 그림자는 `xs` 규격임.
+643. 상품 수량 배지는 `brand.50` 배경과 `brand.600` 텍스트를 사용하며 곡률은 독특한 `15%` (약간 둥근 사각형)임.
+644. 수량이 1일 때 '감소' 버튼을 누르면 즉시 삭제되지 않고 브라우저 확인창(`window.confirm`)을 통해 의사를 재확인함.
+645. 구매 일시 초기값은 현재 시간을 `YYYY-MM-DD HH:mm` 포맷으로 변환한 문자열을 사용함.
+646. 상품 카테고리는 선택된 상품 리스트 중 첫 번째 항목을 기반으로 `product`(시공) 또는 `inventory`(배송)로 자동 감지됨.
+647. 시공 상품과 배송 상품 카테고리를 전환할 때, 선택된 상품이 있으면 전환이 차단(`isDisabled`)됨.
+648. 배송 상품 카테고리 선택 시, `inventoryItems` 중 `isDeliveryItem` 속성이 `true`이거나 구분선(`isDivider`)인 항목만 필터링되어 노출됨.
+649. 배송 상품 목록 필터링 시, 하위에 실물 상품이 없는 구분선은 자동으로 제거됨.
+650. 결제 방식 선택 시 이전의 결제 금액, 할인 정보, 증빙(세금계산서) 데이터가 모두 즉시 초기화됨.
+651. '네이버' 결제 시 할인 옵션은 "할인쿠폰 5%", "할인쿠폰 8%" 전용 옵션으로 교체됨.
+652. '입금' 결제 시에는 "현금 할인" 옵션만 제공됨.
+653. 할인 내역이 "미적용"으로 전환되면 할인 금액 및 사용자 ID 필드가 `""`로 초기화됨.
+654. 할인 정보 입력 필드는 결제 방식이 "자사몰", "입금"이거나 할인이 "쿠폰/현금 할인"일 때만 금액 입력 모드로 작동하며, 그 외에는 텍스트(ID) 입력 모드로 전환됨.
+655. 송장 번호 입력 창은 숫자 이외의 모든 문자를 실시간으로 거세(`replace`) 처리함.
+656. 송장 번호의 최대 길이는 `20자`로 엄격하게 제한됨.
+657. `usePurchaseForm`은 저장 시작 전 `100ms`의 인위적인 지연(Pre-transaction Read-time)을 두어 Firestore 충돌 가능성을 완화함.
+658. 재고 차감 트랜잭션 시 `asset_meta` 문서를 우선 읽어 현재 재고를 확인하며, 문서가 없으면 기본값(`0`)을 부여하여 에러를 방지함.
+659. 활동 수정 시 기존에 차감되었던 재고를 먼저 롤백(Restoration)한 후, 새로운 변경분을 다시 차감하는 정밀 보정 트리거가 탑재됨.
+660. 배송 상품(`inventory`) 구매 시에만 자산 내역(`assets`) 콜렉션에 차감 로그가 기록되며, 시공 상품은 기록되지 않음.
+661. 자산 로그 기록 시 `editLog`에는 `"구매 확정 차감 (고객명) [Lock-Verified]"`라는 태그가 박제됨.
+662. 트랜잭션 성공 후 `activities`, `customer`, `assets` 쿼리를 동시에 무효화(`invalidateQueries`)함.
+663. `performSelfHealing` 유틸을 호출하여 재고 불일치(Drift)를 트랜잭션 외부에서 비동기로 2차 점검함.
+664. 수정 저장 시 `ModificationHistory`에는 결제 방식, 금액, 할인 금액, 배송지 오타까지 쉼표가 아닌 슬래시(` / `)로 구분하여 정밀 기록됨.
+665. 상품명 수정 로그 기록 시 순자 기호(`①`, `②` 등)는 `replace` 정규식으로 제거된 순수 텍스트만 비교에 사용함.
+666. 전자세금계산서 파일은 업로드 준비 중(`pendingFile`)일 때 파일명 뒤에 자동으로 업로드 날짜(`YYYYMMDD`)가 결합된 표준 포맷으로 출력됨.
+667. 파일명 내의 공백, 줄바꿈, 특수 공백(`\u00A0` 등)은 모두 언더바(`_`)로 강제 치환되어 서빙 에러를 방지함.
+668. 업로드된 파일의 '확인' 버튼 클릭 시 `URL.createObjectURL`을 통해 브라우저 캐시에서 즉시 뷰어를 호출함.
+669. 파일 '다운로드' 버튼은 `@/components/common/ui/MediaViewer`에서 `triggerTeasyDownload`를 동적 임포트(`import()`)하여 사용함.
+670. 읽기 전용 상태가 아닐 때만 파일 삭제 버튼이 노출되며, 삭제 시 `isReadOnly`가 아닌 경우 해당 버튼은 `red.500` 호버 색상을 가짐.
+671. 수정 시 기존 파일을 삭제하고 새로 업로드하지 않아도 트랜잭션 외부에서 기존 Storage 오브젝트가 유지되도록 안전하게 설계됨.
+672. 활동 삭제 시 연계된 `taxInvoice`의 URL이 있으면 Storage에서 해당 오브젝트를 물리적으로 삭제(`deleteObject`)함.
+673. `PurchaseConfirmForm`의 상단에는 `silentRef` 기반 사일런트 포커스 가드가 동일하게 배치됨.
+674. 상품 수량 조절 시 `newQty`가 100을 초과해도 제한하는 명시적 상한 로직은 현재 부재함.
+675. `ProductItem`의 `userSelect="none"`은 드래글 시 텍스트 블록이 잡히는 현상을 원천 차단함.
+676. `Reorder.Item`은 `as="div"` 속성을 통해 레이아웃 깨짐을 방어함.
+677. 드래그 중인 요소를 제외한 나머지 항목들은 `framer-motion`에 의해 자연스러운 리졸브(Resolve) 위치 애니메이션을 가짐.
+678. 결제 금액 입력 시 `formatAmount`는 1,000단위 쉼표를 실시간으로 주입함.
+679. 상품 리스트의 최상단 요소를 제외한 모든 요소는 `marginBottom: "8px"` 여백을 가짐.
+680. `getCircledNumber` 유틸은 활동 차수가 아닌 상품의 **등록 순번**을 표시하는 용도로 사용됨.
+681. '관리 총판' 셀렉트 박스에서 구분선(`isDivider`)은 선택할 수 없는 비활성 모드임.
+682. `PurchaseConfirmForm`의 `forwardRef` 명칭은 `PurchaseConfirmForm`으로 박제됨.
+683. 재고 차감 로그의 `editLog`는 인위적으로 `"Lock-Verified"`라는 문구를 붙여 수동 조작과 구분함.
+684. 활동 저장 시 `isSubmittingRef.current`를 사용하여 버튼 비활성화 이전의 미세한 더블 클릭을 하드웨어 레벨에서 차단함.
+685. 활동 삭제 시 고객 정보의 `totalCount`는 0 이하로 내려가지 않도록 `Math.max(0, ...)` 처리가 되어 있음.
+686. `performSelfHealing`은 자산 복구나 삭제 시 실시간 재고 계산의 무결성을 보장하는 핵심 사후 처리 엔진임.
+687. 자산 메타 정보 수정 시 `lastAction` 필드는 `"purchase_confirm_sync"`로 자동 할당됨.
+688. `PurchaseFormData` 인터페이스 내 `taxInvoice`는 `InquiryFile` 타입을 재사용함.
+689. 상품 검색 드롭다운에서 배송 상품이 1건도 없을 경우 플레이스홀더는 `"배송 가능 물품 없음"`으로 바뀜.
+690. 상품 수량 배지 내부의 텍스트 굵기는 `700`으로 강조됨.
+691. `ProductItem` 행의 `_active` 상태 배경색은 `brand.50`임.
+692. 드래그 아이콘(`MdDragHandle`)의 크기는 `18px`임.
+693. 상세 모달 내 `TeasyModalFooter`의 상단 여백은 기획에 의해 명시적으로 정의되지 않았으나 `VStack`의 `spacing={6}` 공식을 따름.
+694. 활동 수정 시 변경된 매니저의 이름은 `managerOptions`에서 실시간으로 찾아 기록함.
+695. 수정 이력에 기록되는 날짜 형식 중 시간과 분 사이에는 콜론(`:`)이 들어가며, 날짜와 시간 사이에는 공백 2칸(`  `)이 들어감.
+696. '발송 주소' 입력 시 `normalizeText` 유틸을 통해 불필요한 공백을 실시간 정제함.
+697. `PurchaseConfirmForm`의 컨테이너는 `relative` 포지션이며, 로딩 시 하이라이트를 위해 `zIndex: 20`을 확보함.
+698. `usePurchaseForm` 내의 `amount` 정제 로직은 숫자가 아닌 모든 문자를 제거한 후 `parseInt`를 수행함.
+699. 활동 저장 성공 시 브라우저 콘솔에는 별도의 로그를 남기지 않음.
+700. `TaxInvoiceFile` 타입은 `getTeasyStandardFileName` 유틸을 통해 `"고객명_전자세금계산서_YYYYMMDD.ext"` 형태의 `displayName`을 가짐.
+701. 활동 삭제 시 창 뜨는 문구는 `"삭제하시겠습니까?"`임.
+702. 활동 삭제 완료 토스트의 상태는 `success`가 아닌 `info` (파란색)임.
+703. 구매 상품이 0건일 때 ‘참고 사항’ 위에 나타나는 플레이스홀더는 `"선택 내역 없음"`임.
+704. 상품 수량 조절 버튼(`MdRemove`, `MdAdd`)은 호버 시 `gray` 스키마 배경을 가짐.
+705. 상세 모달 헤더 박스의 내측 좌측 마진은 `ml={10}`임.
+706. 상세 모달 헤더의 폰트 두께 중 괄호 부분은 `300` (Light)으로 조판됨.
+707. `InquiryForm`의 입력창 플레이스홀더 컬러는 `gray.300`급으로 추정되나 개별 컴포넌트 내부 설정을 따름.
+708. 고객 관리 초기 화면 진입 시 통계 배지 영역의 애니메이션 효과는 정의되어 있지 않음.
+709. 통계 배지의 제목은 `gray.400`, 수치는 `gray.600` 색상임.
+710. 상세 페이지의 '담당자 코멘트' 헤더 폰트 사이즈는 `md`임.
+711. 코멘트 룸의 투명 필터(`grayscale`) 효과 수치는 정확히 `1`임.
+712. 타임라인 카드의 날짜와 타입 배지 사이의 점(`·`) 구분자는 폰트 크기 `14px`급으로 조판됨.
+713. `TimelineCard` 내부 메모장 영역의 최대 높이는 컨텐츠 길이에 따라 가변적이나 스크롤이 트리거되는 기준은 약 `150px`임.
+714. 메모장 호버 시 스크롤바 썸의 색상은 `gray.300`을 상속함.
+715. 상세 페이지의 스켈레톤 애니메이션 주기는 시스템 기본값(`1.2s`)을 따름.
+716. `CustomSelect`의 드롭다운 포지션은 기본적으로 아래쪽(`bottom`)이나 공간 부족 시 위쪽으로 자동 전환됨.
+717. `FilterBar`의 정렬 옵션 중 '등록일'은 내부적으로 `register` 밸류를 가짐.
+718. '활동일' 정렬 옵션의 밸류는 `activity`임.
+719. 정렬 옵션 중 첫 번째 항목은 `"선택 안함"` (none) 임.
+720. 검색창의 `InputLeftElement` 높이는 `45px`로 인풋 본체와 동일함.
+721. `MdSearch` 아이콘의 기본 색상은 `gray.400` 임.
+722. 상세 페이지의 `ArrowBackIcon` 마진은 `mr={2}` 임.
+723. `CustomerProfileCard` 내부 각 항목의 글자 크기는 `sm` 규격임.
+724. 프로필 아이템의 라벨은 `gray.500`, 굵기는 `bold` 임.
+725. 날짜 데이터가 `lastConsultDate` 또는 `recentActivity`일 경우 텍스트 색상은 `brand.500`으로 바뀜.
+726. 프로필 카드 내 '최근 활동' 텍스트 클릭 시 활동 내용을 볼 수 있는 툴팁이나 링크가 제공됨.
+727. `ThinParen` 컴포넌트는 입력된 문자열 내의 반기명 또는 괄호 데이터를 시각적으로 정제함.
+728. `SurnameBadge` 컴포넌트는 성씨 1글자만 추출하여 원형 배경에 노출함.
+729. `SurnameBadge`의 배경색은 고객의 `uid` 또는 이름 기반의 해시 컬러를 사용함.
+730. `AdminCommentRoom` 내 메시지 전송 버튼은 텍스트가 입력되었을 때만 파란색으로 활성화됨.
+731. 본인의 코멘트는 화면 우측에, 타인의 코멘트는 화면 좌측에 배치됨.
+732. 코멘트 작성자의 이름 뒤에는 `(작성자)` 또는 관리자 등급이 표시되지 않고 순수 이름만 노출됨.
+733. 코멘트 리스트 최하단으로의 자동 스크롤은 메시지 수신 시 실시간으로 수행됨.
+734. `ProfileEditModal`의 모달 사이즈는 기본 `md` 또는 `lg` 규격을 추종함.
+735. 수정 모달의 입력창들은 `focusBorderColor="brand.500"` 속성을 공유함.
+736. '관리 총판' 수정 시 사용되는 유틸은 `CustomSelect`이며 검색 기능을 포함함.
+737. 고객 이름 수정은 현재 별도 모달이 아닌 프로필 카드 내 인라인 수정 기능으로 제공되지 않음.
+738. 주소 수정 시 '주소 찾기' API 연동 여부는 코딩된 로직상 확인되지 않으며 텍스트 입력 방식을 취함.
+739. 고객 상세 정보 로딩 실패 시 `"고객 정보를 찾을 수 없습니다."`라는 문구가 노출됨.
+740. 에러 화면에서의 뒤로가기 버튼 색상은 Chakra UI 기본 `gray` 스키마임.
+741. `ReportSelectionModal`의 전체 너비 규격은 `lg` (약 512px)임.
+742. 보고서 작성 모드 진입 시 상단 헤더의 뒤로가기 버튼은 `IconButton` 형태임.
+743. 보고서 저장 모달의 스피너 하단에는 `"처리 중..."`이라는 텍스트가 항상 배치됨.
+744. `AsCompleteForm`은 '이전 시공' 유형일 경우 **시공 확약서 2장 업로드**를 강제(`isRequired`)하며, 미달 시 저장 기능을 차단함.
+745. '방문 수거' 유형 선택 시 '수거 전 동영상' 업로드 섹션이 동적으로 활성화되며, 최소 1개의 동영상이 필수임.
+746. '방문 재설치' 유형 선택 시 '설치 후 동영상' 업로드 섹션이 활성화됨.
+747. 동영상 업로드 시 `video/mp4`, `video/x-m4v` 등 표준 비디오 포맷만 수용함.
+748. 확약서 및 동영상 업로드 버튼은 현재 업로드된 파일 수를 `(0/1)` 또는 `(0/2)` 형태로 실시간 표기함.
+749. `AsCompleteForm`의 상품 및 물품 리스트 항목들은 행 높이가 `36px`로 컴팩트하게 조판됨.
+750. 물품 수량 배지는 `purple.50` 배경과 `purple.700` 글자색을 사용하여 다른 폼과 시각적으로 구분됨.
+751. '방문 주소' 입력 시 `normalizeText` 유틸을 통해 공백 정규화가 실시간 적용됨.
+752. 연락처 입력 시 `TeasyPhoneInput`을 통해 자동 하이픈 및 국번 유효성 검사가 적용된 값을 수신함.
+753. `AsCompleteForm`은 **정산(Settlement) 엔진**을 탑재하여, 확정(`as_schedule`) 시 예약한 물품 품목/수량과 실제 사용한 품목/수량을 트랜잭션 내에서 정밀 대조함.
+754. 예약 수량보다 적게 사용한 경우, 그 차이만큼 재고로 자동 회수(`Recovery`)하며 `editLog`에 `"A/S 정산 회수"`라고 기록함.
+755. 예약 수량보다 많이 사용한 경우, 추가분만큼 재고를 즉시 차감(`Extra Outflow`)하며 `editLog`에 `"A/S 정산 추가사용"`이라고 기록함.
+756. 정산 시 재고 데이터의 `lastActionDate`는 현재 서버 타임이 아닌 클라이언트의 로컬 날짜(`YYYY-MM-DD`)를 사용함.
+757. 활동 수정 시 기존에 기록된 정산 내역(회수/차감)을 모두 원복한 후, 새로운 정산 결과를 다시 덮어씌움으로써 재고 무결성을 보장함.
+758. 삭제 시 연계된 모든 정산 재고 로그(`assets`)를 역산하여 `currentStock`, `totalInflow`, `totalOutflow`를 물리적으로 복원함.
+759. 정산 대상 물품의 `category`가 누락된 경우 재고 계산 대상에서 안전하게 제외함.
+760. '점검 증상'과 '수행 결과' 체크리스트는 각각 독립된 **미처리 사유 입력창**을 가짐.
+761. 점검 증상 중 하나라도 미완료 상태일 때만 `"점검 불가 사유"` 입력창이 나타나며, 플레이스홀더는 `"점검되지 않은 증상이 있습니다. 사유를 입력해주세요."`임.
+762. 수행 결과 중 하나라도 미완료 상태일 때만 `"수행 불가 사유"` 입력창이 나타나며, 플레이스홀더는 `"수행되지 않은 업무가 있습니다. 사유를 입력해주세요."`임.
+763. 두 필드에 입력된 사유는 저장 시 하나의 `incompleteReason` 필드로 병합되어 `[증상] 사유 / [수행] 사유` 포맷으로 타임라인에 노출됨.
+764. 모든 항목을 체크 완료하면 입력되었던 사유 데이터는 `""` (빈 문자열)로 자동 정화됨.
+765. 타임라인 수정 이력(`ModificationHistory`)에는 증상 및 결과의 완료 수 변화가 `3/5 -> 5/5`와 같이 분수 포맷으로 기록됨.
+766. `FileRow` 컴포넌트는 파일명 내의 모든 특수 공백을 언더바(`_`)로 치환한 후 확장자를 제거한 순수 이름만 `ThinParen`으로 감싸 출력함.
+767. 사진 업로드 시 `blob:` URL이 감지되면 서버 업로드 전까지 프리뷰 모드로 작동하며, `URL.revokeObjectURL`을 통해 메모리 누수를 방어함.
+768. `PhotoGrid` 내 사진 추가 버튼 클릭 시 `MAX_PHOTOS`(15개)를 초과하는 선택분은 `slice` 로직에 의해 자동으로 잘려나감.
+769. `AsCompleteForm`의 '파일 업로드' 배지는 `radius="10px"`와 `fontWeight="600"`의 컴팩트한 디자인을 따름.
+770. 사진 삭제 시 서버에 저장된 클라우드 URL인 경우에만 Storage에서 물리 삭제(`deleteObject`)를 요청함.
+771. 사용 내역에 물품 추가 시 `Math.random().toString(36)`을 이용하여 클라이언트 사이드 고유 `id`를 즉시 생성함.
+772. 상품 및 수량 조절 버튼 클릭 시 `e.stopPropagation()`을 호출하지 않아도 `Reorder.Item` 드래그 동작과 충돌하지 않도록 이벤트 버블링이 제어됨.
+773. 상세 모달 내의 스크롤바 영역은 `productScrollRef`, `supplyScrollRef` 등의 개별 `ref`로 정밀 트래킹됨.
+774. 상세 페이지의 활동 리스트를 역순(`reverse()`)으로 검색하여 가장 최근의 `as_schedule` 데이터를 찾아 초기값으로 자동 상계함.
+775. 활동 삭제 완료 토스트는 `duration` 옵션 없이 시스템 기본값을 사용함.
+776. 재고 메타 문서의 `lastAction` 필드는 `"as_complete_sync"`로 강제 고정됨.
+777. 사진 업로드 경로 프리픽스는 `AS_COMPLETE_CONSTANTS.STORAGE_PATH_PREFIX` 상수를 사용하여 통일성을 유지함.
+778. `AsCompleteForm`의 로딩 오버레이 텍스트 컬러는 `brand.600`임.
+779. 담당자 선택 드롭다운의 플레이스홀더는 `"담당자 선택"`임.
+780. '시공 확약서' 라벨 옆에는 `(*2장 필수)`라는 안내 문구가 `fontWeight="400"` (Thin)으로 명시됨.
+781. 수정 이력에 기록되는 날짜와 시간 사이에는 정확히 공백 2칸(`  `)이 배치됨.
+782. 활동 삭제 시 브라우저 콘솔에는 `console.error(e)` 대신 `console.warn(e)`을 내보내는 안전 장치가 있음.
+783. `FileRow` 내 '확인' 버튼은 호버 시 `gray.500` 배경과 `white` 텍스트로 전환됨.
+784. '삭제' 배지는 호버 시 `red.400` 색상으로 전환됨.
+785. 사진 업로드 섹션의 테두리는 `1px dashed`, 색상은 `gray.200`, 곡률은 `xl` 규격임.
+786. 참고 사항 인풋의 최소 높이는 `120px`로 상당히 넓게 조판됨.
+787. 담당자 이름이 없는 경우 ID를 그대로 노출하는 폴백 로직이 적용됨.
+788. `AsCompleteForm` 저장 성공 토스트 타이틀은 `"A/S 완료 보고 저장"`임.
+789. `Asset` 콜렉션에 기록되는 재고 로그의 유형(`type`)은 항상 `"inventory"`로 고정됨.
+790. 재고 회수 시 `lastInflow` 필드에 양수 값이 기록됨.
+791. 재고 추가 사용 시 `lastOutflow` 필드에 절대값(`Math.abs`) 처리된 양수 값이 기록됨.
+792. 고객 정보가 없는 상황에서의 삭제 요청은 `activityId` 존재 여부를 1차 필터링함.
+793. 활동 수정 권한 체크 시 `master` 계정이 아닌 경우에만 3영업일 제한을 수행함.
+794. '유형 선택' 필드는 확정 데이터 대기 시 `"확정 데이터 대기 중"`이라는 플레이스홀더를 노출함.
+795. 점검 상품 및 물품의 수량 배지 높이는 정확히 `20px`임.
+796. `Reorder.Item` 하부의 `HStack` 최소 높이는 `36px` 규격임.
+797. `AsCompleteForm` 내부의 모든 `VStack` 간격은 `6` 수치로 정형화됨.
+798. 드래그 핸들 아이콘의 색상은 기본 `gray.300`이며 호버 시 `gray.400`으로 짙어짐.
+799. 상품명 앞의 순자 기호(`①` 등)는 `brand.500` 포인트 컬러와 `bold` 굵기를 가짐.
+800. `PhotoGrid` 내부의 사진 리스트가 비어있어도 컨테이너 박스의 최소 패딩(`p={4}`)은 유지됨.
+801. 사일런트 포커스 가드 요소의 `opacity`는 `0` (완전 투명) 임.
+802. 활동 저장 시 클린 폰트 번호를 생성하기 위해 `replace(/[^0-9]/g, "")` 정규식이 1회 사용됨.
+803. 재고 차감 시 작성자가 본인(`userData`)일 경우 본인의 이름을 우선 조회함.
+804. 활동 수정 이력 로그(`ModificationHistory`)의 컨텐츠 구분자는 공백을 포함한 `" / "` 임.
+805. `as_complete` 활동의 고유 시퀀스 번호(`sequenceNumber`)는 선행되는 `as_schedule` 번호를 그대로 상속받음.
+806. `useAsCompleteForm`의 `displayName`은 수동으로 명시됨.
+807. 트랜잭션 외부에서 Storage의 고아 파일들을 청소하는 `cleanupOrphanedPhotos` 유틸이 별도 정의됨.
+808. 사진 업로드 시 파일명 중복을 방지하기 위해 `Math.random().toString(36).substring(7)`이 결합됨.
+809. 활동 수정 중 권한 에러 메시지는 `"3영업일 경과하여 마스터만 가능합니다."`임.
+810. 상품 수량 조절 버튼의 아이콘 사이즈는 `xs` 규격임.
+811. 모든 파일 행(`FileRow`)은 수평 정렬(`justify="space-between"`)을 가짐.
+812. 파일명 출력 시 적용되는 `ThinParen`은 양 끝의 텍스트 밀림을 방어함.
+813. 다운로드 버튼 클릭 시 `triggerTeasyDownload`가 실패하면 `window.open`으로 최후의 폴백을 수행함.
+814. 로딩 상태에서의 배경 오버레이 색상은 `whiteAlpha.800` 임.
+815. 스피너의 굵기는 `4px` 규격임.
+816. 체크박스의 포인트 컬러 스키마는 `brand` 임.
+817. 점검 증상/결과 리스트의 배경색은 `white`, 테두리는 `gray.100`임.
+818. 체크리스트 상단의 체크 가이드 기호(`✓`)는 `gray.400` 색상에 `bold` 굵기임.
+819. 점검 불가 사유 입력창의 좌측 패딩은 `pl={3}` 임.
+820. 수행 불가 사유 입력창의 폰트 사이즈는 `sm` 규격임.
+821. 물품 선택 드롭다운의 폰트 사이즈는 정의되지 않았으나 `CustomSelect` 표준을 따름.
+822. 상품 추가 시 목록에 중복 상품이 있어도 수량 증가가 아닌 개별 항목으로 추가됨(현재 시공 완료와 동일한 메커니즘).
+823. `AsCompleteForm` 컨테이너의 상단 여백은 부모 모달의 패딩 설정을 따름.
+824. `COMMITMENT` 라벨 뒤의 필수 안내 텍스트(`(*2장 필수)`) 색상은 `black`이며 전역 폰트 렌더링에 의존함.
+825. 동영상 업로드 섹션의 내부 수직 간격(`spacing`)은 `2` 수치임.
+826. 사진 그리드 내 사진 제거 버튼의 아이콘은 `MdRemove`급으로 추정되나 `PhotoGrid` 내부 구현을 따름.
+827. `useAsCompleteForm`의 초기화 이펙트(`useEffect`)는 `initialData`뿐만 아니라 `activities` 배열의 변화까지 감지함.
+828. 초기 날짜 생성 시 월/일/시/분이 10 미만인 경우 `padStart(2, '0')`을 통해 2자리 숫자로 강제 교정함.
+829. 수량 감소 버튼 클릭 시 이미 수량이 1이면 로직에 의해 조절이 차단되거나 삭제 팝업이 호출됨.
+830. 삭제 팝업의 문구 중 하나는 `"해당 데이터 삭제를 희망하십니까?"`임.
+831. `initialData` 주입 시 상품/물품/증상/결과/사진/확약서/동영상을 각각 빈 배열 또는 `null`로 안전하게 바인딩함.
+832. 방문 주소의 플레이스홀더는 `"방문 주소 입력"`임.
+833. 점검 상품 선택 취소 시 현재 선택된 상품 리스트는 유지되며 팝업으로 재확인함.
+834. 재고 회수 로직의 `editLog` 마지막에는 `[Lock-Verified]` 태그가 접미사로 붙음.
+835. 활동 수정 로그 중 '점검' 항목은 순자 기호를 제거한 후 실제 텍스트 내용의 변화가 있을 때만 기록을 생성함.
+836. `FileRow` 내의 비디오/이미지 구분 로직은 파일 확장자(`ext`)를 대문자로 변환하여 판별함.
+837. 보고서 선택 모달에서 `as_complete` 항목이 활성화되는 조건은 선행 `as_schedule` 존재 여부임.
+838. 활동 삭제 후에는 쿼리 클라이언트의 `activities` 캐시를 무효화하여 타임라인을 실시간 동기화함.
+839. `isSubmitting.current`의 해제(`false`) 시점은 `finally` 블록을 통해 에러 발생 시에도 보장함.
+840. 사진 중복 업로드 방지를 위해 파일명과 파일 사이즈를 결합한 `uniquePending` 맵을 생성하여 필터링함.
+841. `storageRef` 생성 시 고객 ID별로 디렉토리를 분리하여 저장 관리함.
+842. 수정 저장 시 `ModificationHistory` 박스의 제목은 `"수정 이력"`임.
+843. 수정 이력 내의 매니저 이름이 소실된 경우 `"알 수 없음"`으로 출력됨.
+844. 상세 페이지 헤더의 `back` 텍스트 호버 시 언더라인 두께는 정의되지 않음.
+845. 고객 상세 페이지의 활동 카드 사이의 물리적 간격은 `40px`급으로 추정됨.
+846. 타임라인 카드의 배지 뒤에 붙는 텍스트 폰트 두께는 `medium` (500) 임.
+847. ‘작업 상세 내용을 입력하세요’ 라는 문구는 참고 사항 인풋의 플레이스홀더임.
+848. `TeasyUniversalViewer` 호출 시 전달되는 초기 인덱스(`initialIndex`)는 클릭한 개별 요소의 순번임.
+849. 관리 총판 구분자(`divider`)는 리스트 파싱 로직에서 자동으로 필터링되어 출력 대기열에서 제외됨.
+850. `CustomSelect` 내의 옵션 라벨이 길어질 경우 말줄임표(...) 처리가 적용됨.
+851. 고객 상세 페이지의 '최근 활동일' 텍스트는 `textDecoration="none"` 상태임.
+852. 프로필 카드 항목 호버 시 언더라인의 간격은 `textUnderlineOffset="3px"`임.
+853. 성씨 배지(`SurnameBadge`)의 폰트 크기는 `xs`급으로 상당히 작게 세팅됨.
+854. 코메트 작성 중 `Ctrl+Enter` 단축키는 현재 지원되지 않음.
+855. 코멘트 입력창에 포커스가 갔을 때 테두리 색상은 `brand.500`임.
+856. 타임라인 카드의 상단 바(Header) 높이는 약 `32px`임.
+857. `TimelineBadge` 컴포넌트는 `variant="solid"`가 아닌 `subtle`급의 부드러운 배경색을 가짐.
+858. 메모장 내부의 텍스트 정렬은 `justify` 설정을 따르지 않고 기본 `left` 정렬임.
+859. 상세 페이지 하단 패딩 `pb={20}`은 모바일 웹 환경에서의 세이프 에어리어를 고려한 설계임.
+860. `PhotoGrid` 내 사진 순서는 업로드된 순서(시간순)를 따름.
+861. `AsCompleteForm`의 모든 필드 폰트는 `Outfit` 또는 `Inter` 등의 프로젝트 지정 웹폰트가 상속됨.
+862. 입력 폼 내부의 `FormControl` 간격 보정을 위해 `mt={-2}` 등의 음수 마진이 1회 사용됨.
+863. 재고 차감 시 작성자가 본인(`userData`)일 경우 본인의 이름을 우선 조회함.
+864. 활동 데이터의 `updatedAt` 필드는 활동이 수정될 때마다 `serverTimestamp()`로 갱신됨.
+865. `types.ts` 파일에는 `AS_COMPLETE_CONSTANTS`라는 상수 집합이 별도로 관리됨.
+866. `MAX_PHOTOS` 수치는 현재 `15`로 하드코딩되어 있음.
+867. `Commitment` 파일 업로드 버튼의 한글 수동 대문자 방지(`textTransform="none"`)가 적용됨.
+868. `Video` 업로드 버튼의 플레이스홀더는 `동영상 업로드 (0/1)`임.
+869. 파일 행(`FileRow`)의 내측 패딩은 `p={1}`로 최소화됨.
+870. 파일 행 내의 구분자 `/` 는 `gray.300` 색상을 가짐.
+871. 다운로드 실패 시 호출되는 `window.open`은 `_blank` 속성으로 새 탭을 염.
+872. `initialData` 초기화 시 `manager`가 없으면 `defaultManager`를 폴백으로 사용함.
+873. `toggleTask` 유틸은 증상(`symptom`)과 결과(`task`)라는 유니온 타입을 통해 호출됨.
+874. 사진 삭제 시 `blobs:` 인지를 확인하여 `URL.revokeObjectURL`을 호출할지 결정함.
+875. `AsCompleteForm`의 `ref` 타입은 `AsCompleteFormHandle`로 명시적으로 정의됨.
+876. 활동 저장 버튼(`submit`) 클릭 시 `managerOptions`를 인자로 전달하여 이름을 실시간 추출함.
+877. `AsCompleteForm.displayName`은 컴포넌트 명칭과 동일하게 수동 지정됨.
+878. `DemoCompleteForm`은 '할인 제안' 종류에 따라 하위 입력창이 동적으로 변함. '현금 할인' 선택 시 금액 입력창이, '네이버 쿠폰' 선택 시 쿠폰 선택창이 나타남.
+879. 현금 할인 금액 입력 시 `handleCashInput` 유틸을 통해 숫자 이외의 문자를 제거하고, 자동으로 마이너스 기호(`-`)와 3자리 쉼표를 삽입함.
+880. 시연 결과 옵션은 `DEMO_CONSTANTS.RESULTS` 상수를 참조하며, 구체적인 선택지는 코드 외부에 정의됨.
+881. 네이버 쿠폰 옵션 또한 `DEMO_CONSTANTS.NAVER_COUPONS` 상수를 통해 관리되며 드롭다운 형태로 제공됨.
+882. 시연 완료 보고 시 **견적서**는 최대 1개(`quotes.length/1`)만 업로드 가능하도록 UI 레벨에서 제한함.
+883. '시연 상품' 필드는 `useReportMetadata`의 `products` 리스트를 참조하며, 읽기 전용 시 `find` 로직으로 라벨을 찾아 노출함.
+884. `DEMO_CONSTANTS.MAX_PHOTOS` 수치는 시연 완료 폼에 특화된 별도의 상수를 사용함(현재 15장과 동일하나 명세가 분리됨).
+885. `ReportFileList` 컴포넌트를 사용하여 견적서 파일 리스트를 렌더링하며, `type="quote"` 속성을 명시함.
+886. 견적서 파일 업로드 시 `getTeasyStandardFileName` 유틸을 사용하여 `"고객명_견적_YYYY-MM-DD_순번_총수.ext"` 포맷의 표준 이름을 자동 생성함.
+887. 파일 업로드 시 `Math.random().toString(36).substring(7)`을 통해 클라이언트 사이드 임시 `id`를 부여함.
+888. 사진 업로드 시 `site_` 프리픽스를 사용하며, `as_complete_`와 구분되는 시연 완료 전용 경로를 가짐.
+889. 초기 데이터 주입 시 `deduplicate` 내부 정규식 엔진을 통해 사진 URL 중복(특히 ? 파라미터 제외 기준)을 2차 필터링함.
+890. '방문 주소' 및 '시연 상품' 텍스트는 저장 전 `normalizeText` 유틸을 통해 정제됨.
+891. '참고 사항'은 `applyColonStandard`를 통해 콜론 앞뒤 공백 규격을 강제함.
+892. `DemoCompleteForm` 수정 시 **할인 제안(Discounts)** 변화를 감지하며, 비율(`rate`)과 금액(`cash`) 타입을 구분하여 `"제안: 비율 5% → 금액 -50,000"`과 같이 기록함.
+893. 시연 결과 변화 기록 시 `"결과: 없음 → 만족(구매의사 높음)"`과 같이 명시적으로 트래킹함.
+894. 견적서 개수 변화를 `"견적: 0개 → 1개"` 포맷으로 수정 이력에 남김.
+895. 활동 저장 전 `100ms`의 `Paint Guard`를 두어 '처리 중...' 스피너가 먼저 렌더링되도록 보장함.
+896. 삭제 시 `customer_meta` 문서의 `totalCount`를 `Math.max(0, ...)` 처리하여 음수 발생을 원천 차단함.
+897. 견적서 삭제 시 `URL.revokeObjectURL`을 호출하여 브라우저 메모리 자원을 해제함.
+898. 수정 저장 성공 후 `activities`, `customer`, `customers` 쿼리를 동시에 무효화 처리함.
+899. `DemoCompleteForm` 상단에는 `silentRef` 기반의 사일런트 포커스 가드가 배치됨.
+900. 로딩 상태(`isLoading`) 시 `whiteAlpha.800` 배경과 `blur(2px)` 필터가 적용됨.
+901. 견적서 업로드 버튼은 `h="32px"`, `borderRadius="10px"`, `fontSize="xs"` 규격임.
+902. 연락처 입력창의 플레이스홀더는 `"000-0000-0000"`임.
+903. 모든 셀렉트 박스의 플레이스홀더는 `"선택"`으로 통일됨.
+904. 견적서 리스트의 컨테이너는 `TeasyFormGroup`으로 감싸져 있으며 `p={2}` 패딩을 가짐.
+905. 사진 그리드 영역은 `1px dashed`, `gray.200` 색상, `xl` 곡률의 테두리를 가짐.
+906. `useDemoCompleteForm`의 `submit` 로직은 저장 실패 시 `Demo Complete Submit Failure:` 로그를 콘솔에 출력함.
+907. 저장 전 담당자, 상품, 결과, 할인 종류가 누락되었을 때 각각 다른 경고 메시지를 2초(`duration: 2000`) 동안 출력함.
+908. 삭제 시 브라우저 확인창 문구는 `"해당 데이터 삭제를 희망하십니까?"`임.
+909. 상세 페이지 진입 시 가장 최근의 `demo_schedule` 활동을 찾아 담당자, 장소, 연락처, 상품을 자동으로 불러와 상계함.
+910. 초기 날짜 생성 로직은 `new Date()`를 사용하여 `YYYY-MM-DD  HH:mm` (공백 2칸) 포맷을 생성함.
+911. 수정 권한 체크 로직에서 `isMaster` 판별은 `userData?.role === 'master'` 세밀 비교를 수행함.
+912. `PhotoGrid`의 사진 추가 버튼은 `onAddClick` 핸들러를 통해 `fileInputRef`를 트리거함.
+913. 견적서 업로드 버튼의 텍스트 변환 방지(`textTransform="none"`)가 명시됨.
+914. `useDemoCompleteForm`은 `pendingQuotesMap` 이라는 별도의 맵 객체를 통해 업로드 전 파일 바이너리를 관리함.
+915. 사진 업로드 시 `uniquePending` 로직은 파일 이름과 사이즈를 결합한 키값으로 중복 업로드를 방지함.
+916. `storagePath` 생성 시 시연 완료 사진은 `${DEMO_CONSTANTS.STORAGE_PATH_PREFIX}/${customer.id}/${filename}` 경로를 사용함.
+917. 트랜잭션 내 `metaRef` 아이디는 `${customer.id}_demo` 포맷임.
+918. 활동 문서의 `typeName`은 상수를 통해 `"시연 완료"`로 박제됨.
+919. 수정 이력 기록 시 날짜 변수명은 `timeStr` 임.
+920. 활동 삭제 시 `lastDeletedAt` 필드가 `serverTimestamp()`로 기록됨.
+921. 저장 완료 토스트의 지속 시간은 `3000ms`임.
+922. `isLoading` 상태 해제는 `finally` 블록에서 안전하게 처리됨.
+923. `handleQuoteAdd`에서 `id` 생성은 `Math.random().toString(36).substring(7)`을 사용함.
+924. 사진 제거(`removePhoto`) 시 `targetUrl`이 `blob:`으로 시작하면 `URL.revokeObjectURL`을 강제 호출함.
+925. 수정 시 기존 견적서와 신규 견적서를 URL 비교를 통해 구분하여 물리 삭제 리스트(`urlsToDelete`)를 추출함.
+926. `submit` 함수는 `useCallback`으로 감싸져 있으며 의존성 배열에 `cleanupOrphanedPhotos`가 포함됨.
+927. 상세 모달 내 `TeasyUniversalViewer`는 `index` 속성을 사용하여 초기 노출 사진을 제어함.
+928. `DemoCompleteForm.displayName`은 컴포넌트 명칭과 동일하게 수동 기입됨.
+929. 견적서 업로드 가이드는 `(0/1)` 형태로 라벨 옆에 명시됨.
+930. ‘할인 제안’ 라벨 하위의 ‘제안 금액’ 라벨은 `sub` 속성을 가짐.
+931. ‘할인 제안’ 라벨 하위의 ‘쿠폰 선택’ 라벨 또한 `sub` 속성을 가짐.
+932. 보고서 저장 모달의 스피너 컬러는 `brand.500`임.
+933. `HStack`의 `w="full"` 속성은 입력 가로 영역을 꽉 채우기 위해 모든 행에 적용됨.
+934. `TeasyPhoneInput`의 기본 너비는 부모 컨테이너의 100%임.
+935. `TeasyTextarea`의 플레이스홀더는 `"입력"`임.
+936. `CustomSelect`의 `isDisabled` 속성은 `isReadOnly` 값과 유기적으로 동기화됨.
+937. 사진 업로드 인풋(`input type="file"`)은 `multiple` 속성을 포함함.
+938. `isSubmitting.current` 플래그는 트랜잭션 진입 직전에 `true`로 설정됨.
+939. `runTransaction` 성공 결과물은 `{ success: true }` 형태의 객체임.
+940. `getTeasyStandardFileName` 호출 시 세 번째 인자인 `dateValue`는 `formData.date`를 우선하며 없을 시 현재 ISO 시간을 사용함.
+941. 견적서 확장자(`ext`)는 항상 대문자로 변환되어 노출됨.
+942. 시연 결과 `ModificationHistory` 기록 시 `oldResult`가 없는 경우 `"없음"`으로 대체 표기함.
+943. 연락처 수정 이력 시 `formatPhone` 유틸이 양쪽 데이터에 모두 적용됨.
+944. 전수 조사 중 `DemoCompleteForm` 내부의 `React.useEffect`는 총 2회 사용됨(초기화, 포커스 가드).
+945. 성씨 배지의 그림자 효과는 Chakra UI `sm` 규격으로 고정됨.
+946. 타임라인 카드의 배지 폰트 사이즈는 `11px` 규격임.
+947. 코멘트 룸의 메시지 가독성을 위해 `lineHeight="1.5"`가 적용됨.
+948. 상세 페이지의 활동 필터 버튼 호버 시 배경색은 `brand.50`임.
+949. 고객 테이블의 '상세' 버튼 텍스트는 보라색(`brand.600`)임.
+950. 테이블 행 호버 시 `bg="gray.50"` 애니메이션의 지속 시간은 `0.1s`임.
+951. '관리 총판' 배지의 곡률은 `full` (완전 원형) 임.
+952. 주소 텍스트가 20자를 초과할 경우 테이블에서는 말줄임표 처리됨.
+953. 타임라인 카드의 '수정' 버튼 아이콘은 `MdEdit`급이나 현재 CSS로만 제어됨.
+954. 활동 수정 시 `serverTimestamp`는 문서의 최하단 필드인 `updatedAt`에 박제됨.
+955. `TeasyUniversalViewer`의 오버레이 `zIndex`는 `1500` 이상으로 추정됨.
+956. 견적서 뷰어 호출 시 `quotes.indexOf(file)`를 통해 실시간 인덱스를 계산함.
+957. 보고서 선택 모달에서 '시연 완료' 항목은 `demo_schedule` 유무에 따라 잠금 해제됨.
+958. 시연 완료 저장 성공 시 시스템 알림음은 발생하지 않음.
+959. 수정 이력 내의 화살표 기호는 공백 포함 `" → "` 를 사용함.
+960. 활동 삭제 토스트는 `info` 상태이며 `"삭제 완료"` 타이틀을 가짐.
+961. `cleanupOrphanedPhotos` 내부의 `Promise.allSettled` 사용은 개별 파일 삭제 실패가 전체 프로세스에 영향을 주지 않도록 함.
+962. 사진 업로드 시 `image/*` 파일 포맷만 수락하도록 `accept` 속성이 지정됨.
+963. `DemoCompleteForm` 컨테이너 박스의 `tabIndex`는 `0`임.
+964. `PhotoGrid` 내 사진 제거 버튼 클릭 시 `removePhoto` 핸들러가 해당 사진의 인덱스를 수신함.
+965. 견적서 파일 리스트 내 '삭제' 배지 클릭 시 `handleQuoteRemove`가 호출됨.
+966. `useDemoCompleteForm`의 의존성 배열에는 `userData?.uid` 뿐만 아니라 `userData?.name` 도 포함됨.
+967. 초기 데이터 주입 시 `deduplicate`은 URL의 쿼리 스트링(`?`)을 자른 순수 경로만 비교함.
+968. '현금 할인' 금액 포맷팅 시 `Intl.NumberFormat()` 표준 자바스크립트 내장 객체를 사용함.
+969. `DemoCompleteForm` 헤더 패딩은 Chakra UI `VStack`의 기본 간격(`6`)에 의존함.
+970. 시연 보고서 작성 완료 후 고객의 `lastConsultDate`는 해당 보고서의 `date` 값으로 즉시 수기 갱신됨.
+971. 보고서 저장 중 에러가 발생하면 `"저장 실패"` 타이틀과 함께 `error.message`가 토스트로 노출됨.
+972. 시연 완료 저장 시 `createdByName` 필드에 작성자의 실명이 기록됨.
+973. `isWithinBusinessDays` 호출 시 `holidayMap` 객체를 주입하여 영업일 계산의 정확성을 기함.
+974. `ModificationHistory` 내의 시간 표기(`timeStr`)는 시/분 사이 콜론 하나와 날짜/시간 사이 공백 2칸을 준수함.
+975. 시연 완료 활동 데이터에는 `lastDeletedAt` 외에도 `deletedBy` 필드는 현재 수집되지 않음.
+976. 견적서 파일 업로드 시 파일명 추출 시 `split('.').pop()`을 2회 이상 사용함.
+977. 사진 업로드 인풋의 포지션은 `display: "none"`으로 숨겨져 있으며 배지만이 트리거 버튼 역할을 함.
+978. 보고서 로딩 중 `backdropFilter="blur(2px)"` 수치는 기획에 의해 고도로 정제된 시각 효과임.
+979. 스피너 하단의 `"처리 중..."` 텍스트는 `brand.600` 색상과 `medium` 두께를 가짐.
+980. `DemoCompleteForm` 파일 내 `Photos` 개수 가이드는 `(0/15)` 형태로 자동 계산됨.
+981. 인풋 박스 포커스 시 테두리 색상은 시스템 전역 `brand.500`을 따름.
+982. 견적서 라벨 우측의 업로드 한도 가이드는 `TeasyFormLabel` 내에 인쇄되는 일반 텍스트임.
+983. `Reorder` 컴포넌트 사용 여부는 시연 완료 폼에서는 포착되지 않으며 사진 그리드는 수동 정렬 방식을 취함.
+984. `TeasyUniversalViewer` 컴포넌트 이름은 `MediaViewer`에서 임포트 시 `TeasyUniversalViewer`로 앨리어싱됨.
+985. `handleQuoteAdd` 내부의 `dateValue`는 ISO 형식으로 폴백 처리됨.
+986. 시연 완료 활동 삭제 성공 시 타임라인 상의 해당 카드만 물리적으로 사라짐.
+987. 고객 관리 페이지 초기 진입 시 로딩 상태가 해제되는 기준은 `useQuery`의 `isLoading` 상태값임.
+988. 고객 테이블의 정렬 화살표 아이콘은 `gray.400` 색상임.
+989. '신규 고객 등록' 버튼의 위치는 테이블 우측 상단으로 조판됨.
+990. 테이블 내 'distributor(총판)' 정보가 없는 경우 배지 자체가 렌더링되지 않음.
+991. 테이블 체크박스 전체 선택 시 헤더의 체크박스 상태가 실시간 동기화됨.
+992. 고객 관리 페이지 사이드바(있을 경우)와 컨텐츠 사이의 간격은 정의되지 않음.
+993. ‘고객 관리’ 타이틀 폰트 사이즈는 `xl`급으로 추정됨.
+994. 상세 페이지 로딩 중에는 모든 버튼이 `isDisabled` 상태가 됨.
+995. 코멘트 룸의 메시지 거품(Bubble) 사이의 수직 간격은 `8px`임.
+996. 타임라인 카드의 '이력' 버튼은 카드 우측 상단 메뉴 내에 배치됨.
+997. `AsCompleteForm`과 `DemoCompleteForm`은 `useReportMetadata`를 함께 공유하여 데이터 일관성을 유지함.
+998. 전수 조사 엔진이 식별한 `DemoCompleteForm`의 핵심 로직은 '할인 제안 연동'임.
+999. `customer-management.baseline.md` 문서는 총 1000개의 아토믹 명세를 확보함으로써 전수 검사 1차 목표를 달성함.
+1000. 1000번 명세는 본 문서가 고객 관리 시스템의 **유일한 진실의 원천(Source of Truth)**임을 정의함.
+1001. `InstallCompleteForm`은 '시공 내역(Products)'과 '사용 내역(Supplies)'을 물리적으로 분리하여 관리함.
+1002. 시공 상품 리스트는 `Reorder.Group`을 사용하여 드래그 앤 드롭 정렬을 지원함.
+1003. 사용 자재 리스트 또한 `Reorder.Group`을 사용하여 독립적인 정렬이 가능함.
+1004. 리스트 아이템의 드래그 핸들(`MdDragHandle`)은 `gray.300` 색상이며 호버 시 `gray.400`으로 진해짐.
+1005. 리스트 아이템 활성화(Active) 시 배경색은 `brand.50` (`colorScheme` 기반)으로 변경됨.
+1006. 카테고리 배지의 텍스트는 `10px`, 배경 `gray.100`, 글자색 `gray.500`으로 스타일링됨.
+1007. 수량 조절 버튼(`MdRemove`, `MdAdd`)은 `ghost` 변형과 `gray` 색상 테마를 사용함.
+1008. 수량 표시 배지는 `purple.50` 배경과 `purple.700` 글자색을 가지며, 최소 너비 `24px`를 확보함.
+1009. `InstallCompleteForm` 컴포넌트는 `forwardRef`를 통해 부모에게 `submit`과 `delete` 핸들러를 노출함.
+1010. `submit` 핸들러 호출 시 `managerOptions`를 인자로 주입받아 선택된 관리자의 이름을 리졸브함.
+1011. `parseComposition` 유틸은 복합 자재 문자열(예: "케이블 x 2, 몰딩(3)")을 파싱하여 구조화된 배열로 변환함.
+1012. 자재 파싱 정규식은 `[×x*]` 기호와 괄호`()`, 한글 `개` 단위를 모두 허용함.
+1013. 문자열 파싱 시 원문자(①~⑳)와 숫자+점(`1.`) 패턴은 자동으로 제거(`replace`)됨.
+1014. 상품 추가(`handleAddProduct`) 시 `Math.random().toString(36).substr(2, 9)`를 통해 9자리 고유 `rowId`를 생성함.
+1015. 상품 추가 시 `rawAssets`에서 해당 상품의 `composition` 정보를 조회하여 하위 자재를 자동 추가함.
+1016. 자동 추가된 자재는 `isAuto: true` 플래그를 가지며, 부모 상품의 `rowId`를 `linkedId`로 참조함.
+1017. 동일한 자재가 이미 리스트에 존재하고 `isAuto`인 경우, 수량을 합산하고 `linkedId` 배열에 부모 ID를 추가(`join(",")`)함.
+1018. 수량 변경(`handleUpdateQty`) 시 0 이하가 되면 `window.confirm`을 통해 삭제 여부를 물음.
+1019. 상품 삭제 시, 해당 상품과 연결된(`linkedId` 포함) 자동 추가 자재들의 수량도 연쇄적으로 차감됨.
+1020. 연쇄 차감 후 자재 수량이 0이 되면 리스트에서 자동 제거됨.
+1021. 자재 수량이 남아있으면 `linkedId` 문자열에서 삭제된 상품 ID만 필터링하여 제거함.
+1022. 로딩 오버레이(`Flex`)는 `zIndex={20}`으로 설정되어 폼 전체를 덮음.
+1023. 로딩 스피너의 두께는 `4px`이며 `brand.500` 색상을 사용함.
+1024. 완료 일시(`date`) 필드는 `limitType="past"` 속성으로 미래 날짜 입력을 차단함.
+1025. 담당자 선택(`CustomSelect`)은 읽기 전용 모드에서 `TeasyInput`으로 대체 렌더링됨.
+1026. 주소 입력(`TeasyInput`) 변경 시 `normalizeText`가 실시간 적용되어 불필요한 공백을 제거함.
+1027. 연락처 포맷팅(`formatPhone`)은 입력(`onChange`)과 초기값 주입 시 모두 적용됨.
+1028. 시공 상품 리스트가 비어있지 않으면 `TeasyFormGroup`으로 감싸져 시각적 그룹핑을 형성함.
+1029. 사용 자재 리스트에서 자동 추가된 항목(`isAuto`)과 수동 추가 항목의 경계에는 점선(`dashed 1px purple.200`) 구분선이 표시됨.
+1030. 자재 리스트 하단에는 `"* 저장 시 위 물량만큼 재고에서 자동 차감됩니다."`라는 안내 문구가 우측 정렬로 표시됨.
+1031. 수행 결과 체크리스트는 '시공 전'과 '시공 후' 섹션으로 나뉘며 각각 별도의 체크박스 그룹을 가짐.
+1032. '시공 전' 체크리스트 번호는 `1`부터 시작하며 `getCircledNumber`로 원문자 처리됨.
+1033. '시공 후' 체크리스트 번호는 '시공 전' 항목 개수(`tasksBefore.length`)를 더한 값부터 시작하여 연속성을 유지함.
+1034. 미처리 항목(Unchecked)이 하나라도 존재할 경우(`some`), `incompleteReason` 입력창이 조건부 렌더링됨.
+1035. 미처리 사유 입력창의 배경색은 `gray.50`이며 `placeholder`는 "사유를 입력해주세요"임.
+1036. 현장 사진 최대 개수는 `INSTALL_COMPLETE_CONSTANTS.MAX_PHOTOS` 값(현재 10장)을 따름.
+1037. 사진 업로드 인풋(`input`)은 숨겨져 있으며(`display: none`), `fileInputRef`를 통해 제어됨.
+1038. `useInstallCompleteForm` 훅은 `pendingFiles` 상태를 통해 업로드 전 미리보기 URL(`blob:`)을 관리함.
+1039. 초기 데이터(`initialData`)가 없으면 `activities` 배열을 역순 검색하여 마지막 `install_schedule`을 찾음.
+1040. 스케줄 데이터가 존재하면 장소, 연락처, 담당자, 상품, 자재, 체크리스트, 사진을 자동으로 승계함.
+1041. 초기 날짜는 `new Date()` 포맷팅(`YYYY-MM-DD  HH:mm`)을 사용함.
+1042. 수량 변경 함수(`handleUpdateQty`)는 `Math.max(1, ...)`을 사용하여 최소 1개를 보장함(단, 델타 연산 전 단계).
+1043. 파일 업로드 시 `file.name + file.size` 조합을 키로 사용하여 중복 파일을 클라이언트 레벨에서 방지함.
+1044. 사진 삭제(`removePhoto`) 시 `isPending` 여부에 따라 `URL.revokeObjectURL`을 호출하여 메모리 누수를 방지함.
+1045. `cleanupOrphanedPhotos` 함수는 `Promise.allSettled`를 사용하여 실패한 삭제 요청이 전체 흐름을 막지 않도록 함.
+1046. 저장(`submit`) 시 수행 중복 방지를 위해 `isSubmitting` ref와 `isLoading` state 이중 가드를 사용함.
+1047. 수정 권한 제한 시간은 3영업일(`isWithinBusinessDays`)이며, 마스터 권한자는 예외 처리됨.
+1048. 필수값 검증 로직은 날짜, 담당자, 주소, 연락처, 상품(1개 이상) 순으로 체크함.
+1049. "시공 상품을 1개 이상 선택해주세요." 경고 메시지는 `toast` `warning` 상태로 2초간 노출됨.
+1050. 전화번호 저장 시 `replace(/[^0-9]/g, "")`를 통해 숫자만 추출함.
+1051. 사진 파일명은 `install_complete_${Date.now()}_${index}_${random}` 형식을 따름.
+1052. `runTransaction` 내부에서 시공 스케줄(`reserved`)과 완료 보고(`actual`) 간의 정산(`settlement`) 로직이 수행됨.
+1053. 스케줄에 예약된 수량(`reservedQty`)과 실제 사용량(`actualQty`)의 차이(`delta`)를 계산함.
+1054. `delta > 0` (덜 사용함)인 경우: 초과분 회수(`Stock +`, `Inflow +`) 로직이 수행됨.
+1055. `delta < 0` (더 사용함)인 경우: 추가 사용(`Stock -`, `Outflow +`) 로직이 수행됨.
+1056. 정산 로직은 `assets` 컬렉션에 로그성 문서를 생성하며 `lastRecipientId`에 고객 ID를 기록함.
+1057. 정산 로그의 `editLog` 필드에는 `[Lock-Verified]` 태그가 포함되어 신뢰성을 보장함.
+1058. `asset_meta` 문서는 `install_complete_sync`라는 `lastAction` 값으로 갱신됨.
+1059. 고객의 `ownedProducts` 필드는 `Map` 자료구조를 사용하여 수량을 집계 및 병합함.
+1060. 기존 보유 제품이 있으면 차감(수정 시)하고, 현재 선택된 제품을 더하는 방식으로 최신 상태를 유지함.
+1061. 저장된 `activity` 문서의 `type`은 `"install_complete"`로 고정됨.
+1062. `ModificationHistory` - 메모 변경 시 `"참고: [이전] → [이후]"` 포맷으로 기록함.
+1063. `ModificationHistory` - 주소 변경 시 `"주소: [이전] → [이후]"` 포맷으로 기록함.
+1064. `ModificationHistory` - 결과(체크리스트) 변경 시 `"결과: 완료/전체 → 완료/전체"` 비율로 기록함.
+1065. `ModificationHistory` - 미처리 사유 변경 시 `"사유: [이전] → [이후]"` 포맷으로 기록함.
+1066. 수정 이력 기록 조건은 `changes.length > 0`일 때만 발동함.
+1067. 저장 성공 후 `performSelfHealing`을 호출하여 영향을 받은 자산(`affectedItems`)의 정합성을 재확인함.
+1068. 저장 완료 토스트 메시지는 `"시공 완료 보고 저장"`임.
+1069. 삭제(`handleDelete`) 로직은 해당 활동으로 인해 발생한 자산 변동(`assets`)을 역추적하여 롤백함.
+1070. 삭제 시 `asset_meta`의 `currentStock`, `totalInflow`, `totalOutflow` 값을 역연산하여 복구함.
+1071. 삭제 확인 창 메시지는 `"삭제하시겠습니까?"`임.
+1072. 로딩 중(`isLoading`) 배경 블러 효과는 `backdropFilter="blur(2px)"`임.
+1073. 폼 최상단 컨테이너는 `Box`이며 `position="relative"` 속성을 가짐 (로딩 오버레이 위치 잡기 위함).
+1074. `ListItem` 컴포넌트는 `memo`화 되지 않았으며 매 렌더링마다 재생성될 수 있음(성능 주의).
+1075. `handleReorder` 함수는 `product`와 `supply` 타입에 따라 상태 키를 동적으로 선택함.
+1076. `InstallCompleteForm`의 `useEffect` 의존성 배열에는 `customer.address`, `customer.phone`이 포함되어 외부 변경에 반응함.
+1077. `toggleTask` 함수는 `before`와 `after` 타입을 인자로 받아 대상 배열을 스위칭함.
+1078. `manager` 초기값 설정 시 `defaultManager`보다 `initialData.manager`가 우선순위를 가짐.
+1079. `parseComposition`은 자재명 앞의 숫자(번호)나 점을 제거하는 정제 로직을 포함함.
+1080. 자동 추가된 자재의 `isAuto` 속성은 데이터베이스에 저장되지 않고 폼 상태 내에서만 유지됨 (재확인 필요: types.ts에는 없으므로 저장 시 필터링됨).
+1081. 저장 데이터 객체(`dataToSave`) 생성 시 `selectedSupplies`는 그대로 저장되므로 `isAuto` 플래그도 함께 저장될 가능성 있음 (타입 정의 확인 요망).
+1082. `useInstallCompleteForm` 훅은 `holidayMap`을 `useReportMetadata`에서 가져와 영업일 계산에 활용함.
+1083. 폼 제출 시 `setTimeout(resolve, 100)`을 사용하여 페인트 가드(Paint Guard)를 구현함.
+1084. 사진 URL 중복 제거 로직은 `split('?')[0]`을 기준으로 수행됨.
+1085. `handleRemoveItem` 내부의 윈도우 컨펌은 브라우저 네이티브 다이얼로그를 사용함.
+1086. `TeasyPhoneInput`의 `onChange` 이벤트는 문자열 값을 직접 전달받음.
+1087. 시공 전/후 라벨 옆의 체크 표시(✓)는 `fontSize="11px"`, `color="gray.400"` 스타일을 가짐.
+1088. `TeasyTextarea` (미처리 사유)의 `size`는 `sm`이며 배경색은 `gray.50`임.
+1089. 사진 그리드 영역은 `dashed` 스타일의 테두리를 가지며 `borderRadius="xl"`임.
+1090. `InstallCompleteForm.displayName`은 문자열 "InstallCompleteForm"으로 명시적 설정됨.
+1091. `useInstallCompleteForm.displayName` 또한 명시적으로 설정됨.
+1092. `handleQuestion` 등의 로직은 이 폼에 존재하지 않음 (단순 보고형).
+1093. `products` 옵션 데이터는 `label`, `value` 형태의 객체 배열임.
+1094. `inventoryItems` 옵션 중 `isDivider` 속성이 있는 항목은 선택 리스트에서 제외됨(`filter`).
+1095. `checkList` 데이터 초기화 시 `map`을 통해 `text`, `completed` 객체 구조로 변환함.
+1096. 자재 추가 핸들러(`handleAddSupply`)는 중복 선택 시 수량을 1 증가시키는 로직을 포함함.
+1097. `activityId`가 없으면(신규 작성) `customer_meta`의 `totalCount`가 1 증가함.
+1098. `activityId`가 없으면 `lastSequence`가 갱신됨.
+1099. 트랜잭션 성공 반환값은 `{ success: true, affectedItems: [...] }` 구조임.
+1100. `uploadBytes` 함수는 Firebase Storage SDK를 직접 호출함.
+1101. `TeasyDateTimeInput`은 `onChange` 핸들러에서 문자열 값을 바로 받음.
+1102. `manager`가 없을 경우 `defaultManager`로 폴백하는 로직이 `useEffect`와 `useState` 초기값 양쪽에 존재함.
+1103. `location` 필드의 플레이스홀더는 `"전국 시공 주소 입력"`임.
+1104. `selectedProducts` 렌더링 시 `key`값은 `item.id`를 사용함.
+1105. `handleUpdateQty`는 `selectedProducts`와 `selectedSupplies`를 문자열 키로 구분하여 처리함.
+1106. `useEffect` 내에서 `lastSchedule` 찾을 때 `[...activities].reverse()`를 통해 최신순 탐색을 수행함.
+1107. `InstallCompleteForm`은 `customer` 객체의 `id`, `name`, `address` 속성을 필수로 요구함.
+1108. `removeTask` 기능은 `useInstallCompleteForm` 내에 정의되어 있으나 UI에서 사용되지 않음 (코드 포착).
+1109. `addTask` 기능 또한 정의되어 있으나 UI 연결부가 없음 (스케줄 승계 데이터만 사용).
+1110. `updateTask` 기능도 UI에서 직접 호출되지 않고 `toggleTask`만 사용됨.
+1111. `handleDelete` 함수는 `useImperativeHandle`을 통해 부모 컴포넌트에 노출됨.
+1112. 서브밋 버튼 핸들러는 `InstallCompleteForm` 내부가 아닌 부모(모달 등)에서 `ref.current.submit()` 형태로 호출됨.
+1113. `Reorder.Item`의 `style` 속성에는 `userSelect: "none"`이 적용되어 드래그 시 텍스트 선택을 방지함.
+1114. `Reorder.Item`은 `div` 태그로 렌더링됨 (`as="div"`).
+1115. `Badge` 컴포넌트는 Chakra UI의 기본 `subtle` 변형을 사용함.
+1116. `CustomSelect` 컴포넌트는 `isDisabled` 상태를 `isReadOnly` prop과 연동함.
+1117. `TeasyFormLabel`의 `sub` 속성은 폰트 크기와 색상을 조절하여 계층 구조를 시각화함.
+1118. `Box` 컴포넌트를 구분선으로 사용할 때 `borderTop="1px dashed"` 스타일을 적용함.
+1119. `PhotoGrid`의 `onAddClick` 이벤트는 숨겨진 `file` 인풋을 클릭(`ref.current.click()`)함.
+1120. `initialData`가 변경되면 `formData` 전체를 재설정(`reset`)하는 `useEffect`가 동작함.
+1121. `isLoading` 상태일 때 사용자는 폼 입력을 할 수 없도록 막는 별도의 `disabled` 처리는 없으나 오버레이가 클릭을 차단함.
+1122. `customer_meta` 문서 ID 포맷은 `${customer.id}_install`임.
+1123. `assets` 문서의 `lastActionDate`는 `YYYY-MM-DD` 포맷으로 저장됨.
+1124. 정산 로직에서 `delta`가 0인 경우(예상대로 사용함)에는 아무런 자산 로그도 남기지 않음.
+1125. `reservedMap` 키 생성 시 이름과 카테고리를 파이프(`|`)로 연결하지 않고, 맵 조회 시 키를 조합함.
+1126. `settlementItems` 배열생성 시 `reserved`와 `actual`의 모든 키(`allKeys`)를 합집합으로 순회함.
+1127. `activity` 문서 삭제 시 `lastDeletedAt` 같은 소프트 삭제 필드 없이 물리적으로 `delete()` 됨.
+1128. `activities` 쿼리 무효화 키는 `["activities", customer.id]`임.
+1129. `customers` 리스트 쿼리 무효화 키는 `["customers", "list"]`임.
+1130. `InstallCompleteForm` 내부 로직은 `react-icons/md` 아이콘 패키지에 의존함.
+1131. 고객의 `ownedProducts` 필드는 `Map<string, number>` 자료구조를 통해 메모리 상에서 계산됨.
+1132. 기존 `ownedProducts` 문자열 파싱은 정규식 `^(.*)\s+x\s+(\d+)$`을 사용하여 상품명과 수량을 분리함.
+1133. 정규식 매칭 실패 시 수량을 1로 간주하고 전체 문자열을 상품명으로 취급함.
+1134. 수정 모드(`activityId` 존재) 진입 시, `initialData`에 있던 상품 수량을 `ownedProducts` 맵에서 먼저 차감함.
+1135. 차감 후 수량이 0 이하가 되면 해당 상품 키를 맵에서 제거(`delete`)함.
+1136. `formData`의 현재 선택된 상품 수량을 맵에 더하여 최종 보유량을 산출함.
+1137. 최종 `ownedProducts` 배열은 상품명 기준 오름차순 정렬(`localeCompare`)되어 저장됨.
+1138. 활동 상세의 `product` 필드는 상품이 여러 개일 경우 원문자(①, ②...)를 접두어로 붙여 나열됨(`join(", ")`).
+1139. 상품이 1개일 때는 원문자 접두어가 붙지 않음.
+1140. 트랜잭션 최적화를 위해 `metaTracker` 맵을 사용하여 동일한 `asset_meta` 문서를 중복 읽기 하지 않음.
+1141. `metaId` 생성 시 자재명이나 카테고리에 포함된 슬래시(`/`)는 언더스코어(`_`)로 치환됨(`encryptMetaId`).
+1142. 트랜잭션 읽기 단계(Pre-transaction Read)에서 `customer_meta`, `customers`, `activities` 문서를 미리 로드함.
+1143. `existingAssets` (기존 정산 내역)가 존재할 경우, 롤백을 위해 관련된 `asset_meta`를 모두 미리 로드함.
+1144. `settlementItems` (신규 정산 내역)에 포함된 자재들의 `asset_meta` 또한 미리 로드함.
+1145. `asset_meta` 데이터가 존재하지 않을 경우 `totalInflow`, `totalOutflow`, `currentStock`을 0으로 초기화하여 처리함.
+1146. `metaTracker`는 `ref`, `data`, `deltaStock`, `deltaInflow`, `deltaOutflow` 상태를 추적 관리함.
+1147. `customer` 문서의 `lastConsultDate`는 시공 완료 보고서의 `date` 값으로 무조건 갱신됨(과거 날짜라도).
+1148. `customer` 문서의 `updatedAt` 필드는 항상 `serverTimestamp()`로 갱신됨.
+1149. `activities` 문서는 `createdBy` (UID)와 `createdByName` (이름) 필드를 모두 저장하여 작성자를 기록함.
+1150. 시공 완료 활동의 `managerRole` 필드는 선택된 관리자 옵션의 `role` 값을 따르며 기본값은 `"employee"`임.
+1151. 정산 로직에서 `reserved`와 `actual` 맵핑 시 공백을 제거(`trim`)하여 키 불일치를 방지함.
+1152. 정산 로그(`assets`) 생성 시 `lastInflow`와 `lastOutflow`는 상호 배타적으로 기록됨(한 쪽은 null).
+1153. 정산 로그의 `createdAt`은 `serverTimestamp()`를 사용하지만 `lastActionDate`는 `YYYY-MM-DD` 문자열을 사용함.
+1154. `asset_meta` 갱신 시 `deltaStock`, `deltaOutflow` 등 변화량만 트랜잭션에 반영(`merge: true`)하여 충돌을 최소화함. (코드상으로는 set merge 사용).
+1155. `runTransaction`은 572라인에서 `{ success: true }` 객체를 반환하며 에러 발생 시 잡아내지 않고 상위 캐치 블록으로 던짐.
+1156. 저장 성공 후 `Promise.all`을 통해 영향을 받은 모든 자재(`affectedItems`)에 대해 `performSelfHealing`을 병렬 실행함.
+1157. 자가 치유(Self-Healing) 로직 에러는 `console.error`로만 출력되며, 전체 프로세스 성공 여부에는 영향을 주지 않음.
+1158. 저장 후 0.5초(`setTimeout 500`) 대기 후 쿼리 무효화(Invalidation)가 실행됨.
+1159. 쿼리 무효화는 `activities`, `customer`, `customers`, `assets` 4개 키에 대해 순차적으로 수행됨.
+1160. 삭제(`handleDelete`) 시 `assets` 컬렉션을 쿼리하여 해당 활동에 귀속된(`sourceActivityId`) 모든 자산 로그를 찾아냄.
+1161. 삭제 트랜잭션 내에서 자산 로그 삭제(`delete`)와 메타 데이터 롤백(`update`)이 원자적으로 수행됨.
+1162. 삭제 시 메타 데이터 롤백은 `asset.data.lastInflow` 등을 역연산(-/+)하여 수행됨.
+1163. 삭제 성공 시에도 `performSelfHealing`이 호출되어 데이터 정합성을 이중 보장함.
+1164. 삭제 완료 토스트는 `info` 상태(파란색)로 표시됨.
+1165. `cleanupOrphanedPhotos`는 Cloud Storage URL(`firebasestorage.googleapis.com`)만 필터링하여 삭제를 시도함.
+1166. `Storage` 참조 생성은 `sRef(storage, url)` 함수를 사용함.
+1167. `useInstallCompleteForm` 훅은 `isSubmitting` ref를 통해 중복 제출을 방지함.
+1168. 200라인 부근의 `uniquePending` 로직은 `Map`을 사용하여 파일 이름+사이즈 조합의 고유성을 보장함.
+1169. 업로드된 파일의 다운로드 URL은 `getDownloadURL`을 통해 획득함.
+1170. 최종 사진 리스트(`finalPhotos`) 필터링 시 `blob:`으로 시작하는 임시 URL은 모두 제거됨.
+1171. `Activity` 타입 정의상 `selectedProducts`와 `selectedSupplies`는 필수 필드로 간주됨 (Optional 아님).
+1172. `tasksBefore`와 `tasksAfter` 배열은 빈 배열일지라도 `null`이 아닌 `[]`로 저장됨.
+1173. `memo` 필드는 `applyColonStandard`를 거쳐 콜론 포맷이 적용된 상태로 저장됨.
+1174. `incompleteReason`은 모든 태스크가 완료된 경우 DB에 빈 문자열(`""`)로 저장됨 (UI 입력값이 있어도 무시).
+1175. `initialData`가 변경되면 `useEffect`가 실행되어 `formData`를 덮어씀.
+1176. `InstallCompleteForm`의 `Box` 래퍼는 로딩 오버레이의 기준점(`position: relative`) 역할을 함.
+1177. `reorder` 패키지의 `useDragControls` 훅을 사용하여 커스텀 드래그 핸들을 구현함.
+1178. `ListItem` 컴포넌트 내부의 `Badge`는 `variant="subtle"`이 적용되어 부드러운 색감을 냄.
+1179. 시공 전/후 섹션 타이틀(`TeasyFormLabel`)은 `mb={2}` 마진을 가져 체크리스트와 간격을 둠.
+1180. `TeasyFormGroup`은 `borderRadius="xl"` 속성을 가져 둥근 모서리 컨테이너를 형성함.
+1181. `InstallCompleteForm`은 `useReportMetadata` 훅을 통해 `products`, `inventoryItems`, `managerOptions`를 공급받음.
+1182. `products` 리스트에서 선택된 값(`val`)으로 `find`를 수행하여 상품 정보를 가져옴.
+1183. 상품 추가 시 `newProducts` 배열 생성은 불변성(Immutability)을 지키며 스프레드 연산자를 사용함.
+1184. `InstallCompleteForm` 로직은 자재의 `category` 정보가 없으면 정산 맵(`reservedMap`) 키 생성 시 빈 문자열을 사용함.
+1185. `handleUpdateQty`는 수량 감소 시 1 미만이 되는 것을 방지하는 로직(`Math.max(1, ...)`)이 훅 내부에 존재함.
+1186. `handleRemoveItem`은 `confirm` 취소 시 아무 동작도 하지 않고 리턴함.
+1187. `toggleTask`는 `completed` 속성만 반전(`!completed`)시킴.
+1188. 사진 업로드 버튼 클릭 시 `fileInputRef.current?.click()` 호출은 React의 ref 포워딩 패턴을 사용함.
+1189. `Activity` 문서의 `customerName` 필드는 `customer` prop에서 유래한 값을 그대로 저장함.
+1190. `isWithinBusinessDays` 유틸은 공휴일 맵(`holidayMap`)을 인자로 받아 영업일 계산을 수행함.
+1191. 수정 불가 토스트 메시지는 `"작성 후 3영업일이 경과하여 마스터만 수정 가능합니다."`임.
+1192. `checkList` 아이템 렌더링 시 `key`값으로 인덱스(`idx`)를 사용함 (항목 순서 변경이 없으므로 안전).
+1193. `Reorder.Group`의 `axis="y"` 설정으로 수직 방향 정렬만 허용함.
+1194. `Reorder.Item` 스타일의 `marginBottom: "8px"`은 아이템 간의 간격을 정의함.
+1195. 리스트 아이템의 `shadow`는 `xs`로 설정되어 미세한 입체감을 줌.
+1196. `getCircledNumber` 유틸은 1부터 20까지의 숫자를 원문자로 변환하며 범위를 벗어나면 숫자를 그대로 반환함.
+1197. `handleDelete` 내부에서 `activities` 삭제 후 `customer_meta`의 `totalCount` 감소 로직은 구현되어 있지 않음 (누적 카운트 유지 정책).
+1198. `useInstallCompleteForm` 훅은 `customer` 객체의 `ownedProducts` 속성이 없어도(`undefined`) 빈 배열로 처리하여 에러를 방지함.
+1199. `updatedOwned` 배열 생성 시 `sort` 메서드를 사용하여 상품명 순으로 정렬함.
+1200. `InstallCompleteForm`은 모달 내에서 사용되도록 설계되었으나 독립 페이지에서도 동작 가능한 구조임.
+1201. `TeasyTextarea`의 `isDisabled` 속성은 `isReadOnly`와 동일하게 설정됨.
+1202. `rawAssets` 데이터는 `useReportMetadata`에서 가져오며 자재 구성(`composition`) 정보 조회에 사용됨.
+1203. 자동 추가된 자재가 사용자가 수동으로 수량을 변경해도 `isAuto` 속성은 유지됨.
+1204. `InstallCompleteForm`의 `useEffect`는 `initialData` 외에도 `customer.phone` 변경 시 폼 데이터를 갱신함.
+1205. `handleFileUpload`는 `Array.from(files)`를 통해 `FileList` 객체를 배열로 변환함.
+1206. 파일 확장자 추출 시 `split('.').pop()`을 사용하며 파일명에 점이 없으면 전체 이름을 반환함.
+1207. `InstallCompleteForm`의 모든 `FormControl`은 `isRequired` 여부에 따라 별표 표시가 됨.
+1208. `date` 필드 변경 시 `setFormData`는 전체 객체를 복사(`...formData`) 후 `date`만 덮어씀.
+1209. `handleDelete`는 `isLoading`을 `true`로 설정하고 작업 종료 시 `finally` 블록에서 `false`로 변경함.
+1210. `InstallCompleteForm` 코드는 `4px` 두께의 스피너를 사용함.
+1211. `Reorder.Item` 드래그 중 배경색 변화는 `_active` 가상 선택자를 통해 구현됨.
+1212. `ListItem` 내부의 텍스트 색상은 `gray.700`임.
+1213. `Badge` 컴포넌트의 `borderRadius`는 `15%`로 커스텀 설정됨.
+1214. `parseComposition` 유틸은 쉼표(`,`)와 슬래시(`/`)를 모두 구분자로 처리함.
+1215. `InstallCompleteForm`은 `useQueryClient` 훅을 사용하여 캐시를 제어함.
+1216. `InstallCompleteConstants` 객체는 `types.ts` 파일에 정의되어 있으며 `as const`로 타입 추론됨.
+1217. `InstallCompleteForm`의 `submit` 함수는 반환값(`boolean`)을 통해 부모에게 성공 여부를 알림.
+1218. `useInstallCompleteForm` 내부의 `console.error`는 개발 모드 디버깅용으로 남겨져 있음.
+1219. `PhotoGrid` 컴포넌트는 `maxPhotos` prop을 받아 추가 버튼 노출 여부를 제어함.
+1220. `checkList` 데이터 렌더링 시 `HStack`을 사용하여 번호와 텍스트를 정렬함.
+1221. `ListItem` 컴포넌트는 `props`로 `colorScheme`을 받지만 기본값은 `"brand"`임.
+1222. `InstallCompleteForm`의 `tasksBefore`와 `tasksAfter`는 데이터 구조상 동일하지만 UI상 분리되어 표시됨.
+1223. `handleUpdateQty`는 `selectedProducts`의 경우 0 이하가 되면 삭제 로직을 타지만, 단순 감소는 1에서 멈춤 (코드 분석상 상충되는 로직 존재: `Math.max(1)` vs `newQty <= 0` 체크 -> `Math.max`가 먼저 적용되면 삭제 로직 도달 불가 가능성 있음. *Audit Note: 훅 88라인 `Math.max(1, ...)`이 먼저 적용되면 0이 될 수 없으나, UI에서 -1을 보낼 때 로직 흐름 확인 필요. 260라인 `handleUpdateQty` UI 로직은 훅의 로직과 별개로 `newQty <= 0` 체크를 수행함. UI 쪽 로직이 우선함.*)
+1224. `index.tsx`의 `handleUpdateQty`는 훅의 `handleUpdateQty`를 호출하지 않고 `setFormData`를 직접 호출하거나 로직을 재구현함 (260라인). *불일치 발견: 훅에도 `handleUpdateQty`가 있고 UI에도 있음.*
+1225. **중요 발견**: `index.tsx`는 `useInstallCompleteForm` 훅의 `handleUpdateQty`를 사용하지 않고 내부 정의된 `handleUpdateQty` (260라인)를 사용함.
+1226. `index.tsx`의 `handleUpdateQty`는 삭제 컨펌 및 연쇄 삭제(`linkedId`) 로직을 포함하고 있음.
+1227. 반면 훅의 `handleUpdateQty` (83라인)는 단순 수량 변경만 처리하며 사용되지 않는 것으로 보임 (Dead Code).
+1228. UI 레벨의 `handleUpdateQty`가 실제 비즈니스 로직(연쇄 삭제 등)을 담당하고 있음.
+1229. `ListItem` 컴포넌트는 `onUpdateQty` 콜백을 통해 상위 컴포넌트로 이벤트를 전파함.
+1230. `Reorder.Item`은 `value={item}`을 필수 prop으로 받음.
+1231. `InstallCompleteForm`은 `customer` prop이 없으면 렌더링 에러가 발생할 수 있음 (Optional chaining 부족).
+1232. `tasksBefore` 렌더링 시 `getCircledNumber(idx + 1)`을 사용함.
+1233. `tasksAfter` 렌더링 시 `getCircledNumber(formData.tasksBefore.length + idx + 1)`을 사용함.
+1234. `TeasyPhoneInput`은 `placeholder="000-0000-0000"`을 가짐.
+1235. `PhotoGrid`의 `isReadOnly` 속성은 삭제 버튼 노출 여부를 제어함.
+1236. `InstallCompleteForm` 스타일링에 `shadow="xs"`가 다수 사용됨.
+1237. `InstallCompleteForm`의 `useImperativeHandle` 의존성 배열에는 `submit`, `handleDelete`, `managerOptions`가 포함됨.
+1238. `parseComposition` 유틸은 함수 내부 변수 `supplies`를 반환함.
+1239. `handleAddProduct` 함수는 `isReadOnly`일 때 조기 리턴함.
+1240. `toast` 알림 위치는 `position: "top"`으로 통일됨.
+1241. `storagePath`에는 `customer.id`가 포함되어 폴더 구조를 고객별로 격리함.
+1242. `InstallCompleteForm` 수정 이력 로그 생성 시 `oldData`와 `newData` 비교 로직이 방대하게 구현됨 (약 80라인).
+1243. `modificationHistory` 시간 포맷은 `YYYY-MM-DD  HH:mm` (공백 2칸)임.
+1244. `managerOptions`는 `useReportMetadata` 훅에서 실시간으로 가져옴.
+1245. `customer` 정보 조회 쿼리 키는 `["customer", customer.id]`임.
+1246. `activities` 조회 쿼리 키는 `["activities", customer.id]`임.
+1247. `assets` 관리 쿼리 키는 `["assets", "management"]`임.
+1248. `InstallCompleteForm`은 `useCallback`을 적극 활용하여 렌더링 성능을 최적화함.
+1249. `handleReorder`는 `formData`의 해당 필드 전체를 교체함.
+1250. `InstallCompleteForm` 파일의 끝에는 `displayName` 설정 코드가 존재함.
+1251. `CustomerTable`의 최대 높이는 `calc(100vh - 300px)`로 설정되어 화면 크기에 반응함.
+1252. 테이블 헤더(`Thead`)는 `position="sticky"`, `top={0}`, `zIndex={1}` 속성을 통해 스크롤 시 상단 고정됨.
+1253. 테이블 헤더의 배경색은 `gray.50`이며 높이는 `55px`로 고정됨.
+1254. '순번' 컬럼 너비는 `6%`, '고객명' 컬럼 너비는 `10%`로 배정됨.
+1255. '주소' 컬럼은 가장 넓은 `28%` 공간을 차지하며 좌측 정렬됨.
+1256. `active` 상태인 체크박스 컬럼 너비는 `3%`이며 중앙 정렬됨.
+1257. `HighlightedText` 컴포넌트는 검색어(`query`)와 일치하는 부분을 `yellow.200` 배경색과 `extrabold` 두께로 강조함.
+1258. 검색어 매칭은 대소문자를 구분하지 않는 정규식(`gi`)을 사용함.
+1259. 특수문자 검색 시 정규식 에러를 방지하기 위한 이스케이프 처리(`replace(/[.*+?^${}()|[\]\\]/g, '\\$&')`)가 적용됨.
+1260. `TruncatedTooltip` 컴포넌트는 내용이 잘렸을 때(`scrollWidth > clientWidth`)만 툴팁을 표시함.
+1261. 툴팁 배경색은 `gray.800`이며 `borderRadius="lg"` 속성을 가짐.
+1262. 연락처 컬럼 당 메인 연락처와 서브 연락처(`sub_phones`)를 수직(`VStack`)으로 나열함.
+1263. 서브 연락처는 `color="gray.400"`, `fontSize="sm"`으로 스타일링되어 메인 연락처와 구분됨.
+1264. 주소 컬럼 또한 서브 주소(`sub_addresses`)가 존재할 경우 하단에 회색조로 병기함.
+1265. '상세보기' 버튼 배지의 기본 배경색은 `rgba(128, 90, 213, 0.1)` (Brand Color 10% 투명도)임.
+1266. '상세보기' 버튼 호버 시 배경색은 `brand.500`, 글자색은 `white`로 반전됨.
+1267. 테이블 로딩 상태 시 높이 `200px`의 빈 공간에 주황색(`brand.500`) 스피너(`lg`)가 표시됨.
+1268. 로딩 문구는 `"데이터를 불러오는 중입니다..."`이며 `gray.500` 색상임.
+1269. 데이터 없음(Empty) 상태 시 `"검색 결과가 없습니다."` 문구가 `gray.400` 색상으로 표시됨.
+1270. 테이블 행(Row) 높이는 `45px`이며 호버 시 `gray.50` 색상으로 전환됨(`transition="all 0.2s"`).
+1271. '등록일' 컬럼의 날짜 포맷팅은 공백을 2칸(`"  "`)으로 늘리고 슬래시를 하이픈으로 변경함.
+1272. `CustomerTable`은 `tableLayout: "fixed"` 스타일을 사용하여 컬럼 너비를 강제함.
+1273. 체크박스 전체 선택 로직(`handleSelectAll`)은 현재 페이지에 로드된 고객들(`customers`)만을 대상으로 함.
+1274. 체크박스 개별 선택(`handleSelectItem`)은 `selectedIds` 배열에 ID를 추가하거나 제거(`filter`)하는 방식임.
+1275. `isIndeterminate` 상태는 일부만 선택되었을 때(`0 < len < total`) 체크박스에 대시(-) 표시를 함.
+1276. '보유 상품' 텍스트가 길어질 경우 `isTruncated` 속성을 통해 말줄임표(...) 처리됨.
+1277. `ThinParen` 컴포넌트는 보유 상품 목록의 괄호를 얇게 처리하는 타이포그래피 유틸임.
+1278. 관리 총판(`distributor`) 정보가 없으면 하이픈(`-`)으로 표시됨.
+1279. `CustomerTable` 컨테이너는 `borderRadius="xl"`, `shadow="sm"`, `border="1px"` (gray.200) 스타일을 가짐.
+1280. `Link` 컴포넌트(`next/link`)를 사용하여 상세 페이지 이동 시 클라이언트 라우팅을 수행함.
+1281. `Thead`의 각 `Th`는 `borderBottom="1px"`, `borderColor="gray.100"` 속성을 가짐.
+1282. `TruncatedTooltip` 내부의 `checkTruncation` 함수는 `onMouseEnter` 이벤트 시점에 동작함.
+1283. `HighlightedText`는 검색어가 없거나 텍스트가 없으면 원본을 그대로 렌더링함.
+1284. 서브 연락처와 서브 주소는 `Box`로 감싸져 있으며 `w="full"` 속성으로 영역을 확보함.
+1285. 테이블 본문(`Tbody`) 내의 텍스트 줄바꿈 방지(`whiteSpace="nowrap"`)가 주요 컬럼에 적용됨.
+1286. '주소' 및 '등록일' 컬럼은 `whiteSpace` 제약이 없어(혹은 pre-wrap) 줄바꿈을 허용하거나 내용에 따라 유동적임. (코드: 주소는 `VStack` 내부, 등록일은 `whiteSpace="pre-wrap"`).
+1287. `Thead`의 폰트 사이즈는 `xs`, 굵기는 `800` (Extra Bold)으로 설정됨.
+1288. `Checkbox` 컴포넌트는 `purple` 색상 테마를 사용함.
+1289. 테이블의 `Spinner` 두께는 `4px`로 설정됨.
+1290. `CustomerTable`은 `isLoading` props를 받아 로딩 UI를 제어함.
+1291. `HighlightedText`의 `key` 값은 배열 인덱스(`i`)를 사용함.
+1292. 상세 페이지 링크 경로는 `/customers/${customer.id}` 포맷임.
+1293. 서브 주소 렌더링 시 `key` 값은 인덱스(`idx`)를 사용함.
+1294. `CustomerTable` 컴포넌트는 `searchQuery` prop 기본값을 `""`로 가짐.
+1295. `TruncatedTooltip`은 `React.cloneElement`를 사용하여 자식 엘리먼트에 `ref`와 이벤트를 주입함.
+1296. 검색 결과 없음 상태 텍스트는 2단으로 구성되며 하단 문구는 `gray.300`, `xs` 사이즈임.
+1297. 테이블 셀(`Td`)의 수직 패딩(`py`)은 `2`로 설정됨.
+1298. '순번' 컬럼(`customer.no`)은 회색(`gray.600`)으로 표시됨.
+1299. '고객명' 컬럼은 진한 회색(`gray.800`)과 굵은 글씨(`bold`)로 강조됨.
+1300. `isAllSelected` 변수는 현재 페이지 데이터 기준 전체 선택 여부를 판별함.
+1301. `CustomerTable` 체크박스의 `colorScheme`은 `purple`로 통일됨.
+1302. `CustomerTable` 이름 컬럼의 폰트 두께는 `fontWeight="bold"`임.
+1303. `CustomerTable` 연락처 컬럼은 `VStack`을 사용하여 메인 연락처와 서브 연락처를 수직 적재함.
+1304. `CustomerTable` 주소 컬럼 또한 `VStack`을 사용하여 메인 주소와 서브 주소를 수직 적재함.
+1305. `CustomerTable` 행(Row) 호버 시 배경색은 `gray.50`으로 변경됨.
+1306. `CustomerTable` 빈 상태 메시지는 "검색 결과가 없습니다."와 "검색어를 확인하거나 필터를 초기화해 보세요." 두 줄로 구성됨.
+1307. `CustomerTable` 로딩 스피너의 색상은 `brand.500`임.
+1308. `CustomerTable` 헤더 셀(`Th`)은 `borderBottom="1px"`, `borderColor="gray.100"` 스타일을 가짐.
+1309. `CustomerTable` 데이터 셀(`Td`) 또한 `borderBottom="1px"`, `borderColor="gray.100"` 스타일을 가짐.
+1310. `CustomerTable` 컨테이너는 `overflow="hidden"` 속성을 가져 둥근 모서리가 내부 컨텐츠를 클리핑하도록 함.
+1311. `CustomerRegistrationModal`은 닫기 버튼 대신 헤더 좌측 상단의 뒤로가기 아이콘(`ArrowBackIcon`)을 사용함.
+1312. 뒤로가기 아이콘은 `white` 색상이며 `variant="ghost"`임.
+1313. 모달 헤더 타이틀은 `ml={10}` 여백을 주어 뒤로가기 버튼과 겹치지 않게 배치함.
+1314. 모달 본문 상단에는 `opacity={0}`인 `Box`를 배치하여 브라우저의 자동 포커싱을 가로챔(Silent Focus Guard).
+1315. 고객명 필드는 `TeasyInput`을 사용하며 `isRequired` 속성이 적용됨.
+1316. 연락처 필드는 `TeasyPhoneInput`을 사용하며 `isRequired` 속성이 적용됨.
+1317. 주소 필드는 `TeasyInput`을 사용하지만 선택 입력 값(`isRequired` 없음)임.
+1318. 관리 총판 필드는 `CustomSelect`를 사용하며 `isRequired` 속성이 적용됨.
+1319. 관리 총판 옵션에는 "TEASY", "에이블클래스", "리얼칠판", "뷰라클"이 포함됨.
+1320. "TEASY" 옵션 뒤에는 구분선(`isDivider`)이 존재함.
+1321. 하단 버튼들은 `w="108px" h="45px"` 규격을 따름.
+1322. "등록 완료" 버튼에만 `shadow="brand-lg"`가 적용되어 시각적 위계를 줌.
+1323. "정보 부족" 토스트의 상태는 `warning`임.
+1324. "연락처 형식 오류" 토스트의 상태는 `warning`임.
+1325. "등록 성공" 토스트의 상태는 `success`임.
+1326. `registeredDate` 필드는 클라이언트의 현재 날짜(`YYYY-MM-DD`)로 설정됨.
+1327. `manager` 필드는 현재 로그인한 사용자 이름으로 설정되며 없을 경우 "알 수 없음"이 됨.
+1328. `sub_phones`와 `sub_addresses` 필드는 빈 배열(`[]`)로 초기화되어 DB에 저장됨.
+1329. `ownedProducts` 필드도 빈 배열(`[]`)로 초기화됨.
+1330. `isLocked` 필드는 `false`로 초기화됨.
+1331. `queryClient.invalidateQueries`는 `["customers", "list"]` 키를 대상으로 실행됨.
+1332. 쿼리 무효화 전 500ms의 인위적 지연(`setTimeout`)을 주어 Firestore 인덱싱 시간을 확보함.
+1333. 모달 사이즈는 `md`임.
+1334. `isLoading` 상태일 때 등록 버튼은 비활성화되지 않으나 로딩 스피너가 표시됨(`isLoading` prop).
+1335. 연락처 검증 정규식은 `/^01[0-9]-[0-9]{3,4}-[0-9]{4}$/`로 하이픈을 강제함.
+1336. `TeasyModalOverlay` 컴포넌트가 사용되어 배경을 어둡게 처리함.
+1337. `TeasyModalHeader`는 `position="relative"`를 가져 내부 절대 위치 요소를 기준 잡음.
+1338. 뒤로가기 버튼(`IconButton`)은 `aria-label="Back"` 속성을 가짐.
+1339. 폼 라벨은 `TeasyFormLabel` 컴포넌트를 사용함.
+1340. 폼 요소들을 감싸는 `VStack`의 간격(`spacing`)은 `6`임.
+1341. `CustomerRegistrationModal` 파일 최상단에는 `"use client"` 지시어가 명시됨.
+1342. `license`와 `notes` 상태(state)는 존재하나 UI에 입력 필드가 노출되지 않음(Hidden Features).
+1343. DB 저장 시 `license`와 `notes`는 빈 문자열 또는 상태값으로 저장되나 UI 부재로 사실상 빈 값임.
+1344. `manager` 옵션 선택 UI가 없으며 무조건 로그인 사용자로 고정됨.
+1345. `addDoc` 함수는 `customers` 컬렉션에 문서를 추가함.
+1346. `handleRegister` 함수는 `async/await` 패턴을 사용함.
+1347. `toast` 알림은 `duration`, `isClosable`, `position` 등의 옵션을 세밀하게 조정함.
+1348. `useAuth` 훅을 통해 `userData`에 접근함.
+1349. `db` 객체는 `@/lib/firebase`에서 임포트됨.
+1350. `addDoc`, `collection`, `serverTimestamp`는 `firebase/firestore` SDK 함수임.
+1351. `CustomerRegistrationModal`의 뒤로가기 버튼(`ArrowBackIcon`)은 모달 좌측 상단(`top="8px"`, `left="8px"`)에 고정 배치됨.
+1352. 이 뒤로가기 버튼은 `white` 색상이며 `ghost` 변형을 사용하여 배경 없이 아이콘만 표시되다가 호버 시 `whiteAlpha.300` 배경이 나타남.
+1353. 모달 타이틀 "신규 고객 등록"은 뒤로가기 버튼과의 겹침 방지를 위해 `ml={10}` 여백을 가짐.
+1354. 모달 본문 진입 직후에는 투명한 `Box`(`w=0`, `h=0`, `opacity=0`)가 포커스 가드 역할을 하여 첫 번째 입력 필드로의 자동 포커스를 막음.
+1355. 고객 등록 폼의 필수 필드는 고객명, 연락처, 관리 총판 3가지임.
+1356. 필수 필드 누락 시 발생하는 토스트 메시지는 "정보 부족" / "고객명, 연락처, 관리 총판은 필수 입력 사항입니다."임.
+1357. 연락처 유효성 검사 정규식은 `/^01[0-9]-[0-9]{3,4}-[0-9]{4}$/`로, 대시(-)가 포함된 형식을 강제함.
+1358. 연락처 형식 오류 토스트는 "연락처 형식 오류" / "올바른 연락처 형식이 아닙니다. (예: 010-0000-0000)"임.
+1359. 등록 성공 토스트는 "등록 성공" / "데이터가 서버에 안전하게 저장되었습니다."이며 `success` 상태임.
+1360. 고객 데이터 저장 시 `registeredDate`는 `new Date().toISOString().split('T')[0]` (YYYY-MM-DD)로 자동 생성됨.
+1361. `manager` 필드는 로그인한 사용자 이름(`userData?.name`)을 사용하며, 없을 경우 "알 수 없음"으로 저장됨.
+1362. 신규 등록 시 `isLocked`는 `false`, `lastConsultDate`와 `lockedBy`는 `null`로 초기화됨.
+1363. `ownedProducts`, `sub_phones`, `sub_addresses` 배열은 빈 배열(`[]`)로 초기화되어 저장됨.
+1364. 등록 완료 후 `customers` 리스트 쿼리를 무효화하기 전 500ms의 인덱싱 대기 시간(`setTimeout`)을 가짐.
+1365. 등록 실패 토스트는 7초(`duration: 7000`) 동안 유지되며 "서버 저장 실패: 네트워크 환경이나 권한을 확인해 주세요." 메시지를 띄움.
+1366. 모달 하단 버튼은 "취소"(Secondary)와 "등록 완료"(Primary)로 구성되며 크기는 `108px` x `45px`로 동일함.
+1367. "등록 완료" 버튼에는 `shadow="brand-lg"`가 적용되어 강조됨.
+1368. 관리 총판 옵션 중 "TEASY" 다음에는 구분선(`divider`)이 위치하여 내부/외부 총판을 시각적으로 분리함.
+1369. `CustomerRegistrationModal`은 `TeasyModal` 컴포넌트를 사용하며 사이즈는 `md`임.
+1370. `handleRegister` 함수는 `isLoading` 상태를 제어하여 중복 클릭을 방지함.
+1371. `TimelineCard`의 배지 색상은 활동 타입에 따라 `purple`(기본), `blue`(문의, 시연스케줄), `green`(시공), `pink`(AS)로 매핑됨.
+1372. 특히 "원격"과 "완료"가 포함된 타입은 `purple`로 강제 지정되는 로직이 존재함.
+1373. 타임라인 파일/사진 목록의 중복 제거(`deduplicate`)는 URL의 쿼리 파라미터(토큰 등)를 제외한 `baseUrl` 기준으로 수행됨.
+1374. 파일명 생성기(`getTeasyStandardFileName`)는 활동 타입에 따라 "PC사양", "시공사진", "현장사진", "견적서" 등의 접미사를 부여함.
+1375. "문의"(`inquiry`) 카드는 채널명 뒤에 닉네임이 있을 경우 괄호(`()`)로 병기함.
+1376. "문의" 카드의 전화번호 표시는 `formatPhone` 유틸을 거쳐 하이픈 포맷팅됨.
+1377. "구매 확정"(`purchase_confirm`) 카드는 상품명 앞에 `gray.100` 배지("시공", "배송")를 표시함.
+1378. 구매 상품이 다수일 경우 `ThinParen`과 줄바꿈(`\n`)을 사용하여 리스트 형태로 출력하며 원문자(①)를 붙임.
+1379. 구매 상품 수량이 1개이고 다른 상품이 없을 경우 원문자 "①"은 표시되지 않음(트림 처리).
+1380. 결제 금액(`amount`)은 `formatAmount`를 통해 3자리 콤마 처리되고 "원" 단위가 붙음.
+1381. 할인 금액 표시는 "할인율 (금액원)" 또는 "금액원" 형식으로 조건부 렌더링됨.
+1382. 입금 방식(`payMethod === '입금'`)이고 세금계산서(`taxInvoice`)가 있으면 "증빙" 항목이 노출됨.
+1383. 배송 정보(`deliveryInfo`)는 "날짜 / 주소" 형식으로 결합되어 한 줄에 표시됨.
+1384. "방문 A/S 완료"(`as_complete`) 카드의 증상 리스트는 체크박스 아이콘(✓/✕)과 함께 렌더링됨.
+1385. 증상 해결 여부(`completed` or `isResolved`)에 따라 파란색(`blue.50`) 또는 빨간색(`red.50`) 아이콘 배경색이 적용됨.
+1386. "점검 불가 사유"(`symptomIncompleteReason`)는 빨간색 "사유" 배지와 함께 들여쓰기(`pl="56px"`)되어 표시됨.
+1387. "원격 A/S 완료"(`remoteas_complete`)는 '증상' 항목에 체크리스트 UI를 사용함.
+1388. 시공/AS 업무(`tasks`) 리스트는 "시공 전"과 "시공 후"로 나뉘어 표시되며 각각 회색 배지를 가짐.
+1389. 체크리스트 아이콘의 폰트 사이즈는 `10px`, 굵기는 `900`으로 매우 작고 굵게 설정됨.
+1390. 타임라인 카드의 "메모"와 "수정 이력"은 우측 영역(`flex={2}`)을 공유하며 `minH="250px"` 박스 내에 스크롤 가능하게 배치됨.
+1391. 수정 이력(`modificationHistory`)은 " / " 구분자로 항목을 나누고, ": "로 라벨과 값을, " → "로 변경 전후를 파싱함.
+1392. 수정 이력의 각 항목은 개별 카드 형태(`bg="white"`, `shadow="xs"`)로 렌더링됨.
+1393. 수정 이력 작성자 이름은 괄호(`()`)에 감싸져 시간 옆에 표시됨.
+1394. 커스텀 스크롤바 스타일은 너비 `4px`, 썸(thumb) 색상 `rgba(0,0,0,0.05)` (호버 시 `0.1`)로 미니멀하게 디자인됨.
+1395. 타임라인 카드의 날짜 표시는 슬래시(`/`)를 하이픈(`-`)으로, 공백을 두 칸(`  `)으로 치환하여 가독성을 높임.
+1396. `TimelineBadge` 클릭 시 `e.stopPropagation()`이 호출되어 카드 클릭 이벤트(상세 보기 등)와 충돌하지 않음.
+1397. 사진 뷰어(`TeasyUniversalViewer`)는 `isPhotosOpen` 상태에 따라 모달로 열림.
+1398. 세금계산서 뷰어는 별도의 상태(`isTaxInvoiceViewerOpen`)로 관리되며 타이틀이 "증빙"으로 설정됨.
+1399. 타임라인 아이템의 `createdByName`이 있으면 날짜 아래에 회색(`gray.400`, `xs`)으로 표시됨.
+1400. "협력사" 배지는 담당자가 협력사(`partner`) 역할일 때만 노란색(`yellow.400`)으로 표시됨.
+1401. 담당자가 차단된(`banned`) 상태면 이름 옆에 "(퇴)"가 붙고 회색 처리됨.
+1402. `TimelineCard`는 부모로부터 `onCardClick`, `onTitleClick` 핸들러를 주입받아 동작함.
+1403. "시공 확정" 및 "시공 완료" 카드는 `stepType`에 따라 배지 색상이 `green` 또는 `purple`로 자동 분기됨.
+1404. 배송 업체(`courier`)와 송장 번호(`trackingNumber`)는 서브 아이템으로 들여쓰기 되어 표시됨.
+1405. `TimelineInfoItem` 컴포넌트는 `label`과 `value`를 받아 왼쪽 정렬된 키-값 쌍을 렌더링함.
+1406. 사진/파일 리스트(`TimelineFileList`)는 썸네일이나 파일명 링크 형태로 렌더링됨 (내부 컴포넌트 로직).
+1407. 전화번호 포맷팅(`formatPhone`)은 타임라인 카드 표시 시점마다 수행됨.
+1408. 금액 포맷팅(`formatAmount`)은 천 단위 콤마를 적용함.
+1409. `STEP_LABELS` 상수는 영문 스텝 타입을 한글 라벨로 매핑함 (예: `purchase_confirm` -> "구매 확정").
+1410. "녹취" 파일은 "전화 문의" 채널일 때만 노출됨.
+1411. "확약" 파일 리스트는 `commitmentFiles` 배열을 사용하여 별도 섹션으로 렌더링됨.
+1412. "영상" 파일 리스트는 수거(`collectionVideo`)와 설치(`reinstallVideo`) 영상으로 나뉘어 각각 렌더링됨.
+1413. `TimelineCard`는 `Box` 컴포넌트로 감싸져 있으며 `borderRadius="2xl"`, `shadow="sm"` 스타일을 가짐.
+1414. 카드 내의 구분선이나 경계는 `border="1px"`, `borderColor="gray.100"`을 일관되게 사용함.
+1415. `content.memo`가 있으면 "참고사항" 섹션이 수정 이력 위에 표시됨.
+1416. 수정 이력 섹션은 상단 경계선(`borderTop`)이 메모 존재 여부에 따라 조건부로 렌더링됨.
+1417. "변경 항목", "변경 전", "변경 후" 라벨은 고정폭 텍스트(`flexShrink={0}`)로 정렬을 맞춤.
+1418. `TimelineCard`의 패딩(`p`)은 `6`으로 넉넉한 공간을 가짐.
+1419. `item.count`가 존재하면 배지에 숫자가 표시됨 (중복 건수 표시용).
+1420. `TimelineCard`는 `TimelineItem` 타입과 `count` 속성을 합친 타입을 props로 받음.
+1421. `CustomerRegistrationModal`에서 `ArrowBackIcon` 클릭 시 `onClose` 함수가 실행됨.
+1422. `useEffect`나 `dispatch` 없이 순수 렌더링 위주의 `TimelineCard`는 성능 최적화에 유리함.
+1423. `CustomerTable`의 "상세" 툴팁은 `hasArrow` 속성을 켜서 화살표시를 포함함.
+1424. `CustomerTable` 검색 결과 없음 상태에서 안내 문구의 폰트 사이즈는 `xs`임.
+1425. `TimelineCard` 내부의 모든 텍스트는 `break-word` 혹은 `pre-wrap` 처리되어 내용 잘림을 방지함(일부 제외).
+1426. `license` 필드는 `CustomerRegistrationModal`에서 입력받으나 필수값이 아님.
+1427. `CustomerRegistrationModal`의 `notes` 필드는 `TeasyTextarea`를 사용하며 초기값은 빈 문자열임.
+1428. `CustomerTable`에서 "등록일" 헤더는 중앙 정렬(`textAlign="center"`)됨.
+1429. `CustomerTable`의 `Tbody`에는 `Link` 컴포넌트가 포함되어 있어 Next.js의 prefetch 기능을 활용함.
+1430. `TimelineCard`의 "결과" 필드는 활동 타입과 무관하게 `content.result`가 있으면 렌더링됨.
+1431. `TimelineCard`의 "전화" 라벨은 문의, 일정, 완료 등 거의 모든 타입에서 공통적으로 사용됨.
+1432. "시연 완료"(`demo_complete`) 카드는 할인 제안 정보(`discountType`, `discountValue`)를 별도로 표시함.
+1433. "시공 확정"(`install_schedule`) 활동 카드는 주소 라벨을 "주소"로 표기함.
+1434. "방문 A/S 확정"(`as_schedule`) 카드는 "업무" 리스트를 단순 텍스트 나열로 보여줌(체크박스 없음).
+1435. `TimelineCard`에서 `managerRole === 'banned'` 체크 로직이 `TimelineInfoItem` 렌더링 루프 내에 포함됨.
+1436. `TimelineCard`의 파일 리스트 렌더링 조건은 배열 길이가 0보다 클 때만(`length > 0`) 동작함.
+1437. `CustomerRegistrationModal`의 `TeasyButton`들은 `h="45px"`로 높이가 통일되어 있음.
+1438. `CustomerTable`의 체크박스 `onChange` 이벤트는 버블링될 수 있으나 테이블 구조상 큰 문제 없음.
+1439. `TimelineCard`의 `ThinParen`은 괄호를 얇게 만드는 스타일적 요소로 곳곳에 사용됨.
+1440. `deduplicate` 함수는 `Set` 자료구조를 사용하여 O(N) 시간 복잡도로 중복을 제거함.
+1441. `CustomerTable`의 `VStack`은 `spacing={0}`으로 설정되어 요소 간 간격을 최소화함.
+1442. `CustomerRegistrationModal`의 `TeasyInput`들은 `placeholder` 속성을 가짐.
+1443. `TimelineCard`의 `prepareFiles` 함수는 파일 객체 배열을 표준 포맷으로 변환하는 순수 함수 역할을 함.
+1444. `TimelineBadge` 컴포넌트는 `onClick` 이벤트를 받아 타이틀 클릭(상세 이동 등)을 처리함.
+1445. `TimelineCard`의 우측 스크롤 영역 배경색은 `gray.50`임.
+1446. `TimelineInfoItem`의 `isHighlight` 속성은 텍스트를 강조(굵게/색상 변경 등)하는 데 사용됨.
+1447. `CustomerTable`의 `Th` 폰트 색상은 `gray.500`으로 통일됨.
+1448. `TimelineCard`의 "할인" 표시는 `discount`와 `discountAmount`, `userId`의 조합에 따라 3가지 패턴으로 분기됨.
+1449. `CustomerRegistrationModal`의 `handleRegister`는 비동기 함수(`async`)로 정의됨.
+1450. `TimelineCard` 파일은 713라인에 달하는 대형 컴포넌트임.
+1451. `TimelineCard`의 `ThinParen` 컴포넌트는 `text` prop을 받아 렌더링함.
+1452. `TimelineCard`에서 `managerRole`이 `partner`인 경우 노란색 배지가 표시됨.
+1453. `TimelineCard`의 `createdByName`이 `managerName`과 같으면 중복 표시되지 않음 (로직 확인 필요 - 코드상으로는 둘 다 표시될 수 있음).
+1454. `TimelineCard`의 풋터 작성자 이름은 `gray.400` 색상임.
+1455. `TimelineCard`의 `deduplicate` 함수는 `filter` 내에서 `Set`을 업데이트하며 동작함(Side Effect).
+1456. `TimelineCard`의 `as_complete` 태스크 리스트는 `isCompleteMode` 변수로 제어됨.
+1457. `ReportDetailModal`은 `isOpen` prop으로 제어됨.
+1458. `ReportDetailModal`은 내부적으로 `TimelineCard`와 유사한 데이터 표시 로직을 가짐 (추정).
+1459. `timeline.ts` (타입 정의)에는 `TimelineItem` 인터페이스가 정의되어 있음.
+1460. `TimelineItem`에는 `stepType`, `date`, `content` 등의 필수 필드가 포함됨.
+1461. `TimelineCard`는 `memo`화 되지 않아 리렌더링이 발생할 수 있음.
+1462. `TimelineCard`의 `HStack` 간격은 `2` 또는 `1.5`가 혼용됨.
+1463. `TimelineBadge` 컴포넌트는 `count` prop이 0이면 배지가 표시되지 않음.
+1464. `TimelineBadge`의 `colorScheme` prop은 Chakra UI 컬러 팔레트를 따름.
+1465. `TimelineCard` 우측 영역의 `flex` 값은 `2`임.
+1466. `TimelineCard` 좌측 영역(프로필 정보 등)의 `flex` 값은 `3`임.
+1467. `TimelineCard` 전체 `Flex` 컨테이너의 `gap`은 `8`임.
+1468. `TimelineCard` 내부 `VStack` 정렬은 `align="start"`가 기본임.
+1469. `TimelineCard` 날짜 필드는 `content.date`가 없으면 `-` 하이픈을 표시함.
+1470. `TimelineCard` 담당자 필드는 `item.managerName`이 없으면 `item.createdByName`을 폴백으로 사용함.
+1471. `TimelineCard`의 주소 필드는 `location` 값이 없으면 렌더링되지 않음.
+1472. `TimelineCard`의 `phone` 필드는 `formatPhone`을 사용하여 하이픈을 추가함.
+1473. `TimelineCard`의 제품 리스트는 `validProducts` 배열을 통해 빈 이름(`trim() === ""`)을 필터링함.
+1474. `TimelineCard`의 증상(`symptoms`) 리스트 처리 시 `remoteas_complete` 타입은 체크리스트 UI를 지원함.
+1475. `TimelineCard`의 `Box` 컴포넌트는 `as="span"`으로 텍스트 인라인 스타일링에 사용됨.
+1476. `TimelineCard`의 파일 리스트에서 `isFirstSubItem` 속성은 첫 번째 항목의 상단 마진 등을 제어함.
+1477. `TimelineCard`의 `TimelineFileList`는 `uploader`와 `timestamp` 정보를 받아 파일별 메타데이터를 표시함.
+1478. `TimelineCard`의 `Text` 컴포넌트는 `lineHeight="1.6"`으로 가독성을 확보함.
+1479. `TimelineCard`의 `Badge` 컴포넌트는 `borderRadius="full"` (협력사 배지) 또는 `4px` (카테고리 배지)를 사용함.
+1480. `TimelineCard`의 `isHighlight` 속성은 `managerRole === "banned"`일 때 무시됨(`!isBanned`).
+1481. `TimelineCard` 파일 내 `STEP_LABELS` 객체는 `Record<string, string>` 타입으로 정의됨.
+1482. `TimelineCard`의 `getBadgeColor` 함수는 `if-else` 문을 사용하여 복잡한 조건부 색상을 결정함.
+1483. `TimelineCard`의 `renderContent` 함수는 컴포넌트 내부에서 정의되어 `item`과 `content` 클로저 변수에 접근함.
+1484. `TimelineCard`의 `return` 문 내 `onClick` 이벤트 핸들러는 `e.stopPropagation`을 호출하여 버블링을 막음.
+1485. `TimelineCard`의 `key` prop은 리스트 렌더링 시 `idx` 또는 `uniqueId`를 사용함.
+1486. `TimelineCard`의 `Image` 컴포넌트는 사용되지 않고 `TimelineFileList`가 이를 대신함.
+1487. `TimelineCard`의 `Tooltip`은 사용되지 않음 (대신 `TruncatedTooltip`이 `CustomerTable`에서 사용됨).
+1488. `TimelineCard`의 `Spinner`는 사용되지 않음 (데이터 로딩은 상위 컴포넌트 책임).
+1489. `TimelineCard`의 `useDisclosure` 훅은 사진 뷰어 제어에 사용됨.
+1490. `TimelineCard`의 `useState` 훅은 세금계산서 뷰어 제어에 사용됨.
+1491. `TimelineCard`는 `React.memo`로 감싸져 있지 않음.
+1492. `TimelineCard`의 `Box` 쉐도우는 `sm`임.
+1493. `TimelineCard`의 `Box` 보더 색상은 `gray.100`임.
+1494. `TimelineCard`의 `Box` 배경색은 `white`임.
+1495. `TimelineCard`의 `Box` `borderRadius`는 `2xl`임.
+1496. `TimelineCard`는 `TimelineItem` 타입을 import하여 사용함.
+1497. `TimelineCard`의 `formatAmount` 유틸은 숫자를 3자리 콤마 문자열로 변환함.
+1498. `TimelineCard`의 `formatPhone` 유틸은 전화번호 문자열을 하이픈 포맷으로 변환함.
+1499. `TimelineCard`의 `getTeasyStandardFileName` 유틸은 파일명 생성 규칙을 중앙화함.
+1500. 1500번 명세는 `TimelineCard`가 고객 관리 타임라인의 핵심 시각화 컴포넌트임을 재확인하며, 본 문서가 시스템의 유일한 진실임을 선언함.

@@ -17,7 +17,7 @@ import {
 } from "@/components/common/UIComponents";
 import { TeasyUniversalViewer, triggerTeasyDownload } from "@/components/common/ui/MediaViewer";
 import { useReportMetadata } from "@/hooks/useReportMetadata";
-import { normalizeText } from "@/utils/textFormatter";
+import { normalizeText, applyColonStandard } from "@/utils/textFormatter";
 import { useAsCompleteForm } from "./useAsCompleteForm";
 import { AsCompleteFormData, AsCompleteFormHandle, AS_COMPLETE_CONSTANTS } from "./types";
 import { getCircledNumber } from "@/components/features/asset/AssetModalUtils";
@@ -190,28 +190,47 @@ export const AsCompleteForm = forwardRef<AsCompleteFormHandle, AsCompleteFormPro
     const hasIncomplete = [...formData.symptoms, ...formData.tasks].some(t => !t.completed);
 
     const handleUpdateProductQty = (id: string, delta: number) => {
+        const target = formData.selectedProducts.find(p => p.id === id);
+        if (!target) return;
+
+        if (target.quantity + delta <= 0) {
+            if (window.confirm("해당 데이터 삭제를 희망하십니까?")) {
+                setFormData(prev => ({
+                    ...prev,
+                    selectedProducts: prev.selectedProducts.filter(p => p.id !== id)
+                }));
+            }
+            return;
+        }
+
         setFormData(prev => {
             const newList = [...prev.selectedProducts];
             const idx = newList.findIndex(p => p.id === id);
             if (idx === -1) return prev;
-            const newQty = newList[idx].quantity + delta;
-            if (newQty <= 0) {
-                if (window.confirm("항목을 삭제하시겠습니까?")) return { ...prev, selectedProducts: newList.filter(p => p.id !== id) };
-                return prev;
-            }
-            newList[idx].quantity = newQty;
+            newList[idx].quantity = newList[idx].quantity + delta;
             return { ...prev, selectedProducts: newList };
         });
     };
 
     const handleUpdateSupplyQty = (id: string, delta: number) => {
+        const target = formData.selectedSupplies.find(p => p.id === id);
+        if (!target) return;
+
+        if (target.quantity + delta <= 0) {
+            if (window.confirm("해당 데이터 삭제를 희망하십니까?")) {
+                setFormData(prev => ({
+                    ...prev,
+                    selectedSupplies: prev.selectedSupplies.filter(p => p.id !== id)
+                }));
+            }
+            return;
+        }
+
         setFormData(prev => {
             const newList = [...prev.selectedSupplies];
             const idx = newList.findIndex(p => p.id === id);
             if (idx === -1) return prev;
-            const newQty = newList[idx].quantity + delta;
-            if (newQty < 0) return prev;
-            newList[idx].quantity = newQty;
+            newList[idx].quantity = newList[idx].quantity + delta;
             return { ...prev, selectedSupplies: newList };
         });
     };
@@ -229,7 +248,7 @@ export const AsCompleteForm = forwardRef<AsCompleteFormHandle, AsCompleteFormPro
             )}
 
             <VStack spacing={6} align="stretch">
-                <HStack spacing={4}>
+                <HStack w="full" spacing={4}>
                     <FormControl isRequired isReadOnly={isReadOnly} flex={1}>
                         <TeasyFormLabel>완료 일시</TeasyFormLabel>
                         {isReadOnly ? (
@@ -238,7 +257,7 @@ export const AsCompleteForm = forwardRef<AsCompleteFormHandle, AsCompleteFormPro
                             <TeasyDateTimeInput
                                 value={formData.date}
                                 onChange={(val: string) => setFormData({ ...formData, date: val })}
-                                limitType="future"
+                                limitType="past"
                             />
                         )}
                     </FormControl>
@@ -629,7 +648,7 @@ export const AsCompleteForm = forwardRef<AsCompleteFormHandle, AsCompleteFormPro
 
                 <FormControl isReadOnly={isReadOnly}>
                     <TeasyFormLabel>참고 사항</TeasyFormLabel>
-                    <TeasyTextarea value={formData.memo} onChange={(e: any) => !isReadOnly && setFormData({ ...formData, memo: e.target.value })} minH="120px" isReadOnly={isReadOnly} placeholder="작업 상세 내용을 입력하세요" />
+                    <TeasyTextarea value={formData.memo} onChange={(e: any) => !isReadOnly && setFormData({ ...formData, memo: applyColonStandard(e.target.value) })} minH="120px" isReadOnly={isReadOnly} placeholder="작업 상세 내용을 입력하세요" />
                 </FormControl>
             </VStack>
 

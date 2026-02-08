@@ -4,6 +4,16 @@ export type StepType =
     | 'install_schedule' | 'install_complete' | 'as_schedule' | 'as_complete' | 'remoteas_complete'
     | 'customer_registered';
 
+export interface ContentItem {
+    label: string;
+    value: any;
+    isHighlight?: boolean;
+    isSubItem?: boolean;
+    isFirstSubItem?: boolean;
+    isCustomValue?: boolean;
+    pl?: string;
+}
+
 export interface TimelineItem {
     id: string;
     stepType: StepType;

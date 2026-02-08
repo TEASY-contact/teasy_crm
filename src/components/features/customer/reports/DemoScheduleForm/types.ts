@@ -28,5 +28,6 @@ export interface DemoScheduleActivity extends DemoScheduleFormData {
     updatedAt: any; // serverTimestamp
     createdAt?: any;
     createdBy?: string;
-    createdByName: string;
+    createdByName?: string;
+    modificationHistory?: import("@/types/domain").ModificationLog[];
 }

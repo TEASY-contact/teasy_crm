@@ -103,7 +103,7 @@ export default function CustomerDetailPage({ params: paramsPromise }: { params: 
                                             item={{
                                                 id: activity.id,
                                                 stepType: activity.type as any,
-                                                createdAt: formatTimestamp(activity.updatedAt || activity.createdAt),
+                                                createdAt: formatTimestamp(activity.createdAt),
                                                 createdBy: activity.createdBy || "system",
                                                 createdByName: activity.createdByName || activity.managerName || "담당자 미지정",
                                                 managerName: activity.managerName || activity.createdByName,
@@ -136,7 +136,7 @@ export default function CustomerDetailPage({ params: paramsPromise }: { params: 
                         {activities.length === 0 && (
                             <Flex position="absolute" top={0} bottom={0} left={0} right={0} align="center" justify="center" zIndex={1}>
                                 <Text fontSize="xs" fontWeight="bold" color="gray.400" textAlign="center" bg="gray.50" px={4} py={2} borderRadius="full" shadow="sm">
-                                    등록된 보고서가 없습니다.
+                                    활동 기록이 없어 코멘트를 작성할 수 없습니다.
                                 </Text>
                             </Flex>
                         )}

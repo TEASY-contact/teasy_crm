@@ -1,6 +1,6 @@
 // src/components/features/customer/reports/InstallScheduleForm/index.tsx
 "use client";
-import React, { forwardRef, useImperativeHandle, useRef } from "react";
+import React, { forwardRef, useImperativeHandle, useRef, useEffect } from "react";
 import { VStack, FormControl, Box, Spinner, HStack, Flex, Text, IconButton, Badge, useToast } from "@chakra-ui/react";
 import { MdRemove, MdAdd, MdDragHandle } from "react-icons/md";
 import { formatPhone } from "@/utils/formatter";
@@ -8,8 +8,9 @@ import { Reorder, useDragControls } from "framer-motion";
 import { CustomSelect } from "@/components/common/CustomSelect";
 import { TeasyDateTimeInput, TeasyFormLabel, TeasyInput, TeasyTextarea, TeasyPhoneInput, TeasyFormGroup } from "@/components/common/UIComponents";
 import { useReportMetadata } from "@/hooks/useReportMetadata";
-import { useInstallScheduleForm, INSTALL_SCHEDULE_CONSTANTS } from "./useInstallScheduleForm";
-import { InstallScheduleFormData, InstallScheduleFormHandle, SelectedItem } from "./types";
+import { useInstallScheduleForm } from "./useInstallScheduleForm";
+import { normalizeText, applyColonStandard } from "@/utils/textFormatter";
+import { InstallScheduleFormData, InstallScheduleFormHandle, SelectedItem, INSTALL_SCHEDULE_CONSTANTS } from "./types";
 import { getCircledNumber } from "@/components/features/asset/AssetModalUtils";
 import { PhotoGrid } from "../common/PhotoGrid";
 
@@ -34,7 +35,7 @@ const ListItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef, onDragEn
             dragListener={false}
             dragControls={controls}
             onDragEnd={onDragEnd}
-            style={{ marginBottom: "8px", userSelect: "none" }}
+            style={{ marginBottom: "0px", userSelect: "none" }}
         >
             <HStack
                 justify="space-between"
@@ -158,6 +159,7 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
         handleDelete
     } = useInstallScheduleForm({ customer, activities, activityId, initialData, defaultManager, rawAssets });
 
+    const silentRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const productScrollRef = useRef<HTMLDivElement>(null);
     const supplyScrollRef = useRef<HTMLDivElement>(null);
@@ -166,6 +168,11 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
         submit: () => submit(managerOptions),
         delete: handleDelete
     }), [submit, handleDelete, managerOptions]);
+
+    // Silent Focus Guard (v126.3)
+    useEffect(() => {
+        if (silentRef.current) silentRef.current.focus();
+    }, []);
 
     // Helper: Parse composition string to structured data
     const parseComposition = (composition: string) => {
@@ -259,15 +266,15 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
 
     const handleUpdateQty = (type: "product" | "supply", id: string, delta: number) => {
         const field = type === "product" ? "selectedProducts" : "selectedSupplies";
+        const target = formData[field].find(item => item.id === id);
+        if (!target) return;
+
+        const newQty = target.quantity + delta;
         const list = [...formData[field]];
         const idx = list.findIndex(item => item.id === id);
-        if (idx === -1) return;
-
-        const targetItem = list[idx];
-        const newQty = targetItem.quantity + delta;
 
         if (newQty <= 0) {
-            if (window.confirm("항목을 삭제하시겠습니까?")) {
+            if (window.confirm("해당 데이터 삭제를 희망하십니까?")) {
                 if (type === "product") {
                     const remainingProducts = formData.selectedProducts.filter(p => p.id !== id);
                     const updatedSupplies = formData.selectedSupplies.map(s => {
@@ -289,29 +296,31 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                     }));
                     return;
                 }
-                list.splice(idx, 1);
-            } else return;
-        } else {
-            list[idx].quantity = newQty;
-
-            // SYNC LOGIC: If product qty changes, update merged auto-supplies to reflect the new total
-            if (type === "product") {
-                const updatedSupplies = formData.selectedSupplies.map(s => {
-                    if (s.isAuto && s.linkedId && s.linkedId.split(",").includes(id)) {
-                        const productIds = s.linkedId.split(",");
-                        const totalQty = list.reduce((sum, p) => {
-                            if (productIds.includes(p.id)) return sum + p.quantity;
-                            return sum;
-                        }, 0);
-                        return { ...s, quantity: totalQty };
-                    }
-                    return s;
-                });
-                setFormData(prev => ({ ...prev, selectedProducts: list, selectedSupplies: updatedSupplies }));
-                return;
+                setFormData(prev => ({
+                    ...prev,
+                    [field]: prev[field].filter(item => item.id !== id)
+                }));
             }
+            return;
         }
-        setFormData({ ...formData, [field]: list });
+
+        list[idx].quantity = newQty;
+        if (type === "product") {
+            const updatedSupplies = formData.selectedSupplies.map(s => {
+                if (s.isAuto && s.linkedId && s.linkedId.split(",").includes(id)) {
+                    const productIds = s.linkedId.split(",");
+                    const totalQty = list.reduce((sum, p) => {
+                        if (productIds.includes(p.id)) return sum + p.quantity;
+                        return sum;
+                    }, 0);
+                    return { ...s, quantity: totalQty };
+                }
+                return s;
+            });
+            setFormData(prev => ({ ...prev, selectedProducts: list, selectedSupplies: updatedSupplies }));
+            return;
+        }
+        setFormData(prev => ({ ...prev, [field]: list }));
     };
 
     const handleReorder = (type: "product" | "supply", newOrder: SelectedItem[]) => {
@@ -321,11 +330,13 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
 
     return (
         <Box position="relative">
+            {/* Focus Guard */}
+            <Box ref={silentRef} tabIndex={0} position="absolute" top="-100px" left="-100px" opacity={0} pointerEvents="none" />
             {isLoading && (
                 <Flex
                     position="absolute" top={0} left={0} right={0} bottom={0}
                     bg="whiteAlpha.800" zIndex={20} align="center" justify="center"
-                    borderRadius="md"
+                    borderRadius="md" backdropFilter="blur(2px)"
                 >
                     <VStack spacing={4}>
                         <Spinner size="xl" color="brand.500" thickness="4px" />
@@ -334,8 +345,8 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                 </Flex>
             )}
             <VStack spacing={6} align="stretch">
-                <HStack spacing={4}>
-                    <FormControl isRequired>
+                <HStack w="full" spacing={4}>
+                    <FormControl isRequired flex={1}>
                         <TeasyFormLabel>시공 일시</TeasyFormLabel>
                         {isReadOnly ? (
                             <TeasyInput value={formData.date} isReadOnly />
@@ -347,7 +358,7 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                             />
                         )}
                     </FormControl>
-                    <FormControl isRequired>
+                    <FormControl isRequired flex={1}>
                         <TeasyFormLabel>담당자</TeasyFormLabel>
                         {isReadOnly ? (
                             <TeasyInput
@@ -370,7 +381,7 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                     <TeasyFormLabel>방문 주소</TeasyFormLabel>
                     <TeasyInput
                         value={formData.location}
-                        onChange={(e: any) => setFormData({ ...formData, location: e.target.value })}
+                        onChange={(e: any) => setFormData({ ...formData, location: normalizeText(e.target.value) })}
                         placeholder="전국 시공 주소 입력"
                         isReadOnly={isReadOnly}
                     />
@@ -512,7 +523,7 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                                                         variant="unstyled"
                                                         placeholder="입력"
                                                         value={task}
-                                                        onChange={(e: any) => updateTask('before', idx, e.target.value)}
+                                                        onChange={(e: any) => updateTask('before', idx, normalizeText(e.target.value))}
                                                         fontSize="sm"
                                                         color="gray.700"
                                                         h="24px"
@@ -580,7 +591,7 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                                                         variant="unstyled"
                                                         placeholder="입력"
                                                         value={task}
-                                                        onChange={(e: any) => updateTask('after', idx, e.target.value)}
+                                                        onChange={(e: any) => updateTask('after', idx, normalizeText(e.target.value))}
                                                         fontSize="sm"
                                                         color="gray.700"
                                                         h="24px"
@@ -625,7 +636,7 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                             photos={formData.photos}
                             isReadOnly={isReadOnly}
                             onAddClick={() => fileInputRef.current?.click()}
-                            onRemoveClick={removePhoto}
+                            onRemoveClick={(idx) => removePhoto(idx, false)}
                             maxPhotos={INSTALL_SCHEDULE_CONSTANTS.MAX_PHOTOS}
                         />
                         <input
@@ -648,7 +659,7 @@ export const InstallScheduleForm = forwardRef<InstallScheduleFormHandle, Install
                     <TeasyFormLabel>참고 사항</TeasyFormLabel>
                     <TeasyTextarea
                         value={formData.memo}
-                        onChange={(e: any) => !isReadOnly && setFormData({ ...formData, memo: e.target.value })}
+                        onChange={(e: any) => !isReadOnly && setFormData({ ...formData, memo: applyColonStandard(e.target.value) })}
                         placeholder="시공 시 주의사항 등 입력"
                         isDisabled={isReadOnly}
                     />

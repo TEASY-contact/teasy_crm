@@ -4,23 +4,18 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@chakra-ui/react";
 import { db, storage } from "@/lib/firebase";
 import { collection, serverTimestamp, doc, runTransaction, query, where, getDocs } from "firebase/firestore";
-import { ref as sRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { ref as sRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { cleanupOrphanedPhotos } from "@/utils/reportUtils";
 import { useAuth } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { applyColonStandard, normalizeText } from "@/utils/textFormatter";
-import { formatPhone } from "@/utils/formatter";
-import { InstallScheduleFormData, SelectedItem } from "./types";
-import { Activity, ActivityType, Asset } from "@/types/domain";
+import { InstallScheduleFormData, INSTALL_SCHEDULE_CONSTANTS } from "./types";
+import { Activity } from "@/types/domain";
 import { getCircledNumber } from "@/components/features/asset/AssetModalUtils";
 import { performSelfHealing } from "@/utils/assetUtils";
-
-export const INSTALL_SCHEDULE_CONSTANTS = {
-    TYPE: "install_schedule" as ActivityType,
-    TYPE_NAME: "시공 확정",
-    META_PREFIX: "install_schedule",
-    MAX_PHOTOS: 15,
-    STORAGE_PATH_PREFIX: "activities/install"
-};
+import { isWithinBusinessDays } from "@/utils/dateUtils";
+import { useReportMetadata } from "@/hooks/useReportMetadata";
+import { formatPhone } from "@/utils/formatter";
+import { applyColonStandard, normalizeText } from "@/utils/textFormatter";
 
 interface UseInstallScheduleFormProps {
     customer: { id: string, name: string, address?: string, phone?: string };
@@ -28,17 +23,17 @@ interface UseInstallScheduleFormProps {
     activityId?: string;
     initialData?: Partial<InstallScheduleFormData>;
     defaultManager?: string;
-    rawAssets?: Asset[];
+    rawAssets?: any[];
 }
 
 export const useInstallScheduleForm = ({ customer, activities = [], activityId, initialData, defaultManager, rawAssets = [] }: UseInstallScheduleFormProps) => {
     const { userData } = useAuth();
+    const { holidayMap } = useReportMetadata();
     const queryClient = useQueryClient();
     const toast = useToast();
     const isSubmitting = useRef(false);
     const [isLoading, setIsLoading] = useState(false);
 
-    // File upload state
     const [pendingFiles, setPendingFiles] = useState<{ url: string, file: File }[]>([]);
 
     const [formData, setFormData] = useState<InstallScheduleFormData>({
@@ -54,7 +49,6 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
         memo: ""
     });
 
-    // Populate Initial Data
     useEffect(() => {
         if (initialData) {
             setFormData(prev => ({
@@ -71,79 +65,69 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
             const now = new Date();
             const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}  ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-            // Auto-fill from last reports
-            const sortedActivities = [...(activities || [])].sort((a, b) => {
-                const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.date || 0);
-                const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.date || 0);
-                return dateA.getTime() - dateB.getTime();
-            });
-
-            const lastSchedule = [...sortedActivities].reverse().find(a => a.type === "demo_schedule");
-            const lastDemoComplete = [...sortedActivities].reverse().find(a => a.type === "demo_complete");
-
-            // Match Install Schedule to corresponding Installation Purchase
-            const installationPurchases = sortedActivities.filter(a => a.type === 'purchase_confirm' && a.productCategory === 'product');
-            const existingSchedulesCount = sortedActivities.filter(a => a.type === 'install_schedule').length;
-            const targetPurchase = installationPurchases[existingSchedulesCount];
-
-            const inheritedProducts = (targetPurchase?.selectedProducts || []).map((p: any) => ({
-                ...p,
-                isInherited: true // Flag to lock the UI
-            }));
+            const lastDemoSchedule = [...(activities || [])].reverse().find(a => a.type === "demo_schedule");
 
             setFormData(prev => ({
                 ...prev,
                 date: formattedDate,
-                location: lastSchedule?.location || customer?.address || "",
-                phone: formatPhone(lastSchedule?.phone || customer?.phone || ""),
-                manager: lastSchedule?.manager || prev.manager,
-                selectedProducts: inheritedProducts,
+                location: lastDemoSchedule?.location || customer?.address || "",
+                phone: formatPhone(lastDemoSchedule?.phone || customer?.phone || ""),
+                manager: lastDemoSchedule?.manager || prev.manager,
+                selectedProducts: [],
                 selectedSupplies: [],
                 tasksBefore: [""],
                 tasksAfter: [""],
-                photos: lastDemoComplete?.photos || []
+                photos: lastDemoSchedule?.photos || []
             }));
         }
     }, [initialData, defaultManager, customer.address, customer.phone, activities]);
 
-    const handleFileUpload = useCallback((files: FileList | null) => {
-        if (!files || files.length === 0) return;
-
+    const handleUpdateQty = useCallback((type: 'product' | 'supply', index: number, delta: number) => {
         setFormData(prev => {
-            if (prev.photos.length + files.length > INSTALL_SCHEDULE_CONSTANTS.MAX_PHOTOS) {
-                toast({ title: "한도 초과", description: `사진은 최대 ${INSTALL_SCHEDULE_CONSTANTS.MAX_PHOTOS}장까지 업로드 가능합니다.`, status: "warning", position: "top" });
-                return prev;
+            const field = type === 'product' ? 'selectedProducts' : 'selectedSupplies';
+            const newList = [...prev[field]];
+            if (newList[index]) {
+                if (newList[index].isInherited) return prev;
+                const newQty = Math.max(1, (newList[index].quantity || 1) + delta);
+                newList[index] = { ...newList[index], quantity: newQty };
             }
-
-            const newPending: { url: string, file: File }[] = [];
-            const newUrls: string[] = [];
-
-            const existingNames = pendingFiles.map(p => p.file.name + p.file.size);
-
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                if (!file.type.startsWith("image/")) continue;
-                if (existingNames.includes(file.name + file.size)) continue;
-
-                const localUrl = URL.createObjectURL(file);
-                newPending.push({ url: localUrl, file });
-                newUrls.push(localUrl);
-            }
-
-            if (newPending.length > 0) {
-                setPendingFiles(curr => [...curr, ...newPending]);
-                return { ...prev, photos: [...prev.photos, ...newUrls] };
-            }
-            return prev;
+            return { ...prev, [field]: newList };
         });
-    }, [toast]);
+    }, []);
 
-    const removePhoto = useCallback((index: number) => {
+    const handleRemoveItem = useCallback((type: 'product' | 'supply', index: number) => {
+        if (!window.confirm("항목을 삭제하시겠습니까?")) return;
         setFormData(prev => {
-            const targetUrl = prev.photos[index];
-            if (targetUrl.startsWith('blob:')) {
-                URL.revokeObjectURL(targetUrl);
-                setPendingFiles(curr => curr.filter(p => p.url !== targetUrl));
+            const field = type === 'product' ? 'selectedProducts' : 'selectedSupplies';
+            if (prev[field][index]?.isInherited) return prev;
+            return {
+                ...prev,
+                [field]: prev[field].filter((_, i) => i !== index)
+            };
+        });
+    }, []);
+
+    const handleFileUpload = useCallback((files: FileList) => {
+        if (!files) return;
+        const remaining = INSTALL_SCHEDULE_CONSTANTS.MAX_PHOTOS - (formData.photos.length + pendingFiles.length);
+        const toAdd = Array.from(files).slice(0, remaining);
+
+        const newPending = toAdd.map(file => ({
+            url: URL.createObjectURL(file),
+            file
+        }));
+        setPendingFiles(prev => [...prev, ...newPending]);
+    }, [formData.photos.length, pendingFiles.length]);
+
+    const removePhoto = useCallback((index: number, isPending: boolean) => {
+        setFormData(prev => {
+            if (isPending) {
+                setPendingFiles(p => {
+                    const target = p[index];
+                    if (target) URL.revokeObjectURL(target.url);
+                    return p.filter((_, i) => i !== index);
+                });
+                return prev;
             }
             return {
                 ...prev,
@@ -152,23 +136,25 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
         });
     }, []);
 
-    const cleanupOrphanedPhotos = useCallback(async (urlsToDelete: string[]) => {
-        if (!urlsToDelete || urlsToDelete.length === 0) return;
-        const cloudUrls = urlsToDelete.filter(url => url.startsWith('https://firebasestorage.googleapis.com'));
-        if (cloudUrls.length === 0) return;
 
-        await Promise.allSettled(cloudUrls.map(async (url) => {
-            try {
-                const storageRef = sRef(storage, url);
-                await deleteObject(storageRef);
-            } catch (e) {
-                console.warn("Resource cleanup attempt failed:", url, e);
-            }
-        }));
-    }, []);
 
     const submit = useCallback(async (managerOptions: any[]) => {
         if (isLoading || isSubmitting.current) return false;
+
+        // Surgical Guard: restrict edits after 3 business days (v126.9)
+        if (activityId && initialData) {
+            const currentActivity = activities.find(a => a.id === activityId);
+            const createdAt = currentActivity?.createdAt?.toDate ? currentActivity.createdAt.toDate() : null;
+            const isMaster = userData?.role === 'master';
+
+            if (createdAt && !isMaster) {
+                const isWithinEditTime = isWithinBusinessDays(createdAt, 3, holidayMap);
+                if (!isWithinEditTime) {
+                    toast({ title: "수정 불가", description: "작성 후 3영업일이 경과하여 마스터만 수정 가능합니다.", status: "error", position: "top" });
+                    return false;
+                }
+            }
+        }
 
         // Validation Rules
         const validations = [
@@ -221,7 +207,7 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
                 return true;
             });
 
-            // --- Pre-transaction Read (Non-atomic reads for assets if needed) ---
+            // --- Pre-transaction Read ---
             let existingAssets: any[] = [];
             if (activityId) {
                 const assetQuery = query(collection(db, "assets"), where("sourceActivityId", "==", activityId));
@@ -234,32 +220,61 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
                 const targetActivityId = activityId || doc(collection(db, "activities")).id;
                 const activityRef = doc(db, "activities", targetActivityId);
 
-                // 1. ALL READS FIRST (With Aggregation to prevent duplicate deduction bugs)
+                // --- 1. ALL READS & PREPARATION ---
                 const metaRef = doc(db, "customer_meta", `${customer.id}_${INSTALL_SCHEDULE_CONSTANTS.META_PREFIX}`);
                 const metaSnap = await transaction.get(metaRef);
+                const activitySnap = activityId ? await transaction.get(activityRef) : null;
+                const customerRef = doc(db, "customers", customer.id);
 
+                // Meta Tracker Setup
+                const metaTracker = new Map<string, { ref: any, data: any, deltaStock: number, deltaOutflow: number }>();
+
+                const encryptMetaId = (name: string, category: string) => {
+                    return `meta_${name.trim()}_${category.trim()}`.replace(/\//g, "_");
+                };
+
+                const loadMeta = async (metaId: string) => {
+                    if (!metaTracker.has(metaId)) {
+                        const ref = doc(db, "asset_meta", metaId);
+                        const snap = await transaction.get(ref);
+                        let data = { totalInflow: 0, totalOutflow: 0, currentStock: 0 };
+                        if (snap.exists()) data = snap.data() as any;
+                        metaTracker.set(metaId, { ref, data, deltaStock: 0, deltaOutflow: 0 });
+                    }
+                };
+
+                // Load Metas for Rollback (Existing Assets)
+                if (activityId && existingAssets.length > 0) {
+                    for (const asset of existingAssets) {
+                        if (asset.data.type === 'inventory') {
+                            const metaId = encryptMetaId(asset.data.name, asset.data.category);
+                            await loadMeta(metaId);
+                        }
+                    }
+                }
+
+                // Aggregate New Deductions
                 const aggregatedSuppliesMap = new Map<string, { name: string, category: string, quantity: number }>();
                 formData.selectedSupplies.forEach(s => {
                     const key = `${s.name.trim()}|${(s.category || "").trim()}`;
-                    const qty = Number(s.quantity) || 1;
-                    if (aggregatedSuppliesMap.has(key)) {
-                        aggregatedSuppliesMap.get(key)!.quantity += qty;
-                    } else {
-                        aggregatedSuppliesMap.set(key, { ...s, name: s.name.trim(), category: (s.category || "").trim(), quantity: qty });
+                    if (s.category) {
+                        const qty = Number(s.quantity) || 1;
+                        if (aggregatedSuppliesMap.has(key)) {
+                            aggregatedSuppliesMap.get(key)!.quantity += qty;
+                        } else {
+                            aggregatedSuppliesMap.set(key, { ...s, name: s.name.trim(), category: (s.category || "").trim(), quantity: qty });
+                        }
                     }
                 });
 
-                const supplyMetas = await Promise.all(Array.from(aggregatedSuppliesMap.values()).map(async (supply) => {
-                    const name = supply.name.trim();
-                    const category = (supply.category || "").trim();
-                    const metaId = `meta_${name}_${category}`.replace(/\//g, "_");
-                    const assetMetaRef = doc(db, "asset_meta", metaId);
-                    const snap = await transaction.get(assetMetaRef);
-                    return { supply, ref: assetMetaRef, snap };
-                }));
+                // Load Metas for New Deductions
+                for (const supply of Array.from(aggregatedSuppliesMap.values())) {
+                    const metaId = encryptMetaId(supply.name, supply.category);
+                    await loadMeta(metaId);
+                }
 
-                // 2. LOGIC & PREPARATION
                 let currentMeta = metaSnap.exists() ? metaSnap.data() : { lastSequence: 0, totalCount: 0 };
+                let modificationHistory = [];
 
                 const validProducts = formData.selectedProducts.filter(p => p.name && p.name.trim() !== "");
                 const validSupplies = formData.selectedSupplies.filter(s => s.name && s.name.trim() !== "");
@@ -281,27 +296,87 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
                     }).join(", "),
                     selectedProducts: validProducts,
                     selectedSupplies: validSupplies,
-                    tasksBefore: formData.tasksBefore.filter(t => t && t.trim() !== ""),
-                    tasksAfter: formData.tasksAfter.filter(t => t && t.trim() !== ""),
+                    tasksBefore: formData.tasksBefore.filter(t => t && t.trim() !== "").map(t => normalizeText(t.trim())),
+                    tasksAfter: formData.tasksAfter.filter(t => t && t.trim() !== "").map(t => normalizeText(t.trim())),
                     photos: finalPhotos,
                     memo: applyColonStandard(formData.memo || ""),
-                    updatedAt: serverTimestamp(),
-                    createdByName: userData?.name || "알 수 없음"
+                    updatedAt: serverTimestamp()
                 };
 
-                const now = new Date();
-                const actionDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                // History (ModificationHistory)
+                if (activityId && activitySnap?.exists()) {
+                    const oldData = activitySnap.data() as Activity;
+                    const changes: string[] = [];
 
-                // 3. ALL WRITES
-                const customerRef = doc(db, "customers", customer.id);
+                    // 1. Memo tracking
+                    const oldMemo = oldData.memo || "";
+                    const newMemo = applyColonStandard(formData.memo || "");
+                    if (oldMemo !== newMemo) changes.push(`참고: ${oldMemo || "없음"} → ${newMemo || "없음"}`);
+
+                    // 2. Info tracking
+                    if (oldData.date !== formData.date) changes.push(`일시: ${oldData.date} → ${formData.date}`);
+                    if (oldData.manager !== formData.manager) {
+                        const oldManagerName = oldData.managerName || oldData.manager;
+                        const newManagerName = selectedManager?.label || formData.manager;
+                        changes.push(`담당: ${oldManagerName} → ${newManagerName}`);
+                    }
+
+                    // 3. Address & Contact tracking
+                    const oldLoc = oldData.location || "";
+                    const newLoc = normalizeText(formData.location);
+                    if (oldLoc !== newLoc) changes.push(`장소: ${oldLoc || "없음"} → ${newLoc || "없음"}`);
+
+                    const oldPhone = oldData.phone || "";
+                    const newPhone = cleanPhone;
+                    if (oldPhone !== newPhone) changes.push(`전화: ${formatPhone(oldPhone) || "없음"} → ${formatPhone(newPhone) || "없음"}`);
+
+                    // 4. Products & Supplies tracking
+                    const oldP = (oldData.selectedProducts || []).map((p: any) => `${p.name}x${p.quantity}`).sort().join(", ");
+                    const newP = (validProducts).map(p => `${p.name}x${p.quantity}`).sort().join(", ");
+                    if (oldP !== newP) changes.push(`상품: ${oldP || "없음"} → ${newP || "없음"}`);
+
+                    const oldS = (oldData.selectedSupplies || []).map((s: any) => `${s.name}x${s.quantity}`).sort().join(", ");
+                    const newS = (validSupplies).map(s => `${s.name}x${s.quantity}`).sort().join(", ");
+                    if (oldS !== newS) changes.push(`준비: ${oldS || "없음"} → ${newS || "없음"}`);
+
+                    // 5. Assets tracking
+                    const oldPhotos = (oldData.photos || []).length;
+                    const newPhotos = (finalPhotos || []).length;
+                    if (oldPhotos !== newPhotos) changes.push(`사진: ${oldPhotos}개 → ${newPhotos}개`);
+
+                    if (changes.length > 0) {
+                        const now = new Date();
+                        const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}  ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                        dataToSave.modificationHistory = [...(oldData.modificationHistory || []), {
+                            time: timeStr,
+                            manager: userData?.uid || "unknown",
+                            managerName: userData?.name || "알 수 없음",
+                            content: changes.join(" / ")
+                        }];
+                    } else {
+                        dataToSave.modificationHistory = oldData.modificationHistory || [];
+                    }
+                }
+
+                // --- 2. ALL WRITES START ---
                 transaction.update(customerRef, {
                     lastConsultDate: formData.date,
                     updatedAt: serverTimestamp()
                 });
 
+                // A. Rollback Existing Assets
                 if (activityId) {
                     existingAssets.forEach(asset => {
                         affectedItems.add(`${asset.data.name}|${asset.data.category}`);
+                        if (asset.data.type === 'inventory') {
+                            const metaId = encryptMetaId(asset.data.name, asset.data.category);
+                            const tracker = metaTracker.get(metaId);
+                            if (tracker) {
+                                const qty = Number(asset.data.lastOutflow) || 0;
+                                tracker.deltaStock += qty;
+                                tracker.deltaOutflow -= qty;
+                            }
+                        }
                         transaction.delete(asset.ref);
                     });
                     transaction.update(activityRef, dataToSave as any);
@@ -312,6 +387,7 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
                         sequenceNumber: nextSeq,
                         createdAt: serverTimestamp(),
                         createdBy: userData?.uid || "system",
+                        createdByName: userData?.name || "알 수 없음"
                     });
 
                     transaction.set(metaRef, {
@@ -321,31 +397,29 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
                     }, { merge: true });
                 }
 
-                // Inventory Deduction Writes
-                for (const item of supplyMetas) {
-                    const { supply, ref: assetMetaRef, snap: assetMetaSnap } = item;
+                const nowSec = new Date();
+                const actionDate = `${nowSec.getFullYear()}-${String(nowSec.getMonth() + 1).padStart(2, '0')}-${String(nowSec.getDate()).padStart(2, '0')}`;
+
+                // B. Apply New Deductions
+                for (const supply of Array.from(aggregatedSuppliesMap.values())) {
                     const name = supply.name.trim();
                     const category = (supply.category || "").trim();
                     const quantity = Number(supply.quantity) || 1;
-                    if (!category) continue;
                     affectedItems.add(`${name}|${category}`);
 
-                    let currentAssetMeta = assetMetaSnap.exists() ? assetMetaSnap.data() : { totalInflow: 0, totalOutflow: 0, currentStock: 0 };
-                    const finalStock = (Number(currentAssetMeta.currentStock) || 0) - quantity;
+                    const metaId = encryptMetaId(name, category);
+                    const tracker = metaTracker.get(metaId);
 
-                    transaction.set(assetMetaRef, {
-                        ...currentAssetMeta,
-                        currentStock: finalStock,
-                        totalOutflow: (Number(currentAssetMeta.totalOutflow) || 0) + quantity,
-                        lastUpdatedAt: serverTimestamp(),
-                        lastAction: "install_schedule_deduction"
-                    }, { merge: true });
+                    if (tracker) {
+                        tracker.deltaStock -= quantity;
+                        tracker.deltaOutflow += quantity;
+                    }
 
                     const newAssetRef = doc(collection(db, "assets"));
                     transaction.set(newAssetRef, {
                         category,
                         name,
-                        stock: finalStock,
+                        stock: (Number(tracker?.data.currentStock || 0) + (tracker?.deltaStock || 0)),
                         type: "inventory",
                         lastActionDate: actionDate,
                         lastOperator: selectedManager?.label || userData?.name || "System",
@@ -359,24 +433,36 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
                     });
                 }
 
+                // C. Commit Meta Changes
+                for (const [metaId, tracker] of metaTracker) {
+                    if (tracker.deltaStock !== 0 || tracker.deltaOutflow !== 0) {
+                        const newStock = (Number(tracker.data.currentStock) || 0) + tracker.deltaStock;
+                        const newOutflow = (Number(tracker.data.totalOutflow) || 0) + tracker.deltaOutflow;
+                        transaction.set(tracker.ref, {
+                            ...tracker.data,
+                            currentStock: newStock,
+                            totalOutflow: newOutflow,
+                            lastUpdatedAt: serverTimestamp(),
+                            lastAction: "install_schedule_sync"
+                        }, { merge: true });
+                    }
+                }
+
                 return { success: true, affectedItems: Array.from(affectedItems) };
             });
 
             if (saveResult.success) {
-                // Photo Cleanup
                 if (activityId && initialData?.photos) {
                     const removedPhotos = initialData.photos.filter((oldUrl: string) => !finalPhotos.includes(oldUrl));
                     await cleanupOrphanedPhotos(removedPhotos);
                 }
 
-                // Background Heal
                 Promise.all(saveResult.affectedItems.map(itemKey => {
                     const [name, category] = itemKey.split("|");
                     return performSelfHealing(name, category);
                 })).catch(e => console.error("Self-healing error:", e));
 
                 setPendingFiles([]);
-                // Delay for Firestore indexing (v123.03)
                 await new Promise(resolve => setTimeout(resolve, 500));
                 await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
@@ -394,7 +480,7 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
             setIsLoading(false);
             isSubmitting.current = false;
         }
-    }, [isLoading, formData, activities, pendingFiles, activityId, initialData?.photos, customer.id, customer.name, userData?.name, userData?.uid, toast, cleanupOrphanedPhotos, queryClient]);
+    }, [isLoading, formData, activities, pendingFiles, activityId, initialData, customer.id, customer.name, userData?.name, userData?.uid, toast, queryClient, holidayMap]);
 
     const addTask = useCallback((type: 'before' | 'after') => {
         const field = type === 'before' ? 'tasksBefore' : 'tasksAfter';
@@ -414,6 +500,7 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
     }, []);
 
     const removeTask = useCallback((type: 'before' | 'after', index: number) => {
+        if (!window.confirm("항목을 삭제하시겠습니까?")) return;
         const field = type === 'before' ? 'tasksBefore' : 'tasksAfter';
         setFormData(prev => {
             if (prev[field].length <= 1) return { ...prev, [field]: [""] };
@@ -426,94 +513,110 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
 
     const handleDelete = useCallback(async () => {
         if (!activityId) return false;
-        if (!window.confirm(`보고서와 연결된 재고 기록 및 사진이 모두 삭제됩니다. 정말 삭제하시겠습니까?`)) return false;
+
+        if (initialData) {
+            const currentActivity = activities.find(a => a.id === activityId);
+            const createdAt = currentActivity?.createdAt?.toDate ? currentActivity.createdAt.toDate() : null;
+            const isMaster = userData?.role === 'master';
+
+            if (createdAt && !isMaster) {
+                const isWithinEditTime = isWithinBusinessDays(createdAt, 3, holidayMap);
+                if (!isWithinEditTime) {
+                    toast({ title: "삭제 불가", description: "작성 후 3영업일이 경과하여 마스터만 삭제 가능합니다.", status: "error", position: "top" });
+                    return false;
+                }
+            }
+        }
+
+        if (!window.confirm("해당 데이터 삭제를 희망하십니까?")) return false;
         setIsLoading(true);
         try {
-            // --- Pre-transaction Read ---
             const assetQuery = query(collection(db, "assets"), where("sourceActivityId", "==", activityId));
             const assetSnap = await getDocs(assetQuery);
             const assetsToRestores = assetSnap.docs.map(d => ({ ref: d.ref, data: d.data() }));
 
             const result = await runTransaction(db, async (transaction) => {
                 const affectedItems = new Set<string>();
+                const trackers = new Map<string, { ref: any, data: any }>();
 
                 // 1. ALL READS FIRST
-                const metaSnapshots = await Promise.all(assetsToRestores.map(async (asset) => {
+                for (const asset of assetsToRestores) {
                     const metaId = `meta_${asset.data.name}_${asset.data.category}`.replace(/\//g, "_");
-                    const assetMetaRef = doc(db, "asset_meta", metaId);
-                    const snap = await transaction.get(assetMetaRef);
-                    return { asset, ref: assetMetaRef, snap };
-                }));
-
-                const activityRef = doc(db, "activities", activityId);
-                const activitySnap = await transaction.get(activityRef);
-                const metaRef = doc(db, "customer_meta", `${customer.id}_${INSTALL_SCHEDULE_CONSTANTS.META_PREFIX}`);
-                const custMetaSnap = await transaction.get(metaRef);
-
-                // 2. ALL WRITES
-                for (const item of metaSnapshots) {
-                    const { asset, ref: assetMetaRef, snap: assetMetaSnap } = item;
-                    affectedItems.add(`${asset.data.name}|${asset.data.category}`);
-                    if (assetMetaSnap.exists()) {
-                        const metaData = assetMetaSnap.data();
-                        const restoredOutflow = Number(asset.data.lastOutflow) || 0;
-                        transaction.update(assetMetaRef, {
-                            currentStock: (Number(metaData.currentStock) || 0) + restoredOutflow,
-                            totalOutflow: (Number(metaData.totalOutflow) || 0) - restoredOutflow,
-                            lastUpdatedAt: serverTimestamp(),
-                            lastAction: "delete_recovery"
-                        });
+                    if (!trackers.has(metaId)) {
+                        const metaRef = doc(db, "asset_meta", metaId);
+                        const metaSnap = await transaction.get(metaRef);
+                        if (metaSnap.exists()) {
+                            trackers.set(metaId, { ref: metaRef, data: metaSnap.data() });
+                        }
                     }
+                }
+
+                // 2. ALL WRITES AFTER
+                for (const asset of assetsToRestores) {
+                    const metaId = `meta_${asset.data.name}_${asset.data.category}`.replace(/\//g, "_");
+                    const tracker = trackers.get(metaId);
+
+                    if (tracker) {
+                        const currentData = tracker.data;
+                        const outflow = Number(asset.data.lastOutflow) || 0;
+
+                        // Local update for subsequent assets of same type in this loop
+                        const updatedData = {
+                            ...currentData,
+                            currentStock: (Number(currentData.currentStock) || 0) + outflow,
+                            totalOutflow: (Number(currentData.totalOutflow) || 0) - outflow,
+                            lastUpdatedAt: serverTimestamp(),
+                            lastAction: "install_schedule_delete_recovery"
+                        };
+
+                        transaction.update(tracker.ref, updatedData);
+                        tracker.data = updatedData;
+                    }
+                    affectedItems.add(`${asset.data.name}|${asset.data.category}`);
                     transaction.delete(asset.ref);
                 }
 
-                let photosToDelete: string[] = [];
-                if (activitySnap.exists()) {
-                    photosToDelete = activitySnap.data().photos || [];
-                }
-
-                if (custMetaSnap.exists()) {
-                    transaction.update(metaRef, {
-                        totalCount: Math.max(0, (Number(custMetaSnap.data().totalCount) || 0) - 1),
-                        lastDeletedAt: serverTimestamp()
-                    });
-                }
-
-                transaction.delete(activityRef);
-                return { success: true, affectedItems: Array.from(affectedItems), photosToDelete };
+                transaction.delete(doc(db, "activities", activityId));
+                return { success: true, affectedItems: Array.from(affectedItems) };
             });
 
             if (result.success) {
-                if (result.photosToDelete.length > 0) await cleanupOrphanedPhotos(result.photosToDelete);
+                if (initialData?.photos) await cleanupOrphanedPhotos(initialData.photos);
                 Promise.all(result.affectedItems.map(itemKey => {
                     const [name, category] = itemKey.split("|");
                     return performSelfHealing(name, category);
                 })).catch(e => console.error("Self-healing error:", e));
-                // Delay for Firestore indexing
-                await new Promise(resolve => setTimeout(resolve, 500));
+
                 await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
-                await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
-                await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
                 await queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
                 toast({ title: "삭제 완료", status: "info", duration: 2000, position: "top" });
                 return true;
             }
             return false;
-        } catch (error) {
-            console.error("Install Schedule Delete Failure:", error);
-            toast({ title: "삭제 실패", status: "error", position: "top" });
+        } catch (error: any) {
+            console.error("Delete Failure:", error);
+            toast({ title: "삭제 실패", description: error.message, status: "error", position: "top" });
             return false;
         } finally {
             setIsLoading(false);
         }
-    }, [activityId, customer.id, toast, cleanupOrphanedPhotos]);
+    }, [activityId, initialData, activities, userData?.role, holidayMap, toast, customer.id, queryClient]);
 
     return {
-        formData, setFormData,
+        formData,
         isLoading,
-        handleFileUpload, removePhoto,
-        addTask, updateTask, removeTask,
+        pendingFiles,
+        setFormData,
+        handleUpdateQty,
+        handleRemoveItem,
+        handleFileUpload,
+        removePhoto,
         submit,
-        handleDelete
+        handleDelete,
+        addTask,
+        updateTask,
+        removeTask
     };
 };
+
+useInstallScheduleForm.displayName = "useInstallScheduleForm";

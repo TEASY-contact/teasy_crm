@@ -232,7 +232,8 @@ export const useReportMetadata = () => {
                 value: u.id,
                 label: u.status === 'banned' ? `${u.name}(퇴)` : u.name,
                 role: u.role,
-                status: u.status
+                status: u.status,
+                representativeColor: u.representativeColor
             }))
             .sort((a, b) => a.label.localeCompare(b.label)) as ManagerOption[];
 
@@ -242,7 +243,8 @@ export const useReportMetadata = () => {
                 value: u.id,
                 label: u.status === 'banned' ? `${u.name}(퇴)` : u.name,
                 role: u.role,
-                status: u.status
+                status: u.status,
+                representativeColor: u.representativeColor
             }))
             .sort((a, b) => a.label.localeCompare(b.label)) as ManagerOption[];
 

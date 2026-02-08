@@ -29,6 +29,7 @@ export interface RemoteAsCompleteFormData {
     };
     photos: string[];
     memo: string;
+    createdAt?: any;
 }
 
 export const REMOTE_AS_COMPLETE_CONSTANTS = {

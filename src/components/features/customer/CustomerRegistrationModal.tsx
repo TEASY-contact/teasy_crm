@@ -57,6 +57,19 @@ const CustomerRegistrationModalContent = ({ onClose }: { onClose: () => void }) 
             return;
         }
 
+        const phoneRegex = /^01[0-9]-[0-9]{3,4}-[0-9]{4}$/;
+        if (!phoneRegex.test(phone)) {
+            toast({
+                title: "연락처 형식 오류",
+                description: "올바른 연락처 형식이 아닙니다. (예: 010-0000-0000)",
+                status: "warning",
+                duration: 3000,
+                isClosable: true,
+                position: "top"
+            });
+            return;
+        }
+
         setIsLoading(true);
 
         try {

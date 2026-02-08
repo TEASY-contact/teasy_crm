@@ -3,6 +3,7 @@ import React, { forwardRef, useImperativeHandle, useCallback } from "react";
 import { VStack, FormControl, Box, Spinner, HStack, Flex, Text } from "@chakra-ui/react";
 import { CustomSelect } from "@/components/common/CustomSelect";
 import { TeasyDateTimeInput, TeasyFormLabel, TeasyInput, TeasyTextarea, TeasyPhoneInput } from "@/components/common/UIComponents";
+import { applyColonStandard, normalizeText } from "@/utils/textFormatter";
 import { useReportMetadata } from "@/hooks/useReportMetadata";
 import { useDemoScheduleForm } from "./useDemoScheduleForm";
 import { DemoScheduleFormData, DemoScheduleFormHandle } from "./types";
@@ -54,6 +55,7 @@ export const DemoScheduleForm = forwardRef<DemoScheduleFormHandle, DemoScheduleF
                     position="absolute" top={0} left={0} right={0} bottom={0}
                     bg="whiteAlpha.800" zIndex={20} align="center" justify="center"
                     borderRadius="md"
+                    backdropFilter="blur(2px)"
                 >
                     <VStack spacing={4}>
                         <Spinner size="xl" color="brand.500" thickness="4px" />
@@ -62,17 +64,17 @@ export const DemoScheduleForm = forwardRef<DemoScheduleFormHandle, DemoScheduleF
                 </Flex>
             )}
             <VStack spacing={6} align="stretch">
-                <HStack spacing={4}>
-                    <FormControl isRequired>
+                <HStack w="full" spacing={4}>
+                    <FormControl isRequired flex={1}>
                         <TeasyFormLabel>시연 일시</TeasyFormLabel>
                         <TeasyDateTimeInput
                             value={formData.date}
                             onChange={(val: string) => !isReadOnly && setFormData((prev: DemoScheduleFormData) => ({ ...prev, date: val }))}
                             isDisabled={isReadOnly}
-                            limitType="past"
+                            limitType="future"
                         />
                     </FormControl>
-                    <FormControl isRequired>
+                    <FormControl isRequired flex={1}>
                         <TeasyFormLabel>담당자</TeasyFormLabel>
                         {isReadOnly ? (
                             <TeasyInput
@@ -95,7 +97,7 @@ export const DemoScheduleForm = forwardRef<DemoScheduleFormHandle, DemoScheduleF
                     <TeasyFormLabel>방문 주소</TeasyFormLabel>
                     <TeasyInput
                         value={formData.location}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => !isReadOnly && setFormData((prev: DemoScheduleFormData) => ({ ...prev, location: e.target.value }))}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => !isReadOnly && setFormData((prev: DemoScheduleFormData) => ({ ...prev, location: normalizeText(e.target.value) }))}
                         placeholder="입력"
                         isDisabled={isReadOnly}
                     />
@@ -135,7 +137,7 @@ export const DemoScheduleForm = forwardRef<DemoScheduleFormHandle, DemoScheduleF
                     <TeasyFormLabel>참고 사항</TeasyFormLabel>
                     <TeasyTextarea
                         value={formData.memo}
-                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => !isReadOnly && setFormData((prev: DemoScheduleFormData) => ({ ...prev, memo: e.target.value }))}
+                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => !isReadOnly && setFormData((prev: DemoScheduleFormData) => ({ ...prev, memo: applyColonStandard(e.target.value) }))}
                         placeholder="입력"
                         isDisabled={isReadOnly}
                     />

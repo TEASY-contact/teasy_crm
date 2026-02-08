@@ -40,6 +40,7 @@ export interface ManagerOption {
     role?: UserRole;
     isDivider?: boolean;
     status?: UserStatus;
+    representativeColor?: string;
 }
 
 export interface ProductOption {
@@ -84,6 +85,13 @@ export type ActivityType =
     | 'install_schedule' | 'install_complete'
     | 'as_schedule' | 'as_complete' | 'remoteas_complete'
     | 'customer_registered';
+
+export interface ModificationLog {
+    time: string;
+    manager: string;
+    managerName: string;
+    content: string; // (Before) → (After)
+}
 
 export interface Activity extends BaseDoc {
     customerId: string;
@@ -142,6 +150,7 @@ export interface Activity extends BaseDoc {
     // Compatibility for work_requests or nested content
     category?: string;
     content?: any;
+    modificationHistory?: ModificationLog[];
 }
 
 export interface InquiryFile {

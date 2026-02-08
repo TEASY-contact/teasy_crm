@@ -123,20 +123,20 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
 
                     const metaRef = doc(db, "customer_meta", `${customer.id}_${reportType}`);
                     const metaSnap = await transaction.get(metaRef);
+                    const activitySnap = activityId ? await transaction.get(activityRef) : null;
                     let currentMeta = metaSnap.exists() ? metaSnap.data() as { lastSequence: number, totalCount: number } : { lastSequence: 0, totalCount: 0 };
 
                     const dataToSave: Partial<Activity> = {
                         customerId: customer.id,
                         customerName: customer?.name || "",
-                        type: reportType as any, // Cast to avoid literal match error if passed dynamic string
+                        type: reportType as any,
                         typeName: reportLabel,
                         date: formData.date,
                         manager: formData.manager,
                         memo: applyColonStandard(formData.memo || ""),
                         managerName: selectedManager?.label || formData.manager,
                         managerRole: selectedManager?.role || "employee",
-                        updatedAt: serverTimestamp(),
-                        createdByName: userData?.name || "알 수 없음"
+                        updatedAt: serverTimestamp()
                     };
 
                     if (hasLocation) dataToSave.location = normalizeText(formData.location);
@@ -151,6 +151,25 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
                     });
 
                     if (activityId) {
+                        if (activitySnap?.exists()) {
+                            const oldData = activitySnap.data() as Activity;
+                            const oldMemo = oldData.memo || "없음";
+                            const newMemo = applyColonStandard(formData.memo || "");
+
+                            if (oldMemo !== newMemo) {
+                                const now = new Date();
+                                const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}  ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+                                const log = {
+                                    time: timeStr,
+                                    manager: userData?.uid || "unknown",
+                                    managerName: userData?.name || "알 수 없음",
+                                    content: `(변경전) ${oldMemo} → (변경후) ${newMemo}`
+                                };
+
+                                dataToSave.modificationHistory = [...(oldData.modificationHistory || []), log];
+                            }
+                        }
                         transaction.update(activityRef, dataToSave);
                     } else {
                         // Sync sequence number based on pairing (v124.81)
@@ -168,7 +187,8 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
                             ...dataToSave,
                             sequenceNumber: nextSeq,
                             createdAt: serverTimestamp(),
-                            createdBy: userData?.uid
+                            createdBy: userData?.uid || "system",
+                            createdByName: userData?.name || "알 수 없음"
                         });
                         transaction.set(metaRef, {
                             lastSequence: nextSeq,
@@ -192,7 +212,7 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
         },
         delete: async () => {
             if (!activityId) return false;
-            if (!window.confirm(`정말 이 [${reportLabel}] 보고서를 삭제하시겠습니까?`)) return false;
+            if (!window.confirm("해당 데이터 삭제를 희망하십니까?")) return false;
 
             setIsLoading(true);
             try {

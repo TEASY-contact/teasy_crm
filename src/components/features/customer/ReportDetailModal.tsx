@@ -85,11 +85,10 @@ const ReportDetailModalContent = ({ onClose, customer, activity, activities = []
             toast({ title: "권한 없음", description: "삭제 권한이 없습니다.", status: "error", position: "top" });
             return;
         }
-        if (window.confirm("정말 이 보고서를 삭제하시겠습니까?")) {
-            if (formRef.current) {
-                const success = await formRef.current.delete();
-                if (success) onClose();
-            }
+
+        if (formRef.current) {
+            const success = await formRef.current.delete();
+            if (success) onClose();
         }
     };
 

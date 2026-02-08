@@ -13,6 +13,8 @@ import {
     Badge,
     Tooltip,
     Text,
+    Spinner,
+    Center,
 } from "@chakra-ui/react";
 import { Customer } from "@/types/domain";
 import Link from "next/link";
@@ -69,7 +71,7 @@ interface CustomerTableProps {
     isLoading?: boolean;
 }
 
-export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSelectedIds }: CustomerTableProps) => {
+export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSelectedIds, isLoading }: CustomerTableProps) => {
 
     const isAllSelected = customers.length > 0 && selectedIds.length === customers.length;
     const isIndeterminate = selectedIds.length > 0 && selectedIds.length < customers.length;
@@ -112,7 +114,7 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
                                 />
                             </Th>
                             <Th w="6%" color="gray.500" fontSize="xs" fontWeight="800" borderBottom="1px" borderColor="gray.100" textAlign="center" px={1}>순번</Th>
-                            <Th w="10%" color="gray.500" fontSize="xs" fontWeight="800" borderBottom="1px" borderColor="gray.100" textAlign="left" px={3}>고객명</Th>
+                            <Th w="10%" color="gray.500" fontSize="xs" fontWeight="800" borderBottom="1px" borderColor="gray.100" textAlign="left" px={4}>고객명</Th>
                             <Th w="12%" color="gray.500" fontSize="xs" fontWeight="800" borderBottom="1px" borderColor="gray.100" textAlign="center" px={3}>연락처</Th>
                             <Th w="28%" color="gray.500" fontSize="xs" fontWeight="800" borderBottom="1px" borderColor="gray.100" textAlign="left" px={4}>주소</Th>
                             <Th w="18%" color="gray.500" fontSize="xs" fontWeight="800" borderBottom="1px" borderColor="gray.100" textAlign="left" px={4}>보유 상품</Th>
@@ -122,85 +124,109 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
                         </Tr>
                     </Thead>
                     <Tbody>
-                        {customers.map((customer) => (
-                            <Tr key={customer.id} h="45px" _hover={{ bg: "gray.50" }} transition="all 0.2s">
-                                <Td py={2} borderBottom="1px" borderColor="gray.100" textAlign="center" p={0}>
-                                    <Checkbox
-                                        colorScheme="purple"
-                                        isChecked={selectedIds.includes(customer.id)}
-                                        onChange={() => handleSelectItem(customer.id)}
-                                    />
-                                </Td>
-                                <Td py={2} fontSize="sm" color="gray.600" borderBottom="1px" borderColor="gray.100" textAlign="center" whiteSpace="nowrap">{customer.no}</Td>
-                                <Td py={2} fontSize="sm" fontWeight="bold" color="gray.800" borderBottom="1px" borderColor="gray.100" textAlign="left" px={4} whiteSpace="nowrap">
-                                    <HighlightedText text={customer.name} query={searchQuery} />
-                                </Td>
-                                <Td py={2} fontSize="sm" color="gray.600" borderBottom="1px" borderColor="gray.100" textAlign="center">
-                                    <VStack spacing={0} align="center" whiteSpace="nowrap">
-                                        <Box w="full">
-                                            <HighlightedText text={customer.phone} query={searchQuery} />
-                                        </Box>
-                                        {customer.sub_phones?.map((p, idx) => (
-                                            <Box key={idx} w="full" color="gray.400" fontSize="sm">
-                                                <HighlightedText text={p} query={searchQuery} />
-                                            </Box>
-                                        ))}
-                                    </VStack>
-                                </Td>
-                                <Td py={2} fontSize="sm" color="gray.600" borderBottom="1px" borderColor="gray.100" textAlign="left" px={4}>
-                                    <VStack spacing={0} align="start" whiteSpace="nowrap">
-                                        <Box w="full">
-                                            <HighlightedText text={customer.address} query={searchQuery} />
-                                        </Box>
-                                        {customer.sub_addresses?.map((a, idx) => (
-                                            <Box key={idx} w="full" color="gray.400" fontSize="sm">
-                                                <HighlightedText text={a} query={searchQuery} />
-                                            </Box>
-                                        ))}
-                                    </VStack>
-                                </Td>
-                                <Td py={2} fontSize="sm" color="gray.600" borderBottom="1px" borderColor="gray.100" textAlign="left" px={4}>
-                                    <TruncatedTooltip label={(customer.ownedProducts || []).join(", ") || "-"}>
-                                        <Box as="span" isTruncated display="block">
-                                            <ThinParen text={(customer.ownedProducts || []).join(", ") || "-"} />
-                                        </Box>
-                                    </TruncatedTooltip>
-                                </Td>
-                                <Td py={2} fontSize="sm" color="gray.600" borderBottom="1px" borderColor="gray.100" textAlign="center" px={3}>
-                                    <TruncatedTooltip label={customer.distributor || "-"}>
-                                        <Box as="span" isTruncated display="block">
-                                            {customer.distributor ? (
-                                                <HighlightedText text={customer.distributor} query={searchQuery} />
-                                            ) : "-"}
-                                        </Box>
-                                    </TruncatedTooltip>
-                                </Td>
-                                <Td fontSize="sm" color="gray.600" py={2} borderBottom="1px" borderColor="gray.50" whiteSpace="pre-wrap">
-                                    {(customer.registeredDate || "").replace(/\s+/g, "  ").replace(/\//g, "-")}
-                                </Td>
-                                <Td py={2} borderBottom="1px" borderColor="gray.100" whiteSpace="nowrap">
-                                    <Flex justify="center" align="center">
-                                        <Link href={`/customers/${customer.id}`}>
-                                            <Badge
-                                                bg="rgba(128, 90, 213, 0.1)"
-                                                color="brand.500"
-                                                cursor="pointer"
-                                                px={3}
-                                                py="3px"
-                                                borderRadius="10px"
-                                                textTransform="none"
-                                                fontSize="xs"
-                                                fontWeight="800"
-                                                transition="all 0.2s"
-                                                _hover={{ bg: "brand.500", color: "white" }}
-                                            >
-                                                상세보기
-                                            </Badge>
-                                        </Link>
-                                    </Flex>
+                        {isLoading ? (
+                            <Tr>
+                                <Td colSpan={9} h="200px">
+                                    <Center>
+                                        <VStack spacing={4}>
+                                            <Spinner size="lg" color="brand.500" thickness="4px" />
+                                            <Text color="gray.500" fontSize="sm" fontWeight="medium">데이터를 불러오는 중입니다...</Text>
+                                        </VStack>
+                                    </Center>
                                 </Td>
                             </Tr>
-                        ))}
+                        ) : customers.length === 0 ? (
+                            <Tr>
+                                <Td colSpan={9} h="200px">
+                                    <Center>
+                                        <VStack spacing={2}>
+                                            <Text color="gray.400" fontSize="md" fontWeight="bold">검색 결과가 없습니다.</Text>
+                                            <Text color="gray.300" fontSize="xs">검색어를 확인하거나 필터를 초기화해 보세요.</Text>
+                                        </VStack>
+                                    </Center>
+                                </Td>
+                            </Tr>
+                        ) : (
+                            customers.map((customer) => (
+                                <Tr key={customer.id} h="45px" _hover={{ bg: "gray.50" }} transition="all 0.2s">
+                                    <Td py={2} borderBottom="1px" borderColor="gray.100" textAlign="center" p={0}>
+                                        <Checkbox
+                                            colorScheme="purple"
+                                            isChecked={selectedIds.includes(customer.id)}
+                                            onChange={() => handleSelectItem(customer.id)}
+                                        />
+                                    </Td>
+                                    <Td py={2} fontSize="sm" color="gray.600" borderBottom="1px" borderColor="gray.100" textAlign="center" whiteSpace="nowrap">{customer.no}</Td>
+                                    <Td py={2} fontSize="sm" fontWeight="bold" color="gray.800" borderBottom="1px" borderColor="gray.100" textAlign="left" px={4} whiteSpace="nowrap">
+                                        <HighlightedText text={customer.name} query={searchQuery} />
+                                    </Td>
+                                    <Td px={3} py={2} fontSize="sm" color="gray.600" borderBottom="1px" borderColor="gray.100" textAlign="center">
+                                        <VStack spacing={0} align="center" whiteSpace="nowrap">
+                                            <Box w="full">
+                                                <HighlightedText text={customer.phone} query={searchQuery} />
+                                            </Box>
+                                            {customer.sub_phones?.map((p, idx) => (
+                                                <Box key={idx} w="full" color="gray.400" fontSize="sm">
+                                                    <HighlightedText text={p} query={searchQuery} />
+                                                </Box>
+                                            ))}
+                                        </VStack>
+                                    </Td>
+                                    <Td py={2} fontSize="sm" color="gray.600" borderBottom="1px" borderColor="gray.100" textAlign="left" px={4}>
+                                        <VStack spacing={0} align="start" whiteSpace="nowrap">
+                                            <Box w="full">
+                                                <HighlightedText text={customer.address} query={searchQuery} />
+                                            </Box>
+                                            {customer.sub_addresses?.map((a, idx) => (
+                                                <Box key={idx} w="full" color="gray.400" fontSize="sm">
+                                                    <HighlightedText text={a} query={searchQuery} />
+                                                </Box>
+                                            ))}
+                                        </VStack>
+                                    </Td>
+                                    <Td py={2} fontSize="sm" color="gray.600" borderBottom="1px" borderColor="gray.100" textAlign="left" px={4}>
+                                        <TruncatedTooltip label={(customer.ownedProducts || []).join(", ") || "-"}>
+                                            <Box as="span" isTruncated display="block">
+                                                <ThinParen text={(customer.ownedProducts || []).join(", ") || "-"} />
+                                            </Box>
+                                        </TruncatedTooltip>
+                                    </Td>
+                                    <Td py={2} fontSize="sm" color="gray.600" borderBottom="1px" borderColor="gray.100" textAlign="center" px={3}>
+                                        <TruncatedTooltip label={customer.distributor || "-"}>
+                                            <Box as="span" isTruncated display="block">
+                                                {customer.distributor ? (
+                                                    <HighlightedText text={customer.distributor} query={searchQuery} />
+                                                ) : "-"}
+                                            </Box>
+                                        </TruncatedTooltip>
+                                    </Td>
+                                    <Td px={3} fontSize="sm" color="gray.600" py={2} borderBottom="1px" borderColor="gray.100" whiteSpace="pre-wrap">
+                                        {(customer.registeredDate || "").replace(/\s+/g, "  ").replace(/\//g, "-")}
+                                    </Td>
+                                    <Td py={2} borderBottom="1px" borderColor="gray.100" whiteSpace="nowrap">
+                                        <Flex justify="center" align="center">
+                                            <Link href={`/customers/${customer.id}`}>
+                                                <Badge
+                                                    bg="rgba(128, 90, 213, 0.1)"
+                                                    color="brand.500"
+                                                    cursor="pointer"
+                                                    px={3}
+                                                    py="3px"
+                                                    borderRadius="10px"
+                                                    textTransform="none"
+                                                    fontSize="xs"
+                                                    fontWeight="800"
+                                                    transition="all 0.2s"
+                                                    _hover={{ bg: "brand.500", color: "white" }}
+                                                >
+                                                    상세보기
+                                                </Badge>
+                                            </Link>
+                                        </Flex>
+                                    </Td>
+                                </Tr>
+                            ))
+                        )}
                     </Tbody>
                 </Table>
             </Box>

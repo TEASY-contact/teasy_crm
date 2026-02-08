@@ -5,7 +5,7 @@ import { FilterBar } from "@/components/features/customer/FilterBar";
 import { CustomerTable } from "@/components/features/customer/CustomerTable";
 import { PageHeader, TeasyButton, TeasyInput, TeasyModal, TeasyModalBody, TeasyModalContent, TeasyModalFooter, TeasyModalHeader, TeasyModalOverlay } from "@/components/common/UIComponents";
 import { ThinParen } from "@/components/common/ui/BaseAtoms";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Customer } from "@/types/domain";
 import { CustomerRegistrationModal } from "@/components/features/customer/CustomerRegistrationModal";
 import { db } from "@/lib/firebase";
@@ -64,37 +64,37 @@ export default function CustomersPage() {
         await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
     };
 
-    // 1. Filter Logic (v123.78)
-    const filtered = customers.filter(c => {
-        const q = normalize(searchQuery);
-        if (!q) return true;
+    // 1. Filter + Sort + Assign (Memoized)
+    const finalData = useMemo(() => {
+        const filtered = customers.filter(c => {
+            const q = normalize(searchQuery);
+            if (!q) return true;
 
-        const fields = [
-            c.name,
-            c.phone,
-            ...(c.sub_phones || []),
-            c.address,
-            ...(c.sub_addresses || []),
-            c.license,
-            ...(c.ownedProducts || []),
-            c.notes,
-            c.distributor
-        ];
+            const fields = [
+                c.name,
+                c.phone,
+                ...(c.sub_phones || []),
+                c.address,
+                ...(c.sub_addresses || []),
+                c.license,
+                ...(c.ownedProducts || []),
+                c.notes,
+                c.distributor
+            ];
 
-        return fields.some(f => normalize(f || "").includes(q));
-    });
+            return fields.some(f => normalize(f || "").includes(q));
+        });
 
-    // 2. Sort Logic (v123.78)
-    const sorted = [...filtered].sort((a, b) => {
-        const strategy = SORT_STRATEGIES[sortBy];
-        return strategy ? strategy(a, b) : 0;
-    });
+        const sorted = [...filtered].sort((a, b) => {
+            const strategy = SORT_STRATEGIES[sortBy];
+            return strategy ? strategy(a, b) : 0;
+        });
 
-    // 3. Assign display numbers after sorting
-    const finalData = sorted.map((item, idx) => ({
-        ...item,
-        no: sorted.length - idx
-    }));
+        return sorted.map((item, idx) => ({
+            ...item,
+            no: sorted.length - idx
+        }));
+    }, [customers, searchQuery, sortBy]);
 
     const handleBulkDelete = async () => {
         if (delConfirmInput !== "삭제") {

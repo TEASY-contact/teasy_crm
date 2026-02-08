@@ -98,10 +98,33 @@ export const PanZoomContainer = ({ children, initialScale = 1, state, setState }
  * File Utility Functions (Shared logic for all viewers)
  */
 export const getTeasyFileExt = (fileObj: any) => {
-    const namePart = (fileObj.displayName || fileObj.name || "").split('?')[0];
-    if (namePart.includes('.')) return namePart.split('.').pop()?.toUpperCase() || "";
-    const urlPart = (fileObj.url || "").split('?')[0];
-    if (urlPart.includes('.')) return urlPart.split('.').pop()?.toUpperCase() || "";
+    if (!fileObj) return "";
+
+    // 1. Explicit ext property
+    if (fileObj.ext) return fileObj.ext.toUpperCase();
+
+    // 2. From name/displayName
+    const name = fileObj.displayName || fileObj.name || "";
+    const namePart = name.split('?')[0];
+    if (namePart.includes('.')) {
+        const ext = namePart.split('.').pop()?.toUpperCase();
+        if (ext && ext.length <= 5) return ext;
+    }
+
+    // 3. From URL
+    const url = fileObj.url || "";
+    const urlPart = url.split('?')[0];
+    if (urlPart.includes('.')) {
+        const ext = urlPart.split('.').pop()?.toUpperCase();
+        if (ext && ext.length <= 5) return ext;
+    }
+
+    // 4. From type property
+    if (fileObj.type) {
+        if (fileObj.type.includes('/')) return fileObj.type.split('/').pop()?.toUpperCase() || "";
+        return fileObj.type.toUpperCase();
+    }
+
     return "";
 };
 
@@ -229,13 +252,15 @@ interface PanZoomState {
 /**
  * Universal File Viewer (Unified Gallery & PDF)
  */
-export const TeasyUniversalViewer = ({ isOpen, onClose, files = [], initialIndex = 0 }: any) => {
+export const TeasyUniversalViewer = ({ isOpen, onClose, files = [], initialIndex = 0, onDelete }: any) => {
     const [currentIndex, setCurrentIndex] = React.useState(initialIndex);
     const [zoomState, setZoomState] = React.useState<PanZoomState>({ scale: 1, translateX: 0, translateY: 0 });
 
     const currentFile = files[currentIndex] || {};
     const ext = getTeasyFileExt(currentFile);
+    const isImage = ['JPG', 'JPEG', 'PNG', 'GIF', 'WEBP', 'BMP'].includes(ext);
     const isPdf = ext === 'PDF' || currentFile.type === 'pdf' || currentFile.type === 'PDF';
+    const isVideo = ['MP4', 'MOV', 'M4V', 'WEBM', 'MKV'].includes(ext);
 
     const getInitialScale = (pdf: boolean) => pdf ? 0.18 : 0.80;
 
@@ -313,9 +338,23 @@ export const TeasyUniversalViewer = ({ isOpen, onClose, files = [], initialIndex
                                     const isCurrent = idx === currentIndex;
                                     const fExt = getTeasyFileExt(file);
                                     const fIsPdf = fExt === 'PDF' || file.type === 'pdf' || file.type === 'PDF';
+                                    const fIsImg = ['JPG', 'JPEG', 'PNG', 'GIF', 'WEBP', 'BMP', 'HEIC'].includes(fExt);
+                                    const fIsVid = ['MP4', 'MOV', 'M4V', 'WEBM', 'MKV'].includes(fExt);
+                                    const fIsAud = ['MP3', 'WAV', 'M4A', 'AAC', 'OGG'].includes(fExt);
+
                                     return (
-                                        <Box key={idx} w="51px" h="29px" borderRadius="md" overflow="hidden" cursor="pointer" border={isCurrent ? "3px solid" : "1.5px solid"} borderColor={isCurrent ? "rgba(128, 90, 213, 0.6)" : "gray.100"} bg="gray.50" opacity={isCurrent ? 1 : 0.6} onClick={() => setCurrentIndex(idx)} flexShrink={0} transition="all 0.2s">
-                                            {fIsPdf ? <Center h="full" bg="red.50" color="red.500"><Text fontSize="10px" fontWeight="bold">PDF</Text></Center> : <img src={file.url} alt="thumb" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                                        <Box key={idx} w="51px" h="29px" borderRadius="md" overflow="hidden" cursor="pointer" border={isCurrent ? "3px solid" : "1.5px solid"} borderColor={isCurrent ? "rgba(128, 90, 213, 0.6)" : "gray.100"} bg="gray.100" opacity={isCurrent ? 1 : 0.6} onClick={() => setCurrentIndex(idx)} flexShrink={0} transition="all 0.2s">
+                                            {fIsPdf ? (
+                                                <Center h="full" bg="red.50" color="red.500"><Text fontSize="10px" fontWeight="bold">PDF</Text></Center>
+                                            ) : fIsImg ? (
+                                                <img src={file.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                            ) : fIsVid ? (
+                                                <Center h="full" bg="blue.50" color="blue.500"><Text fontSize="10px" fontWeight="bold">VIDEO</Text></Center>
+                                            ) : fIsAud ? (
+                                                <Center h="full" bg="orange.50" color="orange.500"><Text fontSize="10px" fontWeight="bold">AUDIO</Text></Center>
+                                            ) : (
+                                                <Center h="full" bg="gray.200" color="gray.500"><Text fontSize="10px" fontWeight="bold">FILE</Text></Center>
+                                            )}
                                         </Box>
                                     );
                                 })}
@@ -339,6 +378,17 @@ export const TeasyUniversalViewer = ({ isOpen, onClose, files = [], initialIndex
                             <HStack spacing={2}>
                                 <TeasyButton size="sm" version="secondary" leftIcon={<MdFileDownload />} onClick={() => triggerTeasyDownload(currentFile)}>다운로드</TeasyButton>
                                 {files.length > 1 && <TeasyButton size="sm" version="secondary" onClick={triggerDownloadAll}>전체 다운로드</TeasyButton>}
+                                {onDelete && (
+                                    <TeasyButton
+                                        size="sm"
+                                        version="secondary"
+                                        color="red.400"
+                                        _hover={{ bg: "red.500", color: "white" }}
+                                        onClick={() => onDelete(currentFile)}
+                                    >
+                                        삭제
+                                    </TeasyButton>
+                                )}
                             </HStack>
                             <TeasyButton size="sm" onClick={onClose} minW="80px">닫기</TeasyButton>
                         </HStack>

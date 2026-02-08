@@ -519,7 +519,7 @@ export const AsScheduleForm = forwardRef<AsScheduleFormHandle, AsScheduleFormPro
                     <TeasyFormLabel>참고 사항</TeasyFormLabel>
                     <TeasyTextarea
                         value={formData.memo}
-                        onChange={(e: any) => !isReadOnly && setFormData({ ...formData, memo: e.target.value })}
+                        onChange={(e: any) => !isReadOnly && setFormData({ ...formData, memo: applyColonStandard(e.target.value) })}
                         placeholder="특이사항 또는 수리 엔지니어 전달사항 입력"
                         isDisabled={isReadOnly}
                     />

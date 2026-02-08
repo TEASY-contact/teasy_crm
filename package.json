@@ -6,7 +6,9 @@
     "dev": "next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@chakra-ui/icons": "^2.2.4",
@@ -32,6 +34,7 @@
     "@types/react-dom": "^18.3.7",
     "eslint": "^9",
     "eslint-config-next": "^14.2.35",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.0.18"
   }
 }

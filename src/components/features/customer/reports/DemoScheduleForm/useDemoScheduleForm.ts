@@ -1,13 +1,16 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@chakra-ui/react";
 import { db } from "@/lib/firebase";
 import { collection, serverTimestamp, doc, runTransaction } from "firebase/firestore";
+import { applyColonStandard, normalizeText } from "@/utils/textFormatter";
+import { formatPhone } from "@/utils/formatter";
+import { isWithinBusinessDays } from "@/utils/dateUtils";
+import { useReportMetadata } from "@/hooks/useReportMetadata";
 import { useAuth } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
-import { applyColonStandard, normalizeText } from "@/utils/textFormatter";
 import { DemoScheduleFormData, DemoScheduleActivity, SCHEDULE_CONSTANTS } from "./types";
-import { ManagerOption } from "../DemoCompleteForm/types";
+import { Customer, ManagerOption, Activity } from "@/types/domain";
 
 interface UseDemoScheduleFormProps {
     customer: { id: string, name: string, address?: string, phone?: string };
@@ -19,9 +22,11 @@ interface UseDemoScheduleFormProps {
 
 export const useDemoScheduleForm = ({ customer, activities = [], activityId, initialData, defaultManager }: UseDemoScheduleFormProps) => {
     const { userData } = useAuth();
+    const { holidayMap } = useReportMetadata();
     const queryClient = useQueryClient();
     const toast = useToast();
     const [isLoading, setIsLoading] = useState(false);
+    const isSubmitting = useRef(false);
 
     const [formData, setFormData] = useState<DemoScheduleFormData>({
         date: "",
@@ -54,7 +59,19 @@ export const useDemoScheduleForm = ({ customer, activities = [], activityId, ini
     }, [initialData, defaultManager, customer.address, customer.phone]);
 
     const submit = useCallback(async (managerOptions: ManagerOption[]) => {
-        if (isLoading) return false;
+        if (isLoading || isSubmitting.current) return false;
+
+        // Surgical Guard: 3 Business Days Limit Enforcement
+        if (activityId && (initialData as any)?.createdAt) {
+            const createdAt = (initialData as any).createdAt?.toDate ? (initialData as any).createdAt.toDate() : new Date((initialData as any).createdAt);
+            const isMaster = (userData as any)?.role === 'master';
+            const isWithinEditTime = isWithinBusinessDays(createdAt, 3, holidayMap);
+
+            if (!isMaster && !isWithinEditTime) {
+                toast({ title: "저장 불가", description: "작성 후 3영업일이 경과하여 수정할 수 없습니다.", status: "error", position: "top" });
+                return false;
+            }
+        }
 
         // Validation Rules
         const validations = [
@@ -86,7 +103,8 @@ export const useDemoScheduleForm = ({ customer, activities = [], activityId, ini
                 // --- Meta-Locking for Serialization ---
                 const metaRef = doc(db, "customer_meta", `${customer.id}_demo_schedule`);
                 const metaSnap = await transaction.get(metaRef);
-                let currentMeta = metaSnap.exists() ? metaSnap.data() : { lastSequence: 0, totalCount: 0 };
+                const activitySnap = activityId ? await transaction.get(activityRef) : null;
+                const currentMeta = metaSnap.exists() ? metaSnap.data() : { lastSequence: 0, totalCount: 0 };
 
                 const dataToSave: DemoScheduleActivity = {
                     customerId: customer.id,
@@ -101,8 +119,7 @@ export const useDemoScheduleForm = ({ customer, activities = [], activityId, ini
                     phone: cleanPhone,
                     product: normalizeText(formData.product),
                     memo: applyColonStandard(formData.memo || ""),
-                    updatedAt: serverTimestamp(),
-                    createdByName: userData?.name || "알 수 없음"
+                    updatedAt: serverTimestamp()
                 };
 
                 // Sync with Customer Document (Last Consult Date)
@@ -113,6 +130,48 @@ export const useDemoScheduleForm = ({ customer, activities = [], activityId, ini
                 });
 
                 if (activityId) {
+                    if (activitySnap?.exists()) {
+                        const oldData = activitySnap.data() as Activity;
+                        const changes: string[] = [];
+
+                        // 1. Memo tracking
+                        const oldMemo = oldData.memo || "";
+                        const newMemo = applyColonStandard(formData.memo || "");
+                        if (oldMemo !== newMemo) changes.push(`참고: ${oldMemo || "없음"} → ${newMemo || "없음"}`);
+
+                        // 2. Info tracking
+                        const oldLoc = oldData.location || "";
+                        const newLoc = normalizeText(formData.location);
+                        if (oldLoc !== newLoc) changes.push(`주소: ${oldLoc || "없음"} → ${newLoc || "없음"}`);
+
+                        const oldPhone = oldData.phone || "";
+                        const newPhone = cleanPhone;
+                        if (oldPhone !== newPhone) changes.push(`전화: ${formatPhone(oldPhone) || "없음"} → ${formatPhone(newPhone) || "없음"}`);
+
+                        const oldProduct = oldData.product || "";
+                        const newProduct = normalizeText(formData.product);
+                        if (oldProduct !== newProduct) changes.push(`상품: ${oldProduct || "없음"} → ${newProduct || "없음"}`);
+
+                        // 3. Date & Manager tracking
+                        if (oldData.date !== formData.date) changes.push(`일시: ${oldData.date} → ${formData.date}`);
+                        if (oldData.manager !== formData.manager) {
+                            const oldManagerName = oldData.managerName || oldData.manager;
+                            const newManagerName = selectedManager?.label || formData.manager;
+                            changes.push(`담당: ${oldManagerName} → ${newManagerName}`);
+                        }
+
+                        if (changes.length > 0) {
+                            const now = new Date();
+                            const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}  ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                            const log = {
+                                time: timeStr,
+                                manager: userData?.uid || "unknown",
+                                managerName: userData?.name || "알 수 없음",
+                                content: changes.join(" / ")
+                            };
+                            dataToSave.modificationHistory = [...(oldData.modificationHistory || []), log];
+                        }
+                    }
                     transaction.update(activityRef, dataToSave as any);
                 } else {
                     const nextSeq = activities.filter(a => a.type === SCHEDULE_CONSTANTS.TYPE).length + 1;
@@ -121,6 +180,7 @@ export const useDemoScheduleForm = ({ customer, activities = [], activityId, ini
                         sequenceNumber: nextSeq,
                         createdAt: serverTimestamp(),
                         createdBy: userData?.uid || "system",
+                        createdByName: userData?.name || "알 수 없음"
                     });
 
                     transaction.set(metaRef, {
@@ -154,7 +214,20 @@ export const useDemoScheduleForm = ({ customer, activities = [], activityId, ini
 
     const handleDelete = useCallback(async () => {
         if (!activityId) return false;
-        if (!window.confirm(`정말 이 [${SCHEDULE_CONSTANTS.TYPE_NAME}] 보고서를 삭제하시겠습니까?`)) return false;
+
+        // Surgical Guard: 3 Business Days Limit Enforcement
+        if ((initialData as any)?.createdAt) {
+            const createdAt = (initialData as any).createdAt?.toDate ? (initialData as any).createdAt.toDate() : new Date((initialData as any).createdAt);
+            const isMaster = (userData as any)?.role === 'master';
+            const isWithinEditTime = isWithinBusinessDays(createdAt, 3, holidayMap);
+
+            if (!isMaster && !isWithinEditTime) {
+                toast({ title: "삭제 불가", description: "작성 후 3영업일이 경과하여 삭제할 수 없습니다.", status: "error", position: "top" });
+                return false;
+            }
+        }
+
+        if (!window.confirm("해당 데이터 삭제를 희망하십니까?")) return false;
 
         setIsLoading(true);
         try {

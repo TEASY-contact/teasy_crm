@@ -3,7 +3,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@chakra-ui/react";
 import { db, storage } from "@/lib/firebase";
 import { doc, collection, serverTimestamp, runTransaction, query, where, getDocs } from "firebase/firestore";
-import { ref as sRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { ref as sRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { cleanupOrphanedPhotos } from "@/utils/reportUtils";
 import { useAuth } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { normalizeText, applyColonStandard } from "@/utils/textFormatter";
@@ -12,6 +13,9 @@ import { Activity, ManagerOption } from "@/types/domain";
 import { getCircledNumber } from "@/components/features/asset/AssetModalUtils";
 import { formatPhone } from "@/utils/formatter";
 import { performSelfHealing } from "@/utils/assetUtils";
+
+import { isWithinBusinessDays } from "@/utils/dateUtils";
+import { useReportMetadata } from "@/hooks/useReportMetadata";
 
 interface UseRemoteAsCompleteFormProps {
     customer: { id: string; name: string; address?: string; phone?: string };
@@ -29,6 +33,7 @@ export const useRemoteAsCompleteForm = ({
     defaultManager = ""
 }: UseRemoteAsCompleteFormProps) => {
     const { userData } = useAuth();
+    const { holidayMap } = useReportMetadata();
     const queryClient = useQueryClient();
     const toast = useToast();
     const [isLoading, setIsLoading] = useState(false);
@@ -148,20 +153,7 @@ export const useRemoteAsCompleteForm = ({
         });
     }, []);
 
-    const cleanupOrphanedPhotos = useCallback(async (urlsToDelete: string[]) => {
-        if (!urlsToDelete || urlsToDelete.length === 0) return;
-        const cloudUrls = urlsToDelete.filter(url => url.startsWith('https://firebasestorage.googleapis.com'));
-        if (cloudUrls.length === 0) return;
 
-        await Promise.allSettled(cloudUrls.map(async (url) => {
-            try {
-                const storageRef = sRef(storage, url);
-                await deleteObject(storageRef);
-            } catch (e) {
-                console.warn("Resource cleanup attempt failed:", url, e);
-            }
-        }));
-    }, []);
 
     const addSymptom = useCallback((text: string) => {
         if (!text.trim()) return;
@@ -188,6 +180,7 @@ export const useRemoteAsCompleteForm = ({
     }, []);
 
     const removeSymptom = useCallback((index: number) => {
+        if (!window.confirm("해당 데이터 삭제를 희망하십니까?")) return;
         setFormData(prev => ({
             ...prev,
             symptoms: prev.symptoms.filter((_, i) => i !== index)
@@ -201,33 +194,55 @@ export const useRemoteAsCompleteForm = ({
         const productInfo = products.find(p => p.value === val);
         if (!productInfo) return;
 
-        const rowId = Math.random().toString(36).substr(2, 9);
-        setFormData(prev => ({
-            ...prev,
-            selectedProducts: [...prev.selectedProducts, {
-                id: rowId,
-                name: productInfo.label,
-                quantity: 1,
-                category: productInfo.category || ""
-            }]
-        }));
+        setFormData(prev => {
+            const existingIdx = prev.selectedProducts.findIndex(p => p.name === productInfo.label);
+            if (existingIdx !== -1) {
+                const newList = [...prev.selectedProducts];
+                newList[existingIdx] = { ...newList[existingIdx], quantity: newList[existingIdx].quantity + 1 };
+                return { ...prev, selectedProducts: newList };
+            }
+
+            const rowId = Math.random().toString(36).substr(2, 9);
+            return {
+                ...prev,
+                selectedProducts: [...prev.selectedProducts, {
+                    id: rowId,
+                    name: productInfo.label,
+                    quantity: 1,
+                    category: productInfo.category || ""
+                }]
+            };
+        });
     }, []);
 
     const handleUpdateQty = useCallback((id: string, delta: number) => {
+        const target = formData.selectedProducts.find(p => p.id === id);
+        if (!target) return;
+
+        if (target.quantity + delta <= 0) {
+            if (window.confirm("해당 데이터 삭제를 희망하십니까?")) {
+                setFormData(prev => ({
+                    ...prev,
+                    selectedProducts: prev.selectedProducts.filter(p => p.id !== id)
+                }));
+            }
+            return;
+        }
+
         setFormData(prev => {
             const newList = [...prev.selectedProducts];
             const idx = newList.findIndex(p => p.id === id);
             if (idx === -1) return prev;
-            const newQty = newList[idx].quantity + delta;
-            if (newQty <= 0) {
-                if (window.confirm("항목을 삭제하시겠습니까?")) {
-                    return { ...prev, selectedProducts: newList.filter(p => p.id !== id) };
-                }
-                return prev;
-            }
-            newList[idx].quantity = newQty;
+            newList[idx].quantity = newList[idx].quantity + delta;
             return { ...prev, selectedProducts: newList };
         });
+    }, [formData.selectedProducts]);
+
+    const handleRemoveProduct = useCallback((id: string) => {
+        setFormData(prev => ({
+            ...prev,
+            selectedProducts: prev.selectedProducts.filter(p => p.id !== id)
+        }));
     }, []);
 
     const handleReorder = useCallback((newList: SelectedItem[]) => {
@@ -238,6 +253,9 @@ export const useRemoteAsCompleteForm = ({
         if (!val) return;
         const info = items.find(p => p.value === val);
         if (!info) return;
+
+        // Prevent duplicates
+        if (formData.selectedSupplies.some(p => p.name === info.label)) return;
 
         const rowId = Math.random().toString(36).substr(2, 9);
         setFormData(prev => ({
@@ -252,21 +270,27 @@ export const useRemoteAsCompleteForm = ({
     }, []);
 
     const handleUpdateSupplyQty = useCallback((id: string, delta: number) => {
+        const target = formData.selectedSupplies.find(p => p.id === id);
+        if (!target) return;
+
+        if (target.quantity + delta <= 0) {
+            if (window.confirm("해당 데이터 삭제를 희망하십니까?")) {
+                setFormData(prev => ({
+                    ...prev,
+                    selectedSupplies: prev.selectedSupplies.filter(p => p.id !== id)
+                }));
+            }
+            return;
+        }
+
         setFormData(prev => {
             const newList = [...prev.selectedSupplies];
             const idx = newList.findIndex(p => p.id === id);
             if (idx === -1) return prev;
-            const newQty = newList[idx].quantity + delta;
-            if (newQty <= 0) {
-                if (window.confirm("항목을 삭제하시겠습니까?")) {
-                    return { ...prev, selectedSupplies: newList.filter(p => p.id !== id) };
-                }
-                return prev;
-            }
-            newList[idx].quantity = newQty;
+            newList[idx].quantity = newList[idx].quantity + delta;
             return { ...prev, selectedSupplies: newList };
         });
-    }, []);
+    }, [formData.selectedSupplies]);
 
     const handleReorderSupplies = useCallback((newList: SelectedItem[]) => {
         setFormData(prev => ({ ...prev, selectedSupplies: newList }));
@@ -275,20 +299,52 @@ export const useRemoteAsCompleteForm = ({
     const submit = async (managerOptions: ManagerOption[]) => {
         if (isLoading || isSubmitting.current) return false;
 
+        // Surgical Guard: 3 Business Days Limit Enforcement
+        if (activityId && initialData?.createdAt) {
+            const createdAt = (initialData as any).createdAt?.toDate ? (initialData as any).createdAt.toDate() : new Date((initialData as any).createdAt);
+            const isMaster = userData?.role === 'master';
+            const isWithinEditTime = isWithinBusinessDays(createdAt, 3, holidayMap);
+
+            if (!isMaster && !isWithinEditTime) {
+                toast({ title: "저장 불가", description: "작성 후 3영업일이 경과하여 수정할 수 없습니다.", status: "error", position: "top" });
+                return false;
+            }
+        }
+
         const validSymptoms = formData.symptoms.filter(s => s.text && s.text.trim() !== "");
         const supportContent = formData.supportContent ? formData.supportContent.trim() : "";
         const validProducts = formData.selectedProducts.filter(p => p.name && p.name.trim() !== "");
         const isRemoteSupport = formData.asType === "원격 지원";
 
-        if (!formData.date || !formData.manager || !formData.asType || !formData.phone ||
-            validSymptoms.length === 0 || supportContent === "" || validProducts.length === 0 ||
-            (isRemoteSupport && formData.photos.length === 0)) {
+        // 1. Mandatory Fields Check
+        if (!formData.date) {
+            toast({ title: "필수 항목 누락", description: "지원 일시를 입력해주세요.", status: "warning", position: "top" });
+            return false;
+        }
+        if (!formData.manager) {
+            toast({ title: "필수 항목 누락", description: "담당자를 선택해주세요.", status: "warning", position: "top" });
+            return false;
+        }
+        if (!formData.asType) {
+            toast({ title: "필수 항목 누락", description: "유형을 선택해주세요.", status: "warning", position: "top" });
+            return false;
+        }
+        if (validProducts.length === 0) {
+            toast({ title: "필수 항목 누락", description: "점검 제품을 선택해주세요.", status: "warning", position: "top" });
+            return false;
+        }
+        if (validSymptoms.length === 0) {
+            toast({ title: "필수 항목 누락", description: "접수 증상을 입력해주세요.", status: "warning", position: "top" });
+            return false;
+        }
+        if (!supportContent) {
+            toast({ title: "필수 항목 누락", description: "지원 내용을 입력해주세요.", status: "warning", position: "top" });
+            return false;
+        }
 
-            let description = "필수 항목을 모두 입력해주세요.";
-            if (validProducts.length === 0) description = "점검 상품을 하나 이상 선택해주세요.";
-            else if (isRemoteSupport && formData.photos.length === 0) description = "원격 지원 유형은 PC 사양 사진이 필수입니다.";
-
-            toast({ title: "필수 항목 누락", description, status: "warning", position: "top" });
+        // 2. Conditional Mandatory Fields Check
+        if (isRemoteSupport && formData.photos.length === 0) {
+            toast({ title: "필수 항목 누락", description: "PC 사양 사진을 등록해주세요.", status: "warning", position: "top" });
             return false;
         }
 
@@ -339,6 +395,8 @@ export const useRemoteAsCompleteForm = ({
 
                 // --- 2. Perform ALL reads at the beginning of the transaction ---
                 const metaSnap = await transaction.get(metaRef);
+                const activitySnap = activityId ? await transaction.get(activityRef) : null;
+
                 const assetMetaDocs = new Map<string, any>();
                 for (const key of assetMetaKeys) {
                     const assetMetaRef = doc(db, "asset_meta", key);
@@ -439,14 +497,14 @@ export const useRemoteAsCompleteForm = ({
                     supportContent: normalizeText(supportContent),
                     memo: applyColonStandard(formData.memo),
                     photos: finalPhotos,
-                    updatedAt: serverTimestamp(),
-                    createdByName: userData?.name || "알 수 없음"
+                    updatedAt: serverTimestamp()
                 };
 
                 if (!activityId) {
                     (dataToSave as any).createdAt = serverTimestamp();
                     (dataToSave as any).createdBy = userData?.uid;
                     (dataToSave as any).sequenceNumber = nextSeq;
+                    (dataToSave as any).createdByName = userData?.name || "알 수 없음";
                     transaction.set(activityRef, dataToSave);
                     transaction.set(metaRef, {
                         lastSequence: nextSeq,
@@ -454,6 +512,83 @@ export const useRemoteAsCompleteForm = ({
                         lastUpdatedAt: serverTimestamp()
                     }, { merge: true });
                 } else {
+                    if (activitySnap?.exists()) {
+                        const oldData = activitySnap.data() as Activity;
+                        const changes: string[] = [];
+
+                        // 1. Memo tracking
+                        const oldMemo = oldData.memo || "";
+                        const newMemo = applyColonStandard(formData.memo || "");
+                        if (oldMemo !== newMemo) changes.push(`참고: ${oldMemo || "없음"} → ${newMemo || "없음"}`);
+
+                        // 2. Support Content tracking
+                        const oldSupport = normalizeText(oldData.supportContent || "");
+                        const newSupport = normalizeText(supportContent || "");
+                        if (oldSupport !== newSupport) changes.push(`지원: ${oldSupport || "없음"} → ${newSupport || "없음"}`);
+
+                        // 3. AS Type tracking
+                        if (oldData.asType !== formData.asType) changes.push(`유형: ${oldData.asType} → ${formData.asType}`);
+
+                        // 4. Symptoms Tracking (Checklist status)
+                        const oldSymptoms = oldData.symptoms || [];
+                        const oldResolved = oldSymptoms.filter((s: any) => s.isResolved).length;
+                        const newResolved = validSymptoms.filter(s => s.isResolved).length;
+                        if (oldResolved !== newResolved) {
+                            changes.push(`증상: ${oldResolved}/${oldSymptoms.length} → ${newResolved}/${validSymptoms.length}`);
+                        }
+
+                        // 5. Date & Manager tracking
+                        if (oldData.date !== formData.date) changes.push(`일시: ${oldData.date} → ${formData.date}`);
+                        if (oldData.manager !== formData.manager) {
+                            const oldManagerName = oldData.managerName || oldData.manager;
+                            const newManagerName = selectedManager?.label || formData.manager;
+                            changes.push(`담당: ${oldManagerName} → ${newManagerName}`);
+                        }
+
+                        // 8. Product tracking (Inspection Product)
+                        const oldProduct = oldData.product || "";
+                        const newProduct = dataToSave.product || "";
+                        if (oldProduct !== newProduct) {
+                            const cleanOld = oldProduct.replace(/①|②|③|④|⑤|⑥|⑦|⑧|⑨|⑩/g, "").trim();
+                            const cleanNew = newProduct.replace(/①|②|③|④|⑤|⑥|⑦|⑧|⑨|⑩/g, "").trim();
+                            if (cleanOld !== cleanNew) changes.push(`점검: ${cleanOld || "없음"} → ${cleanNew || "없음"}`);
+                        }
+
+                        // 9. Supply tracking (Used Supplies)
+                        const oldSupplies = (oldData.selectedSupplies || []).map((s: any) => `${s.name}x${s.quantity}`).sort().join(", ");
+                        const newSupplies = (formData.selectedSupplies || []).map((s: any) => `${s.name}x${s.quantity}`).sort().join(", ");
+                        if (oldSupplies !== newSupplies) {
+                            changes.push(`사용: ${oldSupplies || "없음"} → ${newSupplies || "없음"}`);
+                        }
+
+                        // 10. Delivery Info tracking
+                        const oldDelivery = (oldData.deliveryInfo || {}) as any;
+                        const newDelivery = (formData.deliveryInfo || {}) as any;
+                        if (oldDelivery.courier !== newDelivery.courier || oldDelivery.trackingNumber !== newDelivery.trackingNumber) {
+                            const oldInfo = oldDelivery.trackingNumber ? `[${oldDelivery.courier}] ${oldDelivery.trackingNumber}` : "없음";
+                            const newInfo = newDelivery.trackingNumber ? `[${newDelivery.courier}] ${newDelivery.trackingNumber}` : "없음";
+                            changes.push(`배송: ${oldInfo} → ${newInfo}`);
+                        }
+
+                        // 11. Photos tracking
+                        const oldPhotos = (oldData.photos || []).length;
+                        const newPhotos = (finalPhotos || []).length;
+                        if (oldPhotos !== newPhotos) {
+                            changes.push(`PC사양: ${oldPhotos}개 → ${newPhotos}개`);
+                        }
+
+                        if (changes.length > 0) {
+                            const now = new Date();
+                            const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}  ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                            const log = {
+                                time: timeStr,
+                                manager: userData?.uid || "unknown",
+                                managerName: userData?.name || "알 수 없음",
+                                content: changes.join(" / ")
+                            };
+                            (dataToSave as any).modificationHistory = [...(oldData.modificationHistory || []), log];
+                        }
+                    }
                     transaction.update(activityRef, dataToSave as any);
                 }
 
@@ -499,7 +634,20 @@ export const useRemoteAsCompleteForm = ({
 
     const handleDelete = async () => {
         if (!activityId) return false;
-        if (!window.confirm("보고서와 연결된 데이터 및 사진이 모두 삭제됩니다. 정말 삭제하시겠습니까?")) return false;
+
+        // Surgical Guard: 3 Business Days Limit Enforcement
+        if (initialData?.createdAt) {
+            const createdAt = (initialData as any).createdAt?.toDate ? (initialData as any).createdAt.toDate() : new Date((initialData as any).createdAt);
+            const isMaster = userData?.role === 'master';
+            const isWithinEditTime = isWithinBusinessDays(createdAt, 3, holidayMap);
+
+            if (!isMaster && !isWithinEditTime) {
+                toast({ title: "삭제 불가", description: "작성 후 3영업일이 경과하여 삭제할 수 없습니다.", status: "error", position: "top" });
+                return false;
+            }
+        }
+
+        if (!window.confirm("해당 데이터 삭제를 희망하십니까?")) return false;
 
         setIsLoading(true);
         try {
@@ -593,7 +741,7 @@ export const useRemoteAsCompleteForm = ({
         isLoading,
         handleFileUpload, removePhoto,
         addSymptom, updateSymptom, toggleSymptomResolved, removeSymptom,
-        handleAddProduct, handleUpdateQty, handleReorder,
+        handleAddProduct, handleUpdateQty, handleRemoveProduct, handleReorder,
         handleAddSupply, handleUpdateSupplyQty, handleReorderSupplies,
         submit,
         handleDelete

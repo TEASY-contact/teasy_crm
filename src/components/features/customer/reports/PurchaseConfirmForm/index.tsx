@@ -3,13 +3,14 @@
 import React, { forwardRef, useImperativeHandle, useState, useEffect, useRef } from "react";
 import { VStack, FormControl, Box, Spinner, HStack, useToast, Flex, Text, IconButton, Badge } from "@chakra-ui/react";
 import { formatAmount, formatPhone } from "@/utils/formatter";
-import { applyColonStandard } from "@/utils/textFormatter";
+import { applyColonStandard, normalizeText } from "@/utils/textFormatter";
 import { CustomSelect } from "@/components/common/CustomSelect";
 import { TeasyDateTimeInput, TeasyFormLabel, TeasyInput, TeasyTextarea, ReportBadge, ThinParen, TeasyFormGroup } from "@/components/common/UIComponents";
 import { TeasyUniversalViewer } from "@/components/common/ui/MediaViewer";
 import { useReportMetadata } from "@/hooks/useReportMetadata";
 import { getCircledNumber } from "@/components/features/asset/AssetModalUtils";
-import { usePurchaseForm, PurchaseFormData, SelectedProduct } from "./usePurchaseForm";
+import { usePurchaseForm } from "./usePurchaseForm";
+import { PurchaseFormData, SelectedProduct } from "./types";
 import { MdRemove, MdAdd, MdDragHandle } from "react-icons/md";
 import { Reorder, useDragControls } from "framer-motion";
 
@@ -98,7 +99,7 @@ const ProductItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef, onDra
                         alignItems="center"
                         justifyContent="center"
                         textTransform="none"
-                        letterSpacing="0"
+                        fontWeight="700"
                     >
                         {item.quantity}
                     </Badge>
@@ -231,22 +232,25 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
         }, []);
 
         const handleUpdateQty = (id: string, delta: number) => {
-            const targetIdx = formData.selectedProducts.findIndex((p: any) => p.id === id);
-            if (targetIdx === -1) return;
+            const target = formData.selectedProducts.find((p: any) => p.id === id);
+            if (!target) return;
 
-            const newSelected = [...formData.selectedProducts];
-            const currentQty = newSelected[targetIdx].quantity;
+            const newQty = target.quantity + delta;
 
-            if (currentQty + delta <= 0) {
-                if (window.confirm("항목을 삭제하시겠습니까?")) {
-                    newSelected.splice(targetIdx, 1);
-                } else {
-                    return;
+            if (newQty <= 0) {
+                if (window.confirm("해당 데이터 삭제를 희망하십니까?")) {
+                    setFormData(prev => ({ ...prev, selectedProducts: prev.selectedProducts.filter(p => p.id !== id) }));
                 }
-            } else {
-                newSelected[targetIdx].quantity += delta;
+                return;
             }
-            setFormData({ ...formData, selectedProducts: newSelected });
+
+            setFormData(prev => {
+                const newList = [...prev.selectedProducts];
+                const idx = newList.findIndex(p => p.id === id);
+                if (idx === -1) return prev;
+                newList[idx].quantity = newQty;
+                return { ...prev, selectedProducts: newList };
+            });
         };
 
         const handleReorder = (newOrder: SelectedProduct[]) => {
@@ -290,6 +294,7 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                         position="absolute" top={0} left={0} right={0} bottom={0}
                         bg="whiteAlpha.800" zIndex={20} align="center" justify="center"
                         borderRadius="md"
+                        backdropFilter="blur(2px)"
                     >
                         <VStack spacing={4}>
                             <Spinner size="xl" color="brand.500" thickness="4px" />
@@ -298,7 +303,7 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                     </Flex>
                 )}
                 <VStack spacing={6} align="stretch">
-                    <HStack spacing={4}>
+                    <HStack w="full" spacing={4}>
                         <FormControl isRequired flex={1}>
                             <TeasyFormLabel>구매 일시</TeasyFormLabel>
                             {isReadOnly ? (
@@ -307,11 +312,11 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                 <TeasyDateTimeInput
                                     value={formData.date}
                                     onChange={(val: string) => setFormData({ ...formData, date: val })}
-                                    limitType="future"
+                                    limitType="past"
                                 />
                             )}
                         </FormControl>
-                        <FormControl isRequired>
+                        <FormControl isRequired flex={1}>
                             <TeasyFormLabel>담당자</TeasyFormLabel>
                             {isReadOnly ? (
                                 <TeasyInput
@@ -665,11 +670,9 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                                                 _hover={{ bg: "red.500", color: "white" }}
                                                                 fontWeight="bold"
                                                                 onClick={() => {
-                                                                    if (window.confirm("파일을 삭제하시겠습니까?")) {
-                                                                        setPendingFile(null);
-                                                                        setFormData({ ...formData, taxInvoice: undefined });
-                                                                        if (fileInputRef.current) fileInputRef.current.value = '';
-                                                                    }
+                                                                    setPendingFile(null);
+                                                                    setFormData({ ...formData, taxInvoice: undefined });
+                                                                    if (fileInputRef.current) fileInputRef.current.value = '';
                                                                 }}
                                                             >
                                                                 삭제
@@ -726,7 +729,7 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                                         ...formData,
                                                         deliveryInfo: { ...formData.deliveryInfo, shipmentDate: val }
                                                     })}
-                                                    limitType="future"
+                                                    limitType="past"
                                                 />
                                             )}
                                         </FormControl>
@@ -754,7 +757,7 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                                             value={formData.deliveryInfo.deliveryAddress}
                                             onChange={(e) => !isReadOnly && setFormData({
                                                 ...formData,
-                                                deliveryInfo: { ...formData.deliveryInfo, deliveryAddress: e.target.value }
+                                                deliveryInfo: { ...formData.deliveryInfo, deliveryAddress: normalizeText(e.target.value) }
                                             })}
                                             placeholder="주소 입력"
                                             isDisabled={isReadOnly}
@@ -769,7 +772,7 @@ export const PurchaseConfirmForm = forwardRef<any, PurchaseConfirmFormProps>(
                         <TeasyFormLabel>참고 사항</TeasyFormLabel>
                         <TeasyTextarea
                             value={formData.memo}
-                            onChange={(e: any) => !isReadOnly && setFormData({ ...formData, memo: e.target.value })}
+                            onChange={(e: any) => !isReadOnly && setFormData({ ...formData, memo: applyColonStandard(e.target.value) })}
                             placeholder="입력"
                             isDisabled={isReadOnly}
                         />

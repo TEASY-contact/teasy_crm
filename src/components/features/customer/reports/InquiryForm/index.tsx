@@ -89,6 +89,7 @@ export const InquiryForm = forwardRef<any, InquiryFormProps>(({
                     position="absolute" top={0} left={0} right={0} bottom={0}
                     bg="whiteAlpha.800" zIndex={20} align="center" justify="center"
                     borderRadius="md"
+                    backdropFilter="blur(2px)"
                 >
                     <VStack spacing={4}>
                         <Spinner size="xl" color="brand.500" thickness="4px" />

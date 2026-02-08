@@ -31,11 +31,11 @@ interface RemoteAsCompleteFormProps {
 }
 
 // --- Sub Component for Product List Item ---
-// --- Sub Component for Product List Item (No Qty Version) ---
-const ProductListItemSimple = ({ item, idx, isReadOnly, constraintsRef, onDragEnd }: {
+const AsProductListItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef, onDragEnd }: {
     item: SelectedItem,
     idx: number,
     isReadOnly: boolean,
+    onUpdateQty: (id: string, delta: number) => void,
     constraintsRef: React.RefObject<HTMLDivElement>,
     onDragEnd?: () => void
 }) => {
@@ -61,7 +61,6 @@ const ProductListItemSimple = ({ item, idx, isReadOnly, constraintsRef, onDragEn
                 border="1px solid"
                 borderColor="gray.100"
                 transition="all 0.2s"
-                _active={!isReadOnly ? { bg: "brand.50", borderColor: "brand.200" } : {}}
             >
                 <HStack spacing={3} flex={1}>
                     {!isReadOnly && (
@@ -79,14 +78,49 @@ const ProductListItemSimple = ({ item, idx, isReadOnly, constraintsRef, onDragEn
                             <MdDragHandle size="18" />
                         </Box>
                     )}
-                    <Tooltip label={item.name} placement="top" hasArrow openDelay={500}>
-                        <Text fontSize="sm" color="gray.700" fontWeight="medium" isTruncated maxW="full">
-                            <Text as="span" color="brand.500" mr={2} fontWeight="bold">
-                                {getCircledNumber(idx + 1)}
-                            </Text>
-                            {item.name}
+                    <Text fontSize="sm" color="gray.700" fontWeight="medium">
+                        <Text as="span" color="brand.500" mr={2} fontWeight="bold">
+                            {getCircledNumber(idx + 1)}
                         </Text>
-                    </Tooltip>
+                        {item.name}
+                    </Text>
+                </HStack>
+                <HStack spacing={2}>
+                    {!isReadOnly && (
+                        <IconButton
+                            aria-label="decrease-qty"
+                            icon={<MdRemove />}
+                            size="xs"
+                            variant="ghost"
+                            colorScheme="gray"
+                            onClick={() => onUpdateQty(item.id, -1)}
+                        />
+                    )}
+                    <Badge
+                        bg="purple.50"
+                        color="purple.700"
+                        fontSize="11px"
+                        px={1}
+                        h="20px"
+                        minW="24px"
+                        borderRadius="sm"
+                        display="flex"
+                        alignItems="center"
+                        justifyContent="center"
+                        fontWeight="700"
+                    >
+                        {item.quantity}
+                    </Badge>
+                    {!isReadOnly && (
+                        <IconButton
+                            aria-label="increase-qty"
+                            icon={<MdAdd />}
+                            size="xs"
+                            variant="ghost"
+                            colorScheme="gray"
+                            onClick={() => onUpdateQty(item.id, 1)}
+                        />
+                    )}
                 </HStack>
             </HStack>
         </Reorder.Item>
@@ -124,7 +158,6 @@ const SupplyListItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef, on
                 border="1px solid"
                 borderColor="gray.100"
                 transition="all 0.2s"
-                _active={!isReadOnly ? { bg: "brand.50", borderColor: "brand.200" } : {}}
             >
                 <HStack spacing={3} flex={1}>
                     {!isReadOnly && (
@@ -142,14 +175,12 @@ const SupplyListItem = ({ item, idx, isReadOnly, onUpdateQty, constraintsRef, on
                             <MdDragHandle size="18" />
                         </Box>
                     )}
-                    <Tooltip label={item.name} placement="top" hasArrow openDelay={500}>
-                        <Text fontSize="sm" color="gray.700" fontWeight="medium" isTruncated maxW="full">
-                            <Text as="span" color="brand.500" mr={2} fontWeight="bold">
-                                {getCircledNumber(idx + 1)}
-                            </Text>
-                            {item.name}
+                    <Text fontSize="sm" color="gray.700" fontWeight="medium">
+                        <Text as="span" color="brand.500" mr={2} fontWeight="bold">
+                            {getCircledNumber(idx + 1)}
                         </Text>
-                    </Tooltip>
+                        {item.name}
+                    </Text>
                 </HStack>
                 <HStack spacing={2}>
                     {!isReadOnly && (
@@ -209,7 +240,7 @@ export const RemoteAsCompleteForm = forwardRef<RemoteAsCompleteFormHandle, Remot
         isLoading,
         handleFileUpload, removePhoto,
         addSymptom, updateSymptom, toggleSymptomResolved, removeSymptom,
-        handleAddProduct, handleUpdateQty, handleReorder,
+        handleAddProduct, handleUpdateQty, handleRemoveProduct, handleReorder,
         handleAddSupply, handleUpdateSupplyQty, handleReorderSupplies,
         submit,
         handleDelete
@@ -305,7 +336,7 @@ export const RemoteAsCompleteForm = forwardRef<RemoteAsCompleteFormHandle, Remot
                                 placeholder="상품 선택"
                                 value=""
                                 onChange={(val) => handleAddProduct(val, products as any[])}
-                                options={products as any}
+                                options={products as any[] || []}
                                 isDisabled={isReadOnly}
                             />
                         )}
@@ -323,11 +354,12 @@ export const RemoteAsCompleteForm = forwardRef<RemoteAsCompleteFormHandle, Remot
                         >
                             <VStack align="stretch" spacing={2}>
                                 {formData.selectedProducts.map((item, idx) => (
-                                    <ProductListItemSimple
+                                    <AsProductListItem
                                         key={item.id}
                                         item={item}
                                         idx={idx}
                                         isReadOnly={isReadOnly}
+                                        onUpdateQty={handleUpdateQty}
                                         constraintsRef={productScrollRef}
                                         onDragEnd={() => toast({ title: "순서가 변경되었습니다.", status: "success", position: "top", duration: 1500 })}
                                     />
@@ -464,7 +496,10 @@ export const RemoteAsCompleteForm = forwardRef<RemoteAsCompleteFormHandle, Remot
                                 placeholder="물품 선택"
                                 value=""
                                 onChange={(val) => handleAddSupply(val, inventoryItems as any[])}
-                                options={inventoryItems as any}
+                                options={(inventoryItems as any[] || []).map(p => ({
+                                    ...p,
+                                    isDisabled: formData.selectedSupplies.some(ss => ss.name === p.label)
+                                }))}
                                 isDisabled={isReadOnly}
                             />
                         )}

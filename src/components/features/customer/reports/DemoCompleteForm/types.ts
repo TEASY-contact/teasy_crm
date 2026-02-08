@@ -47,7 +47,8 @@ export interface DemoCompleteActivity extends DemoCompleteFormData {
     updatedAt: any; // serverTimestamp
     createdAt?: any;
     createdBy?: string;
-    createdByName: string;
+    createdByName?: string;
+    modificationHistory?: import("@/types/domain").ModificationLog[];
 }
 
 export interface ManagerOption {

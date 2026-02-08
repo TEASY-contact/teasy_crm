@@ -72,7 +72,9 @@ export const SurnameBadge = ({ name, color, badgeChar, ...props }: any) => (
         <Box
             as="span"
             lineHeight="1"
-            transform="translate(0.3px, -0.5px)"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
         >
             {badgeChar || (name ? name[0] : "?")}
         </Box>

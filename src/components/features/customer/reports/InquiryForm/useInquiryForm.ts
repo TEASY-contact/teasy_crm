@@ -18,6 +18,8 @@ import {
 } from "firebase/storage";
 import { inquirySchema } from "@/lib/validations/reportSchema";
 import { applyColonStandard, getTeasyStandardFileName, normalizeText } from "@/utils/textFormatter";
+import { isWithinBusinessDays } from "@/utils/dateUtils";
+import { useReportMetadata } from "@/hooks/useReportMetadata";
 import { formatPhone } from "@/utils/formatter";
 import {
     InquiryFormData,
@@ -36,6 +38,7 @@ interface UseInquiryFormProps {
 }
 
 export const useInquiryForm = ({ customer, activities = [], activityId, initialData, defaultManager, userData }: UseInquiryFormProps) => {
+    const { holidayMap } = useReportMetadata();
     const queryClient = useQueryClient();
     const toast = useToast();
     const isSubmitting = useRef(false);
@@ -156,6 +159,18 @@ export const useInquiryForm = ({ customer, activities = [], activityId, initialD
     const submit = useCallback(async (managerOptions: ManagerOption[]) => {
         if (isLoading || isSubmitting.current) return false;
 
+        // Surgical Guard: 3 Business Days Limit Enforcement (v126.93)
+        if (activityId && initialData?.createdAt) {
+            const createdAt = (initialData.createdAt as any)?.toDate ? (initialData.createdAt as any).toDate() : new Date(initialData.createdAt as any);
+            const isMaster = userData?.name === 'Master' || (userData as any)?.role === 'master';
+            const isWithinEditTime = isWithinBusinessDays(createdAt, 3, holidayMap);
+
+            if (!isMaster && !isWithinEditTime) {
+                toast({ title: "저장 불가", description: "작성 후 3영업일이 경과하여 수정할 수 없습니다.", status: "error", position: "top" });
+                return false;
+            }
+        }
+
         // 1. Pre-validation
         const isPhoneInquiry = formData.channel === '전화 문의';
         if (isPhoneInquiry) {
@@ -183,6 +198,10 @@ export const useInquiryForm = ({ customer, activities = [], activityId, initialD
 
         setIsLoading(true);
         isSubmitting.current = true;
+
+        // Paint Guard: Ensure UI loading state is painted before transaction
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         try {
             // 2. Parallel File Uploads (Optimized with Promise.all)
             const uploadQueue = async (fileList: InquiryFile[], folder: string) => {
@@ -218,6 +237,7 @@ export const useInquiryForm = ({ customer, activities = [], activityId, initialD
                 const metaRef = doc(db, "customer_meta", `${customer.id}_inquiry`);
 
                 const metaSnap = await transaction.get(metaRef);
+                const activitySnap = activityId ? await transaction.get(activityRef) : null;
                 const currentMeta = metaSnap.exists() ? metaSnap.data() : { lastSequence: 0, totalCount: 0 };
 
                 const dataToSave: Partial<Activity> = {
@@ -230,15 +250,14 @@ export const useInquiryForm = ({ customer, activities = [], activityId, initialD
                     managerName: selectedManager?.label || formData.manager,
                     managerRole: (selectedManager?.role || "employee") as any,
                     channel: formData.channel as any,
-                    nickname: isPhoneInquiry ? "" : normalizeText(formData.nickname || ""),
+                    nickname: isPhoneInquiry ? "" : normalizeText(formData.nickname || "", true),
                     phone: isPhoneInquiry ? (formData.phone || "").replace(/[^0-9]/g, "") : "",
-                    product: normalizeText(formData.product),
+                    product: normalizeText(formData.product, true),
                     result: formData.result as any,
                     memo: applyColonStandard(formData.memo || ""),
                     recordings: isPhoneInquiry ? finalRecordings : [],
                     quotes: finalQuotes,
-                    updatedAt: serverTimestamp(),
-                    createdByName: userData?.name || "알 수 없음"
+                    updatedAt: serverTimestamp()
                 };
 
                 // Sync with Customer Document (Last Consult Date)
@@ -249,6 +268,63 @@ export const useInquiryForm = ({ customer, activities = [], activityId, initialD
                 });
 
                 if (activityId) {
+                    if (activitySnap?.exists()) {
+                        const oldData = activitySnap.data() as Activity;
+                        const changes: string[] = [];
+
+                        // 1. Memo tracking
+                        const oldMemo = oldData.memo || "";
+                        const newMemo = applyColonStandard(formData.memo || "");
+                        if (oldMemo !== newMemo) changes.push(`참고: ${oldMemo || "없음"} → ${newMemo || "없음"}`);
+
+                        // 2. Basic Info tracking
+                        if (oldData.date !== formData.date) changes.push(`일시: ${oldData.date} → ${formData.date}`);
+                        if (oldData.manager !== formData.manager) {
+                            const oldManagerName = oldData.managerName || oldData.manager;
+                            const newManagerName = selectedManager?.label || formData.manager;
+                            changes.push(`담당: ${oldManagerName} → ${newManagerName}`);
+                        }
+                        if (oldData.channel !== formData.channel) changes.push(`채널: ${oldData.channel || "없음"} → ${formData.channel || "없음"}`);
+
+                        // 3. Customer Info tracking
+                        const oldNickname = oldData.nickname || "";
+                        const newNickname = isPhoneInquiry ? "" : normalizeText(formData.nickname || "", true);
+                        if (oldNickname !== newNickname) changes.push(`닉네임: ${oldNickname || "없음"} → ${newNickname || "없음"}`);
+
+                        const oldPhone = oldData.phone || "";
+                        const newPhone = isPhoneInquiry ? (formData.phone || "").replace(/[^0-9]/g, "") : "";
+                        if (oldPhone !== newPhone) changes.push(`전화: ${formatPhone(oldPhone) || "없음"} → ${formatPhone(newPhone) || "없음"}`);
+
+                        // 4. Product & Result tracking
+                        const oldProduct = oldData.product || "";
+                        const newProduct = normalizeText(formData.product, true);
+                        if (oldProduct !== newProduct) changes.push(`상품: ${oldProduct || "없음"} → ${newProduct || "없음"}`);
+
+                        const oldResult = oldData.result || "";
+                        const newResult = formData.result || "";
+                        if (oldResult !== newResult) changes.push(`결과: ${oldResult || "없음"} → ${newResult || "없음"}`);
+
+                        // 5. Files tracking
+                        const oldRecordings = (oldData.recordings || []).length;
+                        const newRecordings = (isPhoneInquiry ? finalRecordings : []).length;
+                        if (oldRecordings !== newRecordings) changes.push(`녹취: ${oldRecordings}개 → ${newRecordings}개`);
+
+                        const oldQuotes = (oldData.quotes || []).length;
+                        const newQuotes = finalQuotes.length;
+                        if (oldQuotes !== newQuotes) changes.push(`견적: ${oldQuotes}개 → ${newQuotes}개`);
+
+                        if (changes.length > 0) {
+                            const now = new Date();
+                            const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}  ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                            const log = {
+                                time: timeStr,
+                                manager: userData?.uid || "unknown",
+                                managerName: userData?.name || "알 수 없음",
+                                content: changes.join(" / ")
+                            };
+                            dataToSave.modificationHistory = [...(oldData.modificationHistory || []), log];
+                        }
+                    }
                     transaction.update(activityRef, dataToSave as any);
                 } else {
                     const nextSeq = activities.filter(a => a.type === INQUIRY_CONSTANTS.TYPE).length + 1;
@@ -256,7 +332,8 @@ export const useInquiryForm = ({ customer, activities = [], activityId, initialD
                         ...dataToSave,
                         sequenceNumber: nextSeq,
                         createdAt: serverTimestamp(),
-                        createdBy: userData?.uid || "system"
+                        createdBy: userData?.uid || "system",
+                        createdByName: userData?.name || "알 수 없음"
                     });
                     transaction.set(metaRef, {
                         lastSequence: nextSeq,
@@ -290,7 +367,20 @@ export const useInquiryForm = ({ customer, activities = [], activityId, initialD
 
     const handleDelete = useCallback(async () => {
         if (!activityId) return false;
-        if (!window.confirm("정말 이 [신규 문의] 보고서를 삭제하시겠습니까?")) return false;
+
+        // Surgical Guard: 3 Business Days Limit Enforcement
+        if (initialData?.createdAt) {
+            const createdAt = (initialData.createdAt as any)?.toDate ? (initialData.createdAt as any).toDate() : new Date(initialData.createdAt as any);
+            const isMaster = userData?.name === 'Master' || (userData as any)?.role === 'master';
+            const isWithinEditTime = isWithinBusinessDays(createdAt, 3, holidayMap);
+
+            if (!isMaster && !isWithinEditTime) {
+                toast({ title: "삭제 불가", description: "작성 후 3영업일이 경과하여 삭제할 수 없습니다.", status: "error", position: "top" });
+                return false;
+            }
+        }
+
+        if (!window.confirm("해당 데이터 삭제를 희망하십니까?")) return false;
 
         setIsLoading(true);
         try {

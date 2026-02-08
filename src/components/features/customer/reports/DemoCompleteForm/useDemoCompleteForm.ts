@@ -3,11 +3,16 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@chakra-ui/react";
 import { db, storage } from "@/lib/firebase";
 import { collection, serverTimestamp, doc, query, where, getDocs, runTransaction } from "firebase/firestore";
-import { ref as sRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { ref as sRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { cleanupOrphanedPhotos } from "@/utils/reportUtils";
 import { useAuth } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { applyColonStandard, normalizeText, getTeasyStandardFileName } from "@/utils/textFormatter";
+import { formatPhone } from "@/utils/formatter";
+import { isWithinBusinessDays } from "@/utils/dateUtils";
+import { useReportMetadata } from "@/hooks/useReportMetadata";
 import { InquiryFile } from "../InquiryForm/types";
+import { Activity } from "@/types/domain";
 import { DemoCompleteFormData, DemoCompleteActivity, ManagerOption, DEMO_CONSTANTS } from "./types";
 
 interface UseDemoCompleteFormProps {
@@ -20,6 +25,7 @@ interface UseDemoCompleteFormProps {
 
 export const useDemoCompleteForm = ({ customer, activities, activityId, initialData, defaultManager }: UseDemoCompleteFormProps) => {
     const { userData } = useAuth();
+    const { holidayMap } = useReportMetadata();
     const queryClient = useQueryClient();
     const toast = useToast();
     const isSubmitting = useRef(false);
@@ -179,26 +185,22 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
         });
     }, [quotes]);
 
-    // --- Core Resource Management (Physics) ---
-    const cleanupOrphanedPhotos = useCallback(async (urlsToDelete: string[]) => {
-        if (!urlsToDelete || urlsToDelete.length === 0) return;
 
-        // Final protection: only delete if they are real cloud URLs
-        const cloudUrls = urlsToDelete.filter(url => url.startsWith('https://firebasestorage.googleapis.com'));
-        if (cloudUrls.length === 0) return;
-
-        await Promise.allSettled(cloudUrls.map(async (url) => {
-            try {
-                const storageRef = sRef(storage, url);
-                await deleteObject(storageRef);
-            } catch (e) {
-                console.warn("Resource cleanup attempt failed:", url, e);
-            }
-        }));
-    }, []);
 
     const submit = useCallback(async (managerOptions: ManagerOption[]) => {
         if (isLoading || isSubmitting.current) return false;
+
+        // Surgical Guard: 3 Business Days Limit Enforcement
+        if (activityId && (initialData as any)?.createdAt) {
+            const createdAt = (initialData as any).createdAt?.toDate ? (initialData as any).createdAt.toDate() : new Date((initialData as any).createdAt);
+            const isMaster = (userData as any)?.role === 'master';
+            const isWithinEditTime = isWithinBusinessDays(createdAt, 3, holidayMap);
+
+            if (!isMaster && !isWithinEditTime) {
+                toast({ title: "저장 불가", description: "작성 후 3영업일이 경과하여 수정할 수 없습니다.", status: "error", position: "top" });
+                return false;
+            }
+        }
 
         // Validation Rule Object
         const validations = [
@@ -216,6 +218,10 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
 
         setIsLoading(true);
         isSubmitting.current = true;
+
+        // Paint Guard: Ensure UI loading state is painted before transaction
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         try {
             // 1. Data Sanitization
             const cleanPhone = formData.phone.replace(/[^0-9]/g, "");
@@ -276,7 +282,8 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
 
                 const metaRef = doc(db, "customer_meta", `${customer.id}_demo`);
                 const metaSnap = await transaction.get(metaRef);
-                let currentMeta = metaSnap.exists() ? metaSnap.data() : { lastSequence: 0, totalCount: 0 };
+                const activitySnap = activityId ? await transaction.get(activityRef) : null;
+                const currentMeta = metaSnap.exists() ? metaSnap.data() : { lastSequence: 0, totalCount: 0 };
 
                 const dataToSave: DemoCompleteActivity = {
                     customerId: customer.id,
@@ -296,8 +303,7 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
                     memo: applyColonStandard(formData.memo || ""),
                     photos: finalPhotos,
                     quotes: finalQuotes,
-                    updatedAt: serverTimestamp(),
-                    createdByName: userData?.name || "알 수 없음"
+                    updatedAt: serverTimestamp()
                 };
 
                 // Sync with Customer Document (Last Consult Date)
@@ -308,7 +314,66 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
                 });
 
                 if (activityId) {
-                    transaction.update(activityRef, dataToSave as any); // Cast to any for updateDoc flexibility
+                    if (activitySnap?.exists()) {
+                        const oldData = activitySnap.data() as Activity;
+                        const changes: string[] = [];
+
+                        // 1. Memo tracking
+                        const oldMemo = oldData.memo || "";
+                        const newMemo = applyColonStandard(formData.memo || "");
+                        if (oldMemo !== newMemo) changes.push(`참고: ${oldMemo || "없음"} → ${newMemo || "없음"}`);
+
+                        // 2. Product & Result tracking
+                        if (oldData.product !== formData.product) {
+                            changes.push(`상품: ${oldData.product || "없음"} → ${formData.product || "없음"}`);
+                        }
+                        const oldResult = oldData.result || "";
+                        const newResult = formData.result || "";
+                        if (oldResult !== newResult) changes.push(`결과: ${oldResult || "없음"} → ${newResult || "없음"}`);
+
+                        // 3. Discount tracking
+                        const oldDiscount = oldData.discountType ? `${oldData.discountType === 'rate' ? '비율' : '금액'} ${oldData.discountValue}` : "없음";
+                        const newDiscount = formData.discountType ? `${formData.discountType === 'rate' ? '비율' : '금액'} ${formData.discountValue}` : "없음";
+                        if (oldDiscount !== newDiscount) changes.push(`제안: ${oldDiscount} → ${newDiscount}`);
+
+                        // 4. Contact & Location tracking
+                        if (oldData.location !== formData.location) {
+                            changes.push(`주소: ${oldData.location || "없음"} → ${formData.location || "없음"}`);
+                        }
+                        const oldPhone = oldData.phone || "";
+                        const newPhone = cleanPhone;
+                        if (oldPhone !== newPhone) changes.push(`전화: ${formatPhone(oldPhone) || "없음"} → ${formatPhone(newPhone) || "없음"}`);
+
+                        // 5. Date & Manager tracking
+                        if (oldData.date !== formData.date) changes.push(`일시: ${oldData.date} → ${formData.date}`);
+                        if (oldData.manager !== formData.manager) {
+                            const oldManagerName = oldData.managerName || oldData.manager;
+                            const newManagerName = selectedManager?.label || formData.manager;
+                            changes.push(`담당: ${oldManagerName} → ${newManagerName}`);
+                        }
+
+                        // 6. Assets tracking
+                        const oldPhotos = (oldData.photos || []).length;
+                        const newPhotos = (finalPhotos || []).length;
+                        if (oldPhotos !== newPhotos) changes.push(`사진: ${oldPhotos}개 → ${newPhotos}개`);
+
+                        const oldQuotes = (oldData.quotes || []).length;
+                        const newQuotes = (finalQuotes || []).length;
+                        if (oldQuotes !== newQuotes) changes.push(`견적: ${oldQuotes}개 → ${newQuotes}개`);
+
+                        if (changes.length > 0) {
+                            const now = new Date();
+                            const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}  ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                            const log = {
+                                time: timeStr,
+                                manager: userData?.uid || "unknown",
+                                managerName: userData?.name || "알 수 없음",
+                                content: changes.join(" / ")
+                            };
+                            dataToSave.modificationHistory = [...(oldData.modificationHistory || []), log];
+                        }
+                    }
+                    transaction.update(activityRef, dataToSave as any);
                 } else {
                     // Sync sequence number with the authorizing schedule (v124.81)
                     const lastSchedule = [...(activities || [])].reverse().find(a => a.type === "demo_schedule");
@@ -319,6 +384,7 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
                         sequenceNumber: nextSeq,
                         createdAt: serverTimestamp(),
                         createdBy: userData?.uid || "system",
+                        createdByName: userData?.name || "알 수 없음"
                     });
 
                     transaction.set(metaRef, {
@@ -366,11 +432,24 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
             setIsLoading(false);
             isSubmitting.current = false;
         }
-    }, [isLoading, formData, pendingFiles, quotes, pendingQuotesMap, activityId, initialData, customer.id, customer.name, userData?.name, userData?.uid, toast, cleanupOrphanedPhotos]);
+    }, [isLoading, formData, pendingFiles, quotes, pendingQuotesMap, activityId, initialData, customer.id, customer.name, userData?.name, userData?.uid, toast]);
 
     const handleDelete = useCallback(async () => {
         if (!activityId) return false;
-        if (!window.confirm(`정말 이 [${DEMO_CONSTANTS.TYPE_NAME}] 보고서를 삭제하시겠습니까?\n첨부된 모든 사진 데이터도 영구히 삭제됩니다.`)) return false;
+
+        // Surgical Guard: 3 Business Days Limit Enforcement
+        if ((initialData as any)?.createdAt) {
+            const createdAt = (initialData as any).createdAt?.toDate ? (initialData as any).createdAt.toDate() : new Date((initialData as any).createdAt);
+            const isMaster = (userData as any)?.role === 'master';
+            const isWithinEditTime = isWithinBusinessDays(createdAt, 3, holidayMap);
+
+            if (!isMaster && !isWithinEditTime) {
+                toast({ title: "삭제 불가", description: "작성 후 3영업일이 경과하여 삭제할 수 없습니다.", status: "error", position: "top" });
+                return false;
+            }
+        }
+
+        if (!window.confirm("해당 데이터 삭제를 희망하십니까?")) return false;
 
         setIsLoading(true);
         try {
@@ -423,7 +502,7 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
         } finally {
             setIsLoading(false);
         }
-    }, [activityId, customer.id, toast, cleanupOrphanedPhotos]);
+    }, [activityId, customer.id, toast]);
 
     return {
         formData, setFormData,

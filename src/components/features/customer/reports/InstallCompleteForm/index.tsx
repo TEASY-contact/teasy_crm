@@ -7,9 +7,10 @@ import { formatPhone } from "@/utils/formatter";
 import { Reorder, useDragControls } from "framer-motion";
 import { CustomSelect } from "@/components/common/CustomSelect";
 import { TeasyDateTimeInput, TeasyFormLabel, TeasyInput, TeasyTextarea, TeasyPhoneInput, TeasyFormGroup } from "@/components/common/UIComponents";
+import { applyColonStandard, normalizeText } from "@/utils/textFormatter";
 import { useReportMetadata } from "@/hooks/useReportMetadata";
-import { useInstallCompleteForm, INSTALL_COMPLETE_CONSTANTS } from "./useInstallCompleteForm";
-import { InstallCompleteFormData, InstallCompleteFormHandle } from "./types";
+import { useInstallCompleteForm } from "./useInstallCompleteForm";
+import { InstallCompleteFormData, InstallCompleteFormHandle, INSTALL_COMPLETE_CONSTANTS } from "./types";
 import { SelectedItem } from "../InstallScheduleForm/types";
 import { getCircledNumber } from "@/components/features/asset/AssetModalUtils";
 import { PhotoGrid } from "../common/PhotoGrid";
@@ -152,7 +153,7 @@ export const InstallCompleteForm = forwardRef<InstallCompleteFormHandle, Install
         formData, setFormData,
         isLoading,
         handleFileUpload, removePhoto,
-        addTask, updateTask, removeTask, toggleTask,
+        toggleTask,
         submit,
         handleDelete
     } = useInstallCompleteForm({ customer, activities, activityId, initialData, defaultManager, rawAssets });
@@ -265,8 +266,36 @@ export const InstallCompleteForm = forwardRef<InstallCompleteFormHandle, Install
         const targetItem = list[idx];
         const newQty = targetItem.quantity + delta;
 
-        // Block minus values, allow 0
-        if (newQty < 0) return;
+        if (newQty <= 0) {
+            if (window.confirm("해당 데이터 삭제를 희망하십니까?")) {
+                if (type === "product") {
+                    const remainingProducts = formData.selectedProducts.filter(p => p.id !== id);
+                    const updatedSupplies = formData.selectedSupplies.map(s => {
+                        if (s.isAuto && s.linkedId && s.linkedId.split(",").includes(id)) {
+                            const remainingLinks = s.linkedId.split(",").filter(lid => lid !== id);
+                            const newTotal = remainingProducts.reduce((sum, p) => {
+                                if (remainingLinks.includes(p.id)) return sum + p.quantity;
+                                return sum;
+                            }, 0);
+                            return { ...s, linkedId: remainingLinks.join(","), quantity: newTotal };
+                        }
+                        return s;
+                    }).filter(s => !s.isAuto || (s.linkedId && s.linkedId.length > 0));
+
+                    setFormData(prev => ({
+                        ...prev,
+                        selectedProducts: remainingProducts,
+                        selectedSupplies: updatedSupplies
+                    }));
+                    return;
+                }
+                setFormData(prev => ({
+                    ...prev,
+                    [field]: prev[field].filter(p => p.id !== id)
+                }));
+            }
+            return;
+        }
 
         list[idx].quantity = newQty;
 
@@ -287,7 +316,7 @@ export const InstallCompleteForm = forwardRef<InstallCompleteFormHandle, Install
             return;
         }
 
-        setFormData({ ...formData, [field]: list });
+        setFormData(prev => ({ ...prev, [field]: list }));
     };
 
     const handleReorder = (type: "product" | "supply", newOrder: SelectedItem[]) => {
@@ -302,6 +331,7 @@ export const InstallCompleteForm = forwardRef<InstallCompleteFormHandle, Install
                     position="absolute" top={0} left={0} right={0} bottom={0}
                     bg="whiteAlpha.800" zIndex={20} align="center" justify="center"
                     borderRadius="md"
+                    backdropFilter="blur(2px)"
                 >
                     <VStack spacing={4}>
                         <Spinner size="xl" color="brand.500" thickness="4px" />
@@ -310,8 +340,8 @@ export const InstallCompleteForm = forwardRef<InstallCompleteFormHandle, Install
                 </Flex>
             )}
             <VStack spacing={6} align="stretch">
-                <HStack spacing={4}>
-                    <FormControl isRequired>
+                <HStack w="full" spacing={4}>
+                    <FormControl isRequired flex={1}>
                         <TeasyFormLabel>완료 일시</TeasyFormLabel>
                         {isReadOnly ? (
                             <TeasyInput value={formData.date} isReadOnly />
@@ -319,11 +349,11 @@ export const InstallCompleteForm = forwardRef<InstallCompleteFormHandle, Install
                             <TeasyDateTimeInput
                                 value={formData.date}
                                 onChange={(val: string) => setFormData({ ...formData, date: val })}
-                                limitType="future"
+                                limitType="past"
                             />
                         )}
                     </FormControl>
-                    <FormControl isRequired>
+                    <FormControl isRequired flex={1}>
                         <TeasyFormLabel>담당자</TeasyFormLabel>
                         {isReadOnly ? (
                             <TeasyInput
@@ -346,7 +376,7 @@ export const InstallCompleteForm = forwardRef<InstallCompleteFormHandle, Install
                     <TeasyFormLabel>주소</TeasyFormLabel>
                     <TeasyInput
                         value={formData.location}
-                        onChange={(e: any) => setFormData({ ...formData, location: e.target.value })}
+                        onChange={(e: any) => setFormData({ ...formData, location: normalizeText(e.target.value) })}
                         placeholder="전국 시공 주소 입력"
                         isReadOnly={isReadOnly}
                     />
@@ -562,7 +592,7 @@ export const InstallCompleteForm = forwardRef<InstallCompleteFormHandle, Install
                             photos={formData.photos}
                             isReadOnly={isReadOnly}
                             onAddClick={() => fileInputRef.current?.click()}
-                            onRemoveClick={removePhoto}
+                            onRemoveClick={(idx) => removePhoto(idx, false)}
                             maxPhotos={INSTALL_COMPLETE_CONSTANTS.MAX_PHOTOS}
                         />
                         <input
@@ -587,7 +617,7 @@ export const InstallCompleteForm = forwardRef<InstallCompleteFormHandle, Install
                     <TeasyFormLabel>참고 사항</TeasyFormLabel>
                     <TeasyTextarea
                         value={formData.memo}
-                        onChange={(e: any) => setFormData({ ...formData, memo: e.target.value })}
+                        onChange={(e: any) => setFormData({ ...formData, memo: applyColonStandard(e.target.value) })}
                         placeholder="특이사항 또는 고객 전달사항 입력"
                         isReadOnly={isReadOnly}
                     />

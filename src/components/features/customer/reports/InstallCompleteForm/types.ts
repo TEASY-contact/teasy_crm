@@ -19,3 +19,10 @@ export interface InstallCompleteFormHandle {
     submit: (managerOptions: any[]) => Promise<boolean>;
     delete: () => Promise<boolean>;
 }
+export const INSTALL_COMPLETE_CONSTANTS = {
+    TYPE: "install_complete",
+    TYPE_NAME: "시공 완료",
+    META_PREFIX: "install",
+    MAX_PHOTOS: 10,
+    STORAGE_PATH_PREFIX: "install_complete"
+} as const;

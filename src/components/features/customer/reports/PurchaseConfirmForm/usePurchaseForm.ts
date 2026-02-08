@@ -1,6 +1,6 @@
 // src/components/features/customer/reports/PurchaseConfirmForm/usePurchaseForm.ts
 "use client";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useToast } from "@chakra-ui/react";
 import { db, storage } from "@/lib/firebase";
 import {
@@ -21,6 +21,9 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { applyColonStandard, getTeasyStandardFileName, normalizeText } from "@/utils/textFormatter";
+import { formatPhone } from "@/utils/formatter";
+import { isWithinBusinessDays } from "@/utils/dateUtils";
+import { useReportMetadata } from "@/hooks/useReportMetadata";
 import { getCircledNumber } from "@/components/features/asset/AssetModalUtils";
 import { performSelfHealing } from "@/utils/assetUtils";
 import {
@@ -31,28 +34,7 @@ import {
     DeliveryInfo,
     InquiryFile as TaxInvoiceFile
 } from "@/types/domain";
-
-// --- Type Definitions ---
-export interface SelectedProduct {
-    id: string;
-    name: string;
-    quantity: number;
-    masterId?: string;
-}
-
-export interface PurchaseFormData {
-    date: string;
-    manager: string;
-    selectedProducts: SelectedProduct[];
-    payMethod: string;
-    amount: string | number;
-    discount: string;
-    discountAmount: string | number;
-    userId: string;
-    memo: string;
-    deliveryInfo: DeliveryInfo;
-    taxInvoice?: TaxInvoiceFile;
-}
+import { SelectedProduct, PurchaseFormData } from "./types";
 
 interface UsePurchaseFormProps {
     customer: Customer;
@@ -65,10 +47,6 @@ interface UsePurchaseFormProps {
     activities?: any[];
 }
 
-/**
- * Custom Hook for Purchase Confirmation Logic
- * Handles Atomic Transactions and Business Validation
- */
 export const usePurchaseForm = ({
     customer,
     activityId,
@@ -80,11 +58,12 @@ export const usePurchaseForm = ({
     activities = []
 }: UsePurchaseFormProps) => {
     const { userData } = useAuth();
+    const { holidayMap } = useReportMetadata();
     const queryClient = useQueryClient();
     const toast = useToast();
     const [isLoading, setIsLoading] = useState(false);
+    const isSubmittingRef = useRef(false);
 
-    // --- Validation & Sanitization ---
     const validate = () => {
         if (formData.selectedProducts.length === 0 || !formData.payMethod || !formData.amount || !formData.manager || !productCategory) {
             return { isValid: false, message: "필수 항목을 모두 입력해주세요." };
@@ -106,57 +85,58 @@ export const usePurchaseForm = ({
         };
     };
 
-    // --- Submit Logic (Atomic Transaction) ---
     const handleSubmit = async () => {
+        if (isLoading || isSubmittingRef.current) return false;
+
+        if (activityId) {
+            const querySnap = await getDocs(query(collection(db, "activities"), where("__name__", "==", activityId)));
+            const activityData = querySnap.docs[0]?.data();
+            if (activityData?.createdAt) {
+                const createdAt = (activityData.createdAt as any)?.toDate ? (activityData.createdAt as any).toDate() : new Date(activityData.createdAt as any);
+                if (userData?.role !== 'master' && !isWithinBusinessDays(createdAt, 3, holidayMap)) {
+                    toast({ title: "저장 불가", description: "작성 후 3영업일이 경과하여 수정할 수 없습니다.", status: "error", position: "top" });
+                    return false;
+                }
+            }
+        }
+
         if (!customer?.id) {
-            toast({ title: "고객 정보 오류", description: "고객 ID를 찾을 수 없습니다.", status: "error", position: "top" });
+            toast({ title: "고객 정보 오류", status: "error", position: "top" });
             return false;
         }
 
-        const validation = validate();
-        if (!validation.isValid) {
-            toast({ title: validation.message, status: "warning", duration: 3000, position: "top" });
+        const v = validate();
+        if (!v.isValid) {
+            toast({ title: v.message, status: "warning", position: "top" });
             return false;
         }
 
         setIsLoading(true);
+        isSubmittingRef.current = true;
         try {
-            // --- FILE UPLOAD (if any) ---
             let finalTaxInvoice = formData.taxInvoice;
             if (pendingFile) {
                 const ext = pendingFile.name.split('.').pop()?.toLowerCase() || 'file';
                 const filename = `tax_invoice_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
-                const storagePath = `tax_invoices/${customer.id}/${filename}`;
-                const storageRef = sRef(storage, storagePath);
-
+                const storageRef = sRef(storage, `tax_invoices/${customer.id}/${filename}`);
                 await uploadBytes(storageRef, pendingFile);
                 const url = await getDownloadURL(storageRef);
-
-                const dateValue = formData.date || new Date().toISOString();
-                const displayName = getTeasyStandardFileName(
-                    customer.name,
-                    "전자세금계산서",
-                    dateValue
-                ) + `.${ext}`;
-
                 finalTaxInvoice = {
                     id: Math.random().toString(36).substring(7),
                     url,
                     name: filename,
-                    displayName,
+                    displayName: getTeasyStandardFileName(customer.name, "전자세금계산서", formData.date || new Date().toISOString()) + `.${ext}`,
                     ext: ext.toUpperCase()
                 };
             }
 
-            // --- PRE-TRANSACTION READS ---
+            // --- Pre-transaction Read ---
             let existingAssets: any[] = [];
             if (activityId) {
-                const assetQuery = query(collection(db, "assets"), where("sourceActivityId", "==", activityId));
-                const assetSnap = await getDocs(assetQuery);
+                const assetSnap = await getDocs(query(collection(db, "assets"), where("sourceActivityId", "==", activityId)));
                 existingAssets = assetSnap.docs.map(d => ({ ref: d.ref, data: d.data() }));
             }
-            // Paint Guard (v126.3): Ensure UI loading state is painted before heavy inventory transactions
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise(r => setTimeout(r, 100));
 
             const result = await runTransaction(db, async (transaction) => {
                 const selectedManager = managerOptions.find(o => o.value === formData.manager);
@@ -168,312 +148,285 @@ export const usePurchaseForm = ({
                 const { amount, discountAmount } = sanitize();
                 const affectedItems = new Set<string>();
 
-                // 1. ALL READS FIRST
-                const customerSnap = await transaction.get(customerRef);
+                // --- 1. ALL READS & PREPARATION ---
                 const metaInquirySnap = await transaction.get(metaInquiryRef);
+                const customerSnap = await transaction.get(customerRef);
+                const activitySnap = activityId ? await transaction.get(activityRef) : null;
 
+                const metaTracker = new Map<string, { ref: any, data: any, deltaStock: number, deltaOutflow: number }>();
+                const encryptMetaId = (name: string, category: string, masterId?: string) => masterId || `meta_${name.trim()}_${category.trim()}`.replace(/\//g, "_");
+                const loadMeta = async (metaId: string) => {
+                    if (!metaTracker.has(metaId)) {
+                        const ref = doc(db, "asset_meta", metaId);
+                        const snap = await transaction.get(ref);
+                        const data = snap.exists() ? snap.data() : { totalInflow: 0, totalOutflow: 0, currentStock: 0 };
+                        metaTracker.set(metaId, { ref, data: data as any, deltaStock: 0, deltaOutflow: 0 });
+                    }
+                };
+
+                // Load Metas for Rollback
+                if (activityId) {
+                    for (const asset of existingAssets) {
+                        if (asset.data.type === 'inventory') {
+                            await loadMeta(encryptMetaId(asset.data.name, asset.data.category, asset.data.masterId));
+                        }
+                    }
+                }
+
+                // Load Metas for New Items
                 const aggregatedProductsMap = new Map<string, { id: string, name: string, quantity: number, masterId?: string }>();
                 formData.selectedProducts.forEach(p => {
                     const qty = Number(p.quantity) || 0;
                     const key = p.masterId || p.id;
-                    if (aggregatedProductsMap.has(key)) {
-                        aggregatedProductsMap.get(key)!.quantity += qty;
-                    } else {
-                        aggregatedProductsMap.set(key, { ...p, quantity: qty });
-                    }
+                    if (aggregatedProductsMap.has(key)) aggregatedProductsMap.get(key)!.quantity += qty;
+                    else aggregatedProductsMap.set(key, { ...p, quantity: qty });
                 });
 
-                const inventoryMetas = await Promise.all(
-                    (productCategory === "inventory" ? Array.from(aggregatedProductsMap.values()) : []).map(async (p) => {
-                        const productInfo = inventoryItems.find(item => item.value === p.id);
-                        if (!productInfo) return null;
-                        const metaId = p.masterId || `meta_${p.name.trim()}_${(productInfo.category || "").trim()}`.replace(/\//g, "_");
-                        const ref = doc(db, "asset_meta", metaId);
-                        const snap = await transaction.get(ref);
-                        return { p, productInfo, ref, snap };
-                    })
-                );
+                if (productCategory === "inventory") {
+                    for (const p of Array.from(aggregatedProductsMap.values())) {
+                        const info = inventoryItems.find(item => item.value === p.id);
+                        if (info) await loadMeta(encryptMetaId(p.name, info.category || "", p.masterId));
+                    }
+                }
 
-                // 2. LOGIC & PREPARATION
+                // Business Logic (In-memory)
                 const currentCustomer = customerSnap.exists() ? customerSnap.data() : {};
                 const currentInquiryMeta = metaInquirySnap.exists() ? metaInquirySnap.data() : { lastSequence: 0, totalCount: 0 };
-
                 const validProducts = formData.selectedProducts.filter(p => p.name && p.name.trim() !== "");
 
                 const rawData: any = {
-                    customerId: customer.id,
-                    customerName: customer?.name || "",
-                    type: "purchase_confirm",
-                    typeName: "구매 확정",
-                    payMethod: formData.payMethod,
-                    amount,
-                    discount: formData.discount,
-                    discountAmount,
+                    customerId: customer.id, customerName: customer.name, type: "purchase_confirm", typeName: "구매 확정",
+                    payMethod: formData.payMethod, amount, discount: formData.discount, discountAmount,
                     userId: normalizeText(formData.userId, true),
                     deliveryInfo: productCategory === "inventory" ? formData.deliveryInfo : { courier: "", shipmentDate: "", trackingNumber: "", deliveryAddress: customer?.address || "" },
                     productCategory,
-                    product: validProducts.map((p, idx) => {
-                        const prefix = validProducts.length > 1 ? getCircledNumber(idx + 1) : "";
-                        const rawName = p.name || "";
-                        return `${prefix}${rawName} × ${p.quantity}`;
-                    }).join(", "),
-                    memo: applyColonStandard(formData.memo || ""),
-                    date: formData.date,
-                    selectedProducts: validProducts.map(p => ({
-                        ...p,
-                        masterId: p.masterId || null
-                    })),
-                    manager: formData.manager,
-                    managerName: selectedManager?.label || formData.manager,
-                    managerRole: (selectedManager?.role || "employee") as any,
-                    taxInvoice: finalTaxInvoice || null,
-                    updatedAt: serverTimestamp(),
-                    createdByName: userData?.name || ""
+                    product: validProducts.map((p, idx) => `${validProducts.length > 1 ? getCircledNumber(idx + 1) : ""}${p.name} × ${p.quantity}`).join(", "),
+                    memo: applyColonStandard(formData.memo || ""), date: formData.date,
+                    selectedProducts: validProducts.map(p => ({ ...p, masterId: p.masterId || null })),
+                    manager: formData.manager, managerName: selectedManager?.label || formData.manager, managerRole: selectedManager?.role || "employee",
+                    taxInvoice: finalTaxInvoice || null, updatedAt: serverTimestamp()
                 };
 
-                // Remove undefined values to prevent Firestore errors
-                const dataToSave = Object.fromEntries(
-                    Object.entries(rawData).filter(([_, v]) => v !== undefined)
-                );
-
+                // Owned Products Logic
                 const existingOwned = currentCustomer.ownedProducts || [];
                 const ownedMap = new Map<string, number>();
-
-                // Parse existing owned products (Name x Qty)
                 existingOwned.forEach((item: string) => {
                     const match = item.match(/^(.*)\s+x\s+(\d+)$/);
-                    if (match) {
-                        const name = match[1].trim();
-                        const qty = parseInt(match[2]);
-                        ownedMap.set(name, (ownedMap.get(name) || 0) + qty);
-                    } else if (item.trim()) {
-                        ownedMap.set(item.trim(), (ownedMap.get(item.trim()) || 0) + 1);
-                    }
+                    if (match) { ownedMap.set(match[1].trim(), (ownedMap.get(match[1].trim()) || 0) + parseInt(match[2])); }
+                    else if (item.trim()) { ownedMap.set(item.trim(), (ownedMap.get(item.trim()) || 0) + 1); }
                 });
 
-                // Add new products to the map (only for 'inventory' - direct delivery items)
-                // 'product' (installation) items are added later during 'Install Complete'
                 if (productCategory === "inventory") {
                     if (!activityId) {
-                        formData.selectedProducts.forEach(p => {
-                            const name = p.name.trim();
-                            const qty = Number(p.quantity) || 0;
-                            if (name) {
-                                ownedMap.set(name, (ownedMap.get(name) || 0) + qty);
-                            }
-                        });
+                        formData.selectedProducts.forEach(p => { if (p.name) ownedMap.set(p.name.trim(), (ownedMap.get(p.name.trim()) || 0) + (Number(p.quantity) || 0)); });
                     } else {
-                        // On Edit, we only add if names are entirely new to the customer (conservative approach)
-                        formData.selectedProducts.forEach(p => {
-                            const name = p.name.trim();
-                            const qty = Number(p.quantity) || 0;
-                            if (name && !ownedMap.has(name)) {
-                                ownedMap.set(name, qty);
-                            }
-                        });
+                        formData.selectedProducts.forEach(p => { if (p.name && !ownedMap.has(p.name.trim())) ownedMap.set(p.name.trim(), Number(p.quantity) || 0); });
+                    }
+                }
+                const updatedOwned = Array.from(ownedMap.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([n, q]) => `${n} x ${q}`);
+
+                // History (ModificationHistory)
+                if (activityId && activitySnap?.exists()) {
+                    const oldData = activitySnap.data() as Activity;
+                    const changes: string[] = [];
+
+                    // 1. Memo tracking
+                    const oldMemo = oldData.memo || "";
+                    const newMemo = applyColonStandard(formData.memo || "");
+                    if (oldMemo !== newMemo) changes.push(`참고: ${oldMemo || "없음"} → ${newMemo || "없음"}`);
+
+                    // 2. Info tracking
+                    if (oldData.payMethod !== formData.payMethod) changes.push(`결제: ${oldData.payMethod || "없음"} → ${formData.payMethod || "없음"}`);
+                    if (Number(oldData.amount) !== amount) changes.push(`금액: ${oldData.amount || 0} → ${amount}`);
+
+                    const oldDiscount = `${oldData.discount || "없음"} (${oldData.discountAmount || 0})`;
+                    const newDiscount = `${formData.discount || "없음"} (${discountAmount || 0})`;
+                    if (oldDiscount !== newDiscount) changes.push(`할인: ${oldDiscount} → ${newDiscount}`);
+
+                    if (oldData.date !== formData.date) changes.push(`일시: ${oldData.date} → ${formData.date}`);
+                    if (oldData.manager !== formData.manager) {
+                        const oldManagerName = oldData.managerName || oldData.manager;
+                        const newManagerName = selectedManager?.label || formData.manager;
+                        changes.push(`담당: ${oldManagerName} → ${newManagerName}`);
+                    }
+
+                    // 3. Product tracking
+                    const oldProduct = oldData.product || "";
+                    const newProduct = rawData.product || "";
+                    if (oldProduct !== newProduct) {
+                        const cleanOld = oldProduct.replace(/①|②|③|④|⑤|⑥|⑦|⑧|⑨|⑩/g, "").trim();
+                        const cleanNew = newProduct.replace(/①|②|③|④|⑤|⑥|⑦|⑧|⑨|⑩/g, "").trim();
+                        if (cleanOld !== cleanNew) changes.push(`상품: ${cleanOld || "없음"} → ${cleanNew || "없음"}`);
+                    }
+
+                    // 4. Delivery Info tracking
+                    const oldDelivery = (oldData.deliveryInfo || {}) as any;
+                    const newDelivery = (formData.deliveryInfo || {}) as any;
+                    if (oldDelivery.courier !== newDelivery.courier || oldDelivery.trackingNumber !== newDelivery.trackingNumber || oldDelivery.deliveryAddress !== newDelivery.deliveryAddress) {
+                        const oldInfo = oldDelivery.trackingNumber ? `[${oldDelivery.courier}] ${oldDelivery.trackingNumber}` : (oldDelivery.deliveryAddress || "없음");
+                        const newInfo = newDelivery.trackingNumber ? `[${newDelivery.courier}] ${newDelivery.trackingNumber}` : (newDelivery.deliveryAddress || "없음");
+                        changes.push(`배송: ${oldInfo} → ${newInfo}`);
+                    }
+
+                    // 5. Tax Invoice tracking
+                    const oldTax = oldData.taxInvoice ? "있음" : "없음";
+                    const newTax = (finalTaxInvoice || formData.taxInvoice) ? "있음" : "없음";
+                    if (oldTax !== newTax) changes.push(`증빙: ${oldTax} → ${newTax}`);
+
+                    if (changes.length > 0) {
+                        const now = new Date();
+                        const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}  ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                        rawData.modificationHistory = [...(oldData.modificationHistory || []), {
+                            time: timeStr,
+                            manager: userData?.uid || "unknown",
+                            managerName: userData?.name || "알 수 없음",
+                            content: changes.join(" / ")
+                        }];
+                    } else {
+                        rawData.modificationHistory = oldData.modificationHistory || [];
                     }
                 }
 
-                const updatedOwned = Array.from(ownedMap.entries())
-                    .sort((a, b) => a[0].localeCompare(b[0]))
-                    .map(([name, qty]) => `${name} x ${qty}`);
+                // --- 2. ALL WRITES START ---
+                transaction.update(customerRef, { lastConsultDate: formData.date, ownedProducts: updatedOwned, updatedAt: serverTimestamp() });
 
-                // 3. ALL WRITES
+                // Rollback
                 if (activityId) {
                     existingAssets.forEach(asset => {
                         affectedItems.add(`${asset.data.name}|${asset.data.category}|${asset.data.masterId || ""}`);
+                        if (asset.data.type === 'inventory') {
+                            const tracker = metaTracker.get(encryptMetaId(asset.data.name, asset.data.category, asset.data.masterId));
+                            if (tracker) {
+                                const q = Number(asset.data.lastOutflow) || 0;
+                                tracker.deltaStock += q; tracker.deltaOutflow -= q;
+                            }
+                        }
                         transaction.delete(asset.ref);
                     });
-                    transaction.update(activityRef, dataToSave as any);
+                    transaction.update(activityRef, rawData);
                 } else {
                     const nextSeq = activities.filter(a => a.type === "purchase_confirm").length + 1;
-                    transaction.set(activityRef, {
-                        ...dataToSave,
-                        sequenceNumber: nextSeq,
-                        createdAt: serverTimestamp(),
-                        createdBy: userData?.uid
-                    });
-                    transaction.set(metaInquiryRef, {
-                        lastSequence: nextSeq,
-                        totalCount: (Number(currentInquiryMeta.totalCount) || 0) + 1,
-                        lastUpdatedAt: serverTimestamp()
-                    }, { merge: true });
+                    transaction.set(activityRef, { ...rawData, sequenceNumber: nextSeq, createdAt: serverTimestamp(), createdBy: userData?.uid || "system", createdByName: userData?.name || "알 수 없음" });
+                    transaction.set(metaInquiryRef, { lastSequence: nextSeq, totalCount: (Number(currentInquiryMeta.totalCount) || 0) + 1, lastUpdatedAt: serverTimestamp() }, { merge: true });
                 }
 
-                // Customer Update
-                transaction.update(customerRef, {
-                    lastConsultDate: formData.date,
-                    ownedProducts: updatedOwned,
-                    updatedAt: serverTimestamp()
-                });
-
-                // Inventory Deductions
+                // New Deductions
                 if (productCategory === "inventory") {
-                    const now = new Date();
-                    const actionDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-
-                    for (const item of inventoryMetas) {
-                        if (!item) continue;
-                        const { p, productInfo, ref: metaRef, snap: metaSnap } = item;
-                        const name = p.name.trim();
-                        const category = (productInfo.category || "").trim();
-                        const quantity = Number(p.quantity) || 0;
-                        affectedItems.add(`${name}|${category}|${p.masterId || ""}`);
-
-                        let currentMeta = metaSnap.exists() ? metaSnap.data() : { totalInflow: 0, totalOutflow: 0, currentStock: 0 };
-                        const finalStock = (Number(currentMeta.currentStock) || 0) - quantity;
-
-                        transaction.set(metaRef, {
-                            ...currentMeta,
-                            currentStock: finalStock,
-                            totalOutflow: (Number(currentMeta.totalOutflow) || 0) + quantity,
-                            lastUpdatedAt: serverTimestamp(),
-                            lastAction: "purchase_confirm_deduction"
-                        }, { merge: true });
-
-                        const newAssetRef = doc(collection(db, "assets"));
-                        transaction.set(newAssetRef, {
-                            category,
-                            name,
-                            stock: finalStock,
-                            type: "inventory",
-                            isDeliveryItem: productInfo.isDeliveryItem || false,
-                            lastActionDate: actionDate,
-                            lastOperator: selectedManager?.label || userData?.name || "System",
-                            lastInflow: null,
-                            lastOutflow: quantity,
-                            lastRecipient: customer.name || "-",
-                            lastRecipientId: customer.id,
-                            masterId: p.masterId || null,
-                            createdAt: serverTimestamp(),
-                            editLog: `구매 확정 차감 (${customer.name}) [Lock-Verified]`,
-                            sourceActivityId: targetActivityId
+                    const actionDate = new Date().toISOString().split('T')[0];
+                    for (const p of Array.from(aggregatedProductsMap.values())) {
+                        const info = inventoryItems.find(item => item.value === p.id);
+                        if (!info) continue;
+                        const metaId = encryptMetaId(p.name, info.category || "", p.masterId);
+                        const tracker = metaTracker.get(metaId);
+                        const q = Number(p.quantity) || 0;
+                        affectedItems.add(`${p.name.trim()}|${(info.category || "").trim()}|${p.masterId || ""}`);
+                        if (tracker) { tracker.deltaStock -= q; tracker.deltaOutflow += q; }
+                        transaction.set(doc(collection(db, "assets")), {
+                            category: info.category || "", name: p.name.trim(), stock: (Number(tracker?.data.currentStock || 0) + (tracker?.deltaStock || 0)),
+                            type: "inventory", isDeliveryItem: info.isDeliveryItem || false, lastActionDate: actionDate,
+                            lastOperator: selectedManager?.label || userData?.name || "System", lastOutflow: q,
+                            lastRecipient: customer.name, lastRecipientId: customer.id, masterId: p.masterId || null,
+                            createdAt: serverTimestamp(), editLog: `구매 확정 차감 (${customer.name}) [Lock-Verified]`, sourceActivityId: targetActivityId
                         });
                     }
                 }
 
+                // Commit Metas
+                for (const [metaId, tracker] of metaTracker) {
+                    if (tracker.deltaStock !== 0 || tracker.deltaOutflow !== 0) {
+                        transaction.set(tracker.ref, {
+                            ...tracker.data, currentStock: (Number(tracker.data.currentStock) || 0) + tracker.deltaStock,
+                            totalOutflow: (Number(tracker.data.totalOutflow) || 0) + tracker.deltaOutflow,
+                            lastUpdatedAt: serverTimestamp(), lastAction: "purchase_confirm_sync"
+                        }, { merge: true });
+                    }
+                }
                 return { success: true, affectedItems: Array.from(affectedItems) };
             });
 
-            if (result.success) {
-                Promise.all((result.affectedItems || []).map(itemKey => {
-                    const [name, category, masterId] = itemKey.split("|");
-                    return performSelfHealing(name, category, undefined, undefined, undefined, masterId || undefined);
-                })).catch(err => console.error("Self-healing background error:", err));
-
-                // Delay for Firestore indexing (v123.03)
-                await new Promise(resolve => setTimeout(resolve, 500));
+            if (result.success && result.affectedItems) {
+                Promise.all(result.affectedItems.map(key => {
+                    const [n, c, m] = key.split("|"); return performSelfHealing(n, c, undefined, undefined, undefined, m || undefined);
+                })).catch(e => console.error(e));
+                await new Promise(r => setTimeout(r, 500));
                 await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
-                await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
                 await queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
-                toast({ title: "저장 완료", status: "success", duration: 2000, position: "top" });
+                toast({ title: "저장 완료", status: "success", position: "top" });
                 return true;
             }
             return false;
-        } catch (error) {
-            console.error("Purchase Submit Error:", error);
-            toast({ title: "저장 실패", status: "error", position: "top" });
+        } catch (error: any) {
+            console.error(error);
+            toast({ title: "저장 실패", description: error.message, status: "error", position: "top" });
             return false;
-        } finally {
-            setIsLoading(false);
-        }
+        } finally { setIsLoading(false); isSubmittingRef.current = false; }
     };
 
-    // --- Delete Logic (Atomic) ---
     const handleDelete = async () => {
         if (!activityId) return false;
-        if (!window.confirm("보고서와 연결된 재고 기록이 모두 삭제됩니다. 계속하시겠습니까?")) return false;
-
+        const querySnap = await getDocs(query(collection(db, "activities"), where("__name__", "==", activityId)));
+        const activityData = querySnap.docs[0]?.data();
+        if (activityData?.createdAt) {
+            const createdAt = (activityData.createdAt as any)?.toDate ? (activityData.createdAt as any).toDate() : new Date(activityData.createdAt as any);
+            if (userData?.role !== 'master' && !isWithinBusinessDays(createdAt, 3, holidayMap)) {
+                toast({ title: "삭제 불가", description: "3영업일 경과하여 삭제할 수 없습니다.", status: "error", position: "top" });
+                return false;
+            }
+        }
+        if (!window.confirm("삭제하시겠습니까?")) return false;
         setIsLoading(true);
         try {
-            // --- PRE-TRANSACTION READS ---
-            const assetQuery = query(collection(db, "assets"), where("sourceActivityId", "==", activityId));
-            const assetSnap = await getDocs(assetQuery);
-            const assetsToRestores = assetSnap.docs.map(d => ({ ref: d.ref, data: d.data() }));
+            const assetSnap = await getDocs(query(collection(db, "assets"), where("sourceActivityId", "==", activityId)));
+            const assets = assetSnap.docs.map(d => ({ ref: d.ref, data: d.data() }));
 
             const result = await runTransaction(db, async (transaction) => {
                 const affectedItems = new Set<string>();
                 const activityRef = doc(db, "activities", activityId);
-                const activitySnap = await transaction.get(activityRef);
+                const aSnap = await transaction.get(activityRef);
+                if (!aSnap.exists()) return { success: false };
 
-                if (!activitySnap.exists()) return { success: false };
-                const activityData = activitySnap.data();
-                const taxInvoiceUrl = activityData.taxInvoice?.url;
-
-                const customerId = activityData.customerId;
-                const metaRef = doc(db, "customer_meta", `${customerId}_purchase`);
+                const metaRef = doc(db, "customer_meta", `${customer.id}_purchase`);
                 const metaSnap = await transaction.get(metaRef);
 
-                // 1. ALL READS FOR ASSETS
-                const metaSnapshots = await Promise.all(assetsToRestores.map(async (asset) => {
+                for (const asset of assets) {
                     const metaId = asset.data.masterId || `meta_${asset.data.name}_${asset.data.category}`.replace(/\//g, "_");
                     const assetMetaRef = doc(db, "asset_meta", metaId);
-                    const snap = await transaction.get(assetMetaRef);
-                    return { asset, ref: assetMetaRef, snap };
-                }));
-
-                // 2. ALL WRITES
-                for (const item of metaSnapshots) {
-                    const { asset, ref: assetMetaRef, snap: assetMetaSnap } = item;
-                    affectedItems.add(`${asset.data.name}|${asset.data.category}|${asset.data.masterId || ""}`);
+                    const assetMetaSnap = await transaction.get(assetMetaRef);
                     if (assetMetaSnap.exists()) {
-                        const metaData = assetMetaSnap.data();
-                        const restoredInflow = Number(asset.data.lastInflow) || 0;
-                        const restoredOutflow = Number(asset.data.lastOutflow) || 0;
-
+                        const m = assetMetaSnap.data();
+                        const out = Number(asset.data.lastOutflow) || 0;
                         transaction.update(assetMetaRef, {
-                            currentStock: (Number(metaData.currentStock) || 0) - restoredInflow + restoredOutflow,
-                            totalInflow: (Number(metaData.totalInflow) || 0) - restoredInflow,
-                            totalOutflow: (Number(metaData.totalOutflow) || 0) - restoredOutflow,
-                            lastUpdatedAt: serverTimestamp(),
-                            lastAction: "delete_recovery"
+                            currentStock: (Number(m.currentStock) || 0) + out,
+                            totalOutflow: (Number(m.totalOutflow) || 0) - out,
+                            lastUpdatedAt: serverTimestamp()
                         });
                     }
+                    affectedItems.add(`${asset.data.name}|${asset.data.category}|${asset.data.masterId || ""}`);
                     transaction.delete(asset.ref);
                 }
 
-                if (metaSnap.exists()) {
-                    transaction.update(metaRef, {
-                        totalCount: Math.max(0, (Number(metaSnap.data().totalCount) || 0) - 1),
-                        lastDeletedAt: serverTimestamp()
-                    });
-                }
+                if (metaSnap.exists()) transaction.update(metaRef, { totalCount: Math.max(0, (Number(metaSnap.data().totalCount) || 0) - 1), lastDeletedAt: serverTimestamp() });
                 transaction.delete(activityRef);
-
-                return { success: true, affectedItems: Array.from(affectedItems), taxInvoiceUrl };
+                return { success: true, affectedItems: Array.from(affectedItems), taxInvoiceUrl: aSnap.data().taxInvoice?.url };
             });
 
-            if (result.success) {
-                if (result.taxInvoiceUrl) {
-                    try {
-                        const fileRef = sRef(storage, result.taxInvoiceUrl);
-                        await deleteObject(fileRef);
-                    } catch (e) {
-                        console.warn("Tax Invoice cleanup failed:", e);
-                    }
-                }
-                await Promise.all((result.affectedItems || []).map(async (itemKey: string) => {
-                    const [name, category, masterId] = itemKey.split("|");
-                    await performSelfHealing(name, category, undefined, undefined, undefined, masterId || undefined);
-                }));
-                // Delay for Firestore indexing
-                await new Promise(resolve => setTimeout(resolve, 500));
+            if (result.success && result.affectedItems) {
+                if (result.taxInvoiceUrl) { try { await deleteObject(sRef(storage, result.taxInvoiceUrl)); } catch (e) { console.warn(e); } }
+                Promise.all(result.affectedItems.map(key => {
+                    const [n, c, m] = key.split("|"); return performSelfHealing(n, c, undefined, undefined, undefined, m || undefined);
+                })).catch(e => console.error(e));
                 await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
-                await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
-                await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
                 await queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
-                toast({ title: "삭제 완료", status: "info", duration: 2000, position: "top" });
+                toast({ title: "삭제 완료", status: "info", position: "top" });
                 return true;
             }
             return false;
-        } catch (error) {
-            console.error("Purchase Delete Error:", error);
-            toast({ title: "삭제 실패", status: "error", position: "top" });
+        } catch (error: any) {
+            console.error(error);
+            toast({ title: "삭제 실패", description: error.message, status: "error", position: "top" });
             return false;
-        } finally {
-            setIsLoading(false);
-        }
+        } finally { setIsLoading(false); }
     };
 
     return { handleSubmit, handleDelete, isLoading };

@@ -20,6 +20,7 @@ export interface AsScheduleFormData {
     selectedSupplies: SelectedItem[];
     photos: string[];
     memo: string;
+    sequenceNumber?: number;
 }
 
 export interface AsScheduleFormHandle {

@@ -1,21 +1,107 @@
 // src/hooks/useWorkOrder.ts
 import { db } from "@/lib/firebase";
-import { doc, updateDoc, arrayUnion, serverTimestamp, deleteDoc } from "firebase/firestore";
+import {
+    doc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, deleteDoc,
+    addDoc, collection, query, where, orderBy, onSnapshot
+} from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
+import { WorkRequest, WorkRequestStatus, WorkRequestMessage } from "@/types/work-order";
 
 export const useWorkOrder = () => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { userData } = useAuth();
 
-    const handleStatusChange = async (requestId: string, newStatus: string, senderId: string) => {
+    // Fetch Requests (Sender OR Receiver) - Real-time
+    const getRequests = (userId: string, callback: (requests: WorkRequest[]) => void) => {
+        if (!userId) return () => { };
+
+        // Query: Participate as Sender OR Receiver
+        // Firestore OR queries are tricky, usually split or use 'in' if properly indexed.
+        // For simplicity and standard usage: fetch where (senderId == user) OR (receiverId == user) requires separate queries merging,
+        // OR a composite field 'participants': [id1, id2].
+        // Given current structure, we might listen to 2 queries or user 'participants' array if we change schema.
+        // Let's assume for now we change schema to include 'participants' array for easier querying,
+        // OR we just listen to two queries. Listening to two queries is safer without schema migration.
+
+        // Actually, let's keep it simple: filter client-side if data set is small, 
+        // OR use 'participants' array in createRequest. 
+        // Let's UPDATE createRequest to add 'participants' field.
+
+        const q = query(
+            collection(db, "work_requests"),
+            where("participants", "array-contains", userId)
+        );
+
+        return onSnapshot(q, {
+            next: (snapshot) => {
+                const data = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as WorkRequest[];
+
+                // Sort client-side to avoid complex index requirements
+                const sortedData = data.sort((a, b) => {
+                    const timeA = a.createdAt?.toMillis?.() || 0;
+                    const timeB = b.createdAt?.toMillis?.() || 0;
+                    return timeB - timeA;
+                });
+
+                callback(sortedData);
+            },
+            error: (error) => {
+                console.error("Firestore Query Error:", error);
+            }
+        });
+    };
+
+    const createRequest = async (title: string, content: string, receiverId: string, attachments: any[] = [], relatedActivityId?: string) => {
+        if (!userData) throw new Error("Unauthorized");
+
+        const newRequest = {
+            title,
+            content,
+            senderId: userData.uid,
+            receiverId,
+            participants: [userData.uid, receiverId], // For easier querying
+            status: 'pending' as WorkRequestStatus,
+            attachments,
+            relatedActivityId: relatedActivityId || null,
+            messages: [],
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            lastReadTimestamp: serverTimestamp(),
+            readStatus: {
+                [userData.uid]: true,
+                [receiverId]: false
+            }
+        };
+
+        await addDoc(collection(db, "work_requests"), newRequest);
+    };
+
+    const handleStatusChange = async (requestId: string, newStatus: WorkRequestStatus, targetUserId: string) => {
         const ref = doc(db, "work_requests", requestId);
         await updateDoc(ref, {
             status: newStatus,
             updatedAt: serverTimestamp()
         });
+    };
 
-        // Tax Automation: If license uploaded, trigger request to Tax Officer (v122.0)
-        // This logic would be triggered when the specific attachment is detected.
+    const sendMessage = async (requestId: string, content: string) => {
+        if (!userData) return;
+
+        const message: WorkRequestMessage = {
+            id: Date.now().toString(), // Simple ID
+            senderId: userData.uid,
+            content,
+            timestamp: new Date().toISOString(),
+            time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+        };
+
+        const ref = doc(db, "work_requests", requestId);
+        await updateDoc(ref, {
+            messages: arrayUnion(message),
+            updatedAt: serverTimestamp()
+        });
     };
 
     const addAttachment = async (requestId: string, fileUrl: string, fileName: string) => {
@@ -25,10 +111,34 @@ export const useWorkOrder = () => {
         });
     };
 
+    const removeAttachment = async (requestId: string, file: any) => {
+        const ref = doc(db, "work_requests", requestId);
+        await updateDoc(ref, {
+            attachments: arrayRemove(file)
+        });
+    };
+
+    const updateRequest = async (requestId: string, title: string, content: string) => {
+        const ref = doc(db, "work_requests", requestId);
+        await updateDoc(ref, {
+            title,
+            content,
+            updatedAt: serverTimestamp()
+        });
+    };
+
     const deleteRequest = async (requestId: string) => {
-        // Only Sender can delete before Final Approval (v122.0)
         await deleteDoc(doc(db, "work_requests", requestId));
     };
 
-    return { handleStatusChange, addAttachment, deleteRequest };
+    const markAsRead = async (requestId: string) => {
+        if (!userData) return;
+        const ref = doc(db, "work_requests", requestId);
+        await updateDoc(ref, {
+            [`readStatus.${userData.uid}`]: true,
+            updatedAt: serverTimestamp()
+        });
+    };
+
+    return { getRequests, createRequest, handleStatusChange, sendMessage, addAttachment, removeAttachment, updateRequest, deleteRequest, markAsRead };
 };
