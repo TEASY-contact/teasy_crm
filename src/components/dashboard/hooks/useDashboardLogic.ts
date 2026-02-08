@@ -1,14 +1,13 @@
 // src/components/dashboard/hooks/useDashboardLogic.ts
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { useAudioEngine } from "@/hooks/useAudioEngine";
 import { useDashboardPersistence } from "./useDashboardPersistence";
 import { useDashboardSubscriptions } from "./useDashboardSubscriptions";
 import { useReportEnrichment } from "./useReportEnrichment";
 
+
 export const useDashboardLogic = () => {
     const { userData } = useAuth();
-    const { initAudio, playDingDong } = useAudioEngine();
 
     const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -21,13 +20,15 @@ export const useDashboardLogic = () => {
     } = persistence;
 
     // 2. Subscription Layer (Sub-hook)
-    const subscriptions = useDashboardSubscriptions(selectedDate, playDingDong);
+    const subscriptions = useDashboardSubscriptions(selectedDate);
     const {
         recentReportsRaw,
         workRequestsList,
         schedulesList,
         userMetadata
     } = subscriptions;
+
+
 
     // 3. Enrichment Layer (Sub-hook)
     const enrichment = useReportEnrichment(recentReportsRaw, userData, dismissedRecentIds);
@@ -82,11 +83,10 @@ export const useDashboardLogic = () => {
         dismissRecent,
         markWorkAsRead,
         markScheduleAsRead,
-        initAudio,
         userData
     }), [
         selectedDate, recentList, workRequestsList, schedulesList,
         userMetadata, dismissedRecentIds, readWorkIds, readScheduleIds,
-        dismissRecent, markWorkAsRead, markScheduleAsRead, initAudio, userData
+        dismissRecent, markWorkAsRead, markScheduleAsRead, userData
     ]);
 };

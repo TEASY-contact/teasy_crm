@@ -77,17 +77,15 @@ export const ChatRoom = ({ messages, lastReadTimestamp, currentUserId, input, on
     return (
         <VStack h="full" spacing={0} bg="white">
             {/* Body: Messages Area (Identical to AdminCommentRoom) */}
-            <Box flex={1} w="full" position="relative" overflow="hidden">
+            <Box flex={1} w="full" position="relative" overflow="hidden" pl={6} pr={3} py={4} bg="gray.50/10">
 
                 <Box
                     w="full"
                     h="full"
                     overflowY="auto"
-                    px={6}
-                    py={4}
                     ref={scrollRef}
-                    bg="gray.50/10"
                     className="hide-scrollbar"
+                    pr={2}
                 >
                     {isLoading ? (
                         <Flex h="full" align="center" justify="center">

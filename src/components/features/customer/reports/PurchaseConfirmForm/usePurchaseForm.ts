@@ -10,6 +10,8 @@ import {
     query,
     where,
     getDocs,
+    getDoc,
+    addDoc,
     runTransaction
 } from "firebase/firestore";
 import {
@@ -24,6 +26,7 @@ import { applyColonStandard, getTeasyStandardFileName, normalizeText } from "@/u
 import { formatPhone } from "@/utils/formatter";
 import { isWithinBusinessDays } from "@/utils/dateUtils";
 import { useReportMetadata } from "@/hooks/useReportMetadata";
+import { moveFileToTrash } from "@/utils/reportUtils";
 import { getCircledNumber } from "@/components/features/asset/AssetModalUtils";
 import { performSelfHealing } from "@/utils/assetUtils";
 import {
@@ -341,7 +344,7 @@ export const usePurchaseForm = ({
                         }, { merge: true });
                     }
                 }
-                return { success: true, affectedItems: Array.from(affectedItems) };
+                return { success: true, affectedItems: Array.from(affectedItems), targetActivityId: targetActivityId };
             });
 
             if (result.success && result.affectedItems) {
@@ -412,7 +415,7 @@ export const usePurchaseForm = ({
             });
 
             if (result.success && result.affectedItems) {
-                if (result.taxInvoiceUrl) { try { await deleteObject(sRef(storage, result.taxInvoiceUrl)); } catch (e) { console.warn(e); } }
+                if (result.taxInvoiceUrl) { try { await moveFileToTrash(result.taxInvoiceUrl); } catch (e) { console.warn(e); } }
                 Promise.all(result.affectedItems.map(key => {
                     const [n, c, m] = key.split("|"); return performSelfHealing(n, c, undefined, undefined, undefined, m || undefined);
                 })).catch(e => console.error(e));

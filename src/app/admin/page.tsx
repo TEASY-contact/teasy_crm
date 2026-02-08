@@ -1,7 +1,7 @@
 // src/app/admin/page.tsx
 "use client";
 import { Box, SimpleGrid, Heading, Text, Icon, VStack, HStack } from "@chakra-ui/react";
-import { MdPeople, MdSettings, MdHistory, MdStorage, MdTune } from "react-icons/md";
+import { MdPeople, MdSettings, MdHistory, MdStorage, MdTune, MdAssignmentInd } from "react-icons/md";
 import { useRouter } from "next/navigation";
 
 interface AdminCardProps {
@@ -67,6 +67,12 @@ export default function AdminPage() {
                     description="총판 관리 등 시스템 환경 설정"
                     icon={MdTune}
                     onClick={() => router.push("/admin/settings")}
+                />
+                <AdminCard
+                    title="업무 담당자 관리"
+                    description="업무 요청 처리 대상자 설정 및 관리"
+                    icon={MdAssignmentInd}
+                    onClick={() => router.push("/admin/work-managers")}
                 />
             </SimpleGrid>
         </Box>

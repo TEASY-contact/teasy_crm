@@ -20,6 +20,7 @@ import { inquirySchema } from "@/lib/validations/reportSchema";
 import { applyColonStandard, getTeasyStandardFileName, normalizeText } from "@/utils/textFormatter";
 import { isWithinBusinessDays } from "@/utils/dateUtils";
 import { useReportMetadata } from "@/hooks/useReportMetadata";
+import { moveFileToTrash } from "@/utils/reportUtils";
 import { formatPhone } from "@/utils/formatter";
 import {
     InquiryFormData,
@@ -95,8 +96,7 @@ export const useInquiryForm = ({ customer, activities = [], activityId, initialD
         await Promise.allSettled(urls.map(async (url) => {
             if (!url.startsWith('https://firebasestorage.googleapis.com')) return;
             try {
-                const storageRef = sRef(storage, url);
-                await deleteObject(storageRef);
+                await moveFileToTrash(url);
             } catch (e) {
                 console.warn("Resource cleanup attempt failed:", url, e);
             }

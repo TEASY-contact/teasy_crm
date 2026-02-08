@@ -3,23 +3,31 @@ import { useState, useEffect, useMemo } from "react";
 import { collection, query, where, onSnapshot, orderBy, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-export const useDashboardSubscriptions = (selectedDate: Date, playDingDong: () => void) => {
+export const useDashboardSubscriptions = (selectedDate: Date) => {
     const [recentReportsRaw, setRecentReportsRaw] = useState<any[]>([]);
     const [workRequestsList, setWorkRequestsList] = useState<any[]>([]);
     const [schedulesList, setSchedulesList] = useState<any[]>([]);
-    const [userMetadata, setUserMetadata] = useState<Record<string, { color: string, badgeChar: string }>>({});
+    const [userMetadata, setUserMetadata] = useState<Record<string, { name: string, color: string, badgeChar: string }>>({});
 
     useEffect(() => {
         const unsub = onSnapshot(collection(db, "users"), (snap) => {
-            const meta: Record<string, { color: string, badgeChar: string }> = {};
+            const meta: Record<string, { name: string, color: string, badgeChar: string }> = {};
             snap.docs.forEach(d => {
                 const data = d.data();
                 meta[data.uid || d.id] = {
+                    name: data.name,
                     color: data.representativeColor,
                     badgeChar: data.badgeChar
                 };
             });
-            setUserMetadata(meta);
+            setUserMetadata({
+                ...meta,
+                "TEASY_SYSTEM": {
+                    name: "시스템",
+                    color: "#805AD5", // purple.500
+                    badgeChar: "T"
+                }
+            });
         });
         return () => unsub();
     }, []);
@@ -30,14 +38,13 @@ export const useDashboardSubscriptions = (selectedDate: Date, playDingDong: () =
             setRecentReportsRaw(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
 
-        const qWork = query(collection(db, "work_requests"), where("status", "in", ["pending", "in_progress", "rejected"]), orderBy("createdAt", "desc"));
+        const qWork = query(collection(db, "work_requests"), orderBy("createdAt", "desc"));
         const unsubWork = onSnapshot(qWork, (snap) => {
             setWorkRequestsList(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-            snap.docChanges().forEach((change) => { if (change.type === "added") playDingDong(); });
         });
 
         return () => { unsubActivities(); unsubWork(); };
-    }, [playDingDong]);
+    }, []);
 
     useEffect(() => {
         const year = selectedDate.getFullYear();

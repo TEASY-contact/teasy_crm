@@ -29,4 +29,9 @@ export interface WorkRequest {
     updatedAt: any;
     lastReadTimestamp?: any; // For unread message divider logic
     readStatus?: Record<string, boolean>; // { [userId]: boolean }
+    isReReview?: boolean;
+    triggerType?: 'tax_biz_securing' | 'tax_invoice_issuance' | 'tax_biz_delay' | string;
+    parentWorkId?: string;
+    reviewRequestedAt?: any;
+    participants?: string[];
 }

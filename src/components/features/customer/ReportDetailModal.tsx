@@ -36,11 +36,12 @@ interface ReportDetailModalProps {
     isDashboardView?: boolean;
     isConfirmationMode?: boolean;
     activities?: Activity[];
+    onCreateWorkRequest?: (activity: Activity) => void;
 }
 
 import { useReportMetadata } from "@/hooks/useReportMetadata";
 
-const ReportDetailModalContent = ({ onClose, customer, activity, activities = [], isDashboardView, isConfirmationMode }: { onClose: () => void, customer: Customer, activity: Activity, activities: Activity[], isDashboardView?: boolean, isConfirmationMode?: boolean }) => {
+const ReportDetailModalContent = ({ onClose, customer, activity, activities = [], isDashboardView, isConfirmationMode, onCreateWorkRequest }: { onClose: () => void, customer: Customer, activity: Activity, activities: Activity[], isDashboardView?: boolean, isConfirmationMode?: boolean, onCreateWorkRequest?: (activity: Activity) => void }) => {
     const { userData } = useAuth();
     const { holidayMap } = useReportMetadata();
     const formRef = useRef<any>(null);
@@ -190,7 +191,7 @@ const ReportDetailModalContent = ({ onClose, customer, activity, activities = []
                             </TeasyButton>
                         )}
                         {!isWorkRequest && (
-                            <TeasyButton onClick={() => { }} w="130px" h="45px">업무 요청서 작성</TeasyButton>
+                            <TeasyButton onClick={() => onCreateWorkRequest && onCreateWorkRequest(activity)} w="130px" h="45px">업무 요청서 작성</TeasyButton>
                         )}
                         <Spacer />
                         <TeasyButton version="secondary" onClick={onClose} w="108px" h="45px">닫기</TeasyButton>
@@ -224,7 +225,7 @@ const ReportDetailModalContent = ({ onClose, customer, activity, activities = []
     );
 };
 
-export const ReportDetailModal = ({ isOpen, onClose, customer, activity, activities = [], isDashboardView, isConfirmationMode }: ReportDetailModalProps) => {
+export const ReportDetailModal = ({ isOpen, onClose, customer, activity, activities = [], isDashboardView, isConfirmationMode, onCreateWorkRequest }: ReportDetailModalProps) => {
     if (!activity || !isOpen) return null;
 
     return (
@@ -237,6 +238,7 @@ export const ReportDetailModal = ({ isOpen, onClose, customer, activity, activit
                 activities={activities}
                 isDashboardView={isDashboardView}
                 isConfirmationMode={isConfirmationMode}
+                onCreateWorkRequest={onCreateWorkRequest}
             />
         </TeasyModal>
     );

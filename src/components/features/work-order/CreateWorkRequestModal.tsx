@@ -1,6 +1,6 @@
 
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
     Box, VStack, Text, Select, FormControl,
     InputGroup, HStack, useToast, Badge, Grid, Flex
@@ -32,18 +32,30 @@ import { formatTimestamp } from "@/utils/formatter";
 interface CreateWorkRequestModalProps {
     isOpen: boolean;
     onClose: () => void;
+    initialData?: {
+        receiverId?: string;
+        relatedActivityId?: string;
+    };
 }
 
-export const CreateWorkRequestModal = ({ isOpen, onClose }: CreateWorkRequestModalProps) => {
+export const CreateWorkRequestModal = ({ isOpen, onClose, initialData }: CreateWorkRequestModalProps) => {
     const { createRequest } = useWorkOrder();
     const { userData } = useAuth();
     const toast = useToast();
 
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
-    const [receiverId, setReceiverId] = useState("");
-    const [relatedActivityId, setRelatedActivityId] = useState("");
+    const [receiverId, setReceiverId] = useState(initialData?.receiverId || "");
+    const [relatedActivityId, setRelatedActivityId] = useState(initialData?.relatedActivityId || "");
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Sync state with initialData when modal opens
+    useEffect(() => {
+        if (isOpen && initialData) {
+            if (initialData.receiverId) setReceiverId(initialData.receiverId);
+            if (initialData.relatedActivityId) setRelatedActivityId(initialData.relatedActivityId);
+        }
+    }, [isOpen, initialData]);
     const [files, setFiles] = useState<File[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -70,11 +82,12 @@ export const CreateWorkRequestModal = ({ isOpen, onClose }: CreateWorkRequestMod
         { value: "", label: "선택 안함" },
         { value: "divider", label: "", isDivider: true },
         ...activities.filter(act => {
+            if (initialData?.relatedActivityId && act.id === initialData.relatedActivityId) return true;
             const createdAt = act.createdAt?.toDate ? act.createdAt.toDate() : new Date(act.createdAt);
             return isWithinBusinessDays(createdAt, 3, holidayMap);
         }).map(act => {
             const date = act.date ? new Date(act.date.replace("  ", " ")) : new Date();
-            const dateStr = `${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
+            const dateStr = `${String(date.getFullYear()).slice(2)}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
             const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
             const weekDay = weekDays[date.getDay()];
 
@@ -371,8 +384,8 @@ export const CreateWorkRequestModal = ({ isOpen, onClose }: CreateWorkRequestMod
                     </VStack>
                 </TeasyModalBody>
                 <TeasyModalFooter>
-                    <TeasyButton version="secondary" mr={3} onClick={onClose}>취소</TeasyButton>
-                    <TeasyButton colorScheme="purple" onClick={handleSubmit} isLoading={isSubmitting}>
+                    <TeasyButton version="secondary" mr={3} onClick={onClose} w="108px" h="45px">취소</TeasyButton>
+                    <TeasyButton colorScheme="purple" onClick={handleSubmit} isLoading={isSubmitting} w="108px" h="45px">
                         요청 보내기
                     </TeasyButton>
                 </TeasyModalFooter>

@@ -1,9 +1,8 @@
-
 "use client";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
     Box, Heading, Input, InputGroup, InputLeftElement, Grid, VStack, Text,
-    HStack, Badge, Flex, IconButton, useDisclosure, SimpleGrid
+    HStack, Badge, Flex, IconButton, useDisclosure, SimpleGrid, Divider
 } from "@chakra-ui/react";
 import { SearchIcon, AddIcon } from "@chakra-ui/icons";
 import { useWorkOrder } from "@/hooks/useWorkOrder";
@@ -15,7 +14,68 @@ import { useReportMetadata } from "@/hooks/useReportMetadata";
 import { useQuery } from "@tanstack/react-query";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { STEP_LABELS, getBadgeColor } from "@/components/features/customer/timeline/TimelineUtils";
+import {
+    TeasyBadge, SurnameBadge, TeasyDivider, TeasyButton
+} from "@/components/common/UIComponents";
+import { getBadgeColor } from "@/components/features/customer/timeline/TimelineUtils";
+
+// Helper: Check if a timestamp is within 3 business days from now
+const isWithin3BusinessDays = (timestamp: any) => {
+    if (!timestamp) return true;
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const today = new Date();
+
+    // Reset hours for comparison
+    const startOfToday = new Date(today);
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const startOfTarget = new Date(date);
+    startOfTarget.setHours(0, 0, 0, 0);
+
+    let count = 0;
+    let current = new Date(startOfTarget);
+
+    while (current < startOfToday) {
+        current.setDate(current.getDate() + 1);
+        const day = current.getDay();
+        if (day !== 0 && day !== 6) { // Mon-Fri
+            count++;
+        }
+    }
+    return count <= 3;
+};
+
+// Helper: Check if a timestamp is today
+const isToday = (timestamp: any) => {
+    if (!timestamp) return false;
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const now = new Date();
+    return date.getFullYear() === now.getFullYear() &&
+        date.getMonth() === now.getMonth() &&
+        date.getDate() === now.getDate();
+};
+
+// Helper: Format date for CHAT-style divider "2026.02.08 (일)"
+const formatDateForDivider = (timestamp: any) => {
+    if (!timestamp) return "";
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const days = ['일', '월', '화', '수', '목', '금', '토'];
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    const day = days[date.getDay()];
+    return `${y}.${m}.${d} (${day})`;
+};
+
+const DateDivider = ({ dateStr }: { dateStr: string }) => (
+    <Flex align="center" py={4} px={4} bg="white">
+        <Divider borderColor="gray.100" />
+        <Text px={4} fontSize="xs" color="gray.400" whiteSpace="nowrap" fontWeight="700">
+            {dateStr}
+        </Text>
+        <Divider borderColor="gray.100" />
+    </Flex>
+);
 
 // Helper Component for Request Card
 const RequestCard = ({ request, onClick, isSent, managerResolver, activity }: { request: WorkRequest, onClick: () => void, isSent: boolean, managerResolver: (id: string) => any, activity?: any }) => {
@@ -72,7 +132,7 @@ const RequestCard = ({ request, onClick, isSent, managerResolver, activity }: { 
 
     const statusColors: Record<string, string> = {
         'pending': 'red',
-        'review_requested': 'purple',
+        'review_requested': 'red',
         'approved': 'green',
         'rejected': 'red'
     };
@@ -80,16 +140,23 @@ const RequestCard = ({ request, onClick, isSent, managerResolver, activity }: { 
     const statusLabels: Record<string, string> = {
         'pending': '대기',
         'review_requested': '검토 요청',
-        'approved': '승인',
+        'approved': '완료',
         'rejected': '반려'
     };
 
-    // New logic: if pending but already read, show '확인'
-    const displayLabel = (request.status === 'pending' && request.readStatus?.[request.receiverId])
-        ? '확인'
-        : statusLabels[request.status];
+    // Updated Label logic
+    let displayLabel = statusLabels[request.status];
+    if (request.status === 'pending') {
+        if (!isSent && request.isReReview) {
+            displayLabel = '재검토';
+        } else if (!isSent && request.readStatus?.[request.receiverId]) {
+            displayLabel = '확인';
+        }
+    }
 
-    const displayColor = (displayLabel === '확인') ? 'teal' : statusColors[request.status];
+    const displayColor = (displayLabel === '확인' || displayLabel === '완료') ? 'green' : statusColors[request.status];
+
+    const isApproved = request.status === 'approved';
 
     // Safe Date formatting for main request creation: YYYY-MM-DD  HH:MM (No Day)
     const formattedDateTime = (() => {
@@ -119,10 +186,11 @@ const RequestCard = ({ request, onClick, isSent, managerResolver, activity }: { 
         <Box
             py={1.5}
             px={3}
-            bg="white"
+            bg={isApproved ? "gray.50" : "white"}
             borderBottom="1px"
             borderColor="purple.50"
             cursor="pointer"
+            position="relative"
             _hover={{
                 bg: "purple.50",
                 zIndex: 1
@@ -132,90 +200,86 @@ const RequestCard = ({ request, onClick, isSent, managerResolver, activity }: { 
             _last={{ borderBottom: "none" }}
         >
             <Flex align="center" gap={2} w="full">
-                <Badge
-                    colorScheme={displayColor}
-                    variant={(displayColor === 'red' || displayColor === 'teal') ? "subtle" : "solid"}
-                    px={2}
-                    borderRadius="md"
-                    fontSize="xs"
+                <TeasyBadge
+                    colorType={displayColor === 'red' ? 'red' : (displayColor === 'green' ? 'green' : 'brand')}
+                    w="50px"
                     flexShrink={0}
-                    h="18px"
-                    display="flex"
-                    alignItems="center"
-                    fontWeight="700"
-                    textTransform="none"
-                    opacity={0.9}
                 >
                     {displayLabel}
-                </Badge>
+                </TeasyBadge>
 
-                <Text
-                    fontWeight="500"
-                    fontSize="sm"
-                    isTruncated
-                    color="gray.700"
-                    lineHeight="1.2"
-                >
-                    {request.title}
-                </Text>
-
-                {activity && (
-                    <HStack spacing={1} flexShrink={0} ml={1.5} opacity={0.8} align="center">
-                        <Badge
-                            bg={`${getBadgeColor(activity.type)}.50`}
-                            color={`${getBadgeColor(activity.type)}.500`}
-                            fontSize="xs"
-                            variant="subtle"
-                            px={1.5}
-                            borderRadius="md"
-                            h="18px"
-                            display="flex"
-                            alignItems="center"
-                            textTransform="none"
-                            fontWeight="500"
+                <Box position="relative" flex={1} minW={0} ml={2}>
+                    {isApproved && (
+                        <Box
+                            position="absolute"
+                            top="50%"
+                            left={0}
+                            right={0}
+                            h="1px"
+                            bg="gray.400"
+                            zIndex={2}
+                        />
+                    )}
+                    <Flex align="center" gap={2}>
+                        <Text
+                            fontWeight="600"
+                            fontSize="sm"
+                            isTruncated
+                            color={isApproved ? "gray.400" : "gray.700"}
+                            lineHeight="1.2"
+                            flexShrink={0}
+                            maxW="40%"
                         >
-                            {STEP_LABELS[activity.type] || activity.typeName || "보고서"}
-                        </Badge>
-                        <Text as="span" fontSize="xs" color="gray.500" fontWeight="500" isTruncated display="inline-flex" lineHeight="1.2">
-                            {activity.customerName} {formatActivityDate(activity.date)}
+                            {request.title}
                         </Text>
-                    </HStack>
-                )}
 
-                <Text
-                    fontSize="sm"
-                    color="gray.700"
-                    fontWeight="400"
-                    isTruncated
-                    flex={1}
-                    ml={2}
-                    lineHeight="1.2"
-                    opacity={0.8}
-                >
-                    {request.content}
-                </Text>
+                        <Text
+                            fontWeight="400"
+                            fontSize="sm"
+                            isTruncated
+                            color={isApproved ? "gray.400" : "gray.500"}
+                            lineHeight="1.2"
+                            flex={1}
+                        >
+                            {request.content}
+                        </Text>
+                    </Flex>
+                </Box>
+
+                <Box w="1px" h="12px" bg="gray.300" mx={2} />
 
                 {(() => {
+                    const isCompletedCategory = request.status === 'approved' || request.status === 'rejected' || request.status === 'review_requested';
+
+                    if (isCompletedCategory) {
+                        const sender = managerResolver(request.senderId);
+                        const receiver = managerResolver(request.receiverId);
+                        return (
+                            <HStack spacing={1} flexShrink={0}>
+                                <SurnameBadge
+                                    name={sender?.label}
+                                    color={sender?.representativeColor || "gray.400"}
+                                    badgeChar={(sender?.label || "?").charAt(0)}
+                                />
+                                <Text fontSize="xs" color="gray.300" fontWeight="bold" mx={0.5}>→</Text>
+                                <SurnameBadge
+                                    name={receiver?.label}
+                                    color={receiver?.representativeColor || "gray.400"}
+                                    badgeChar={(receiver?.label || "?").charAt(0)}
+                                />
+                            </HStack>
+                        );
+                    }
+
                     const mgr = managerResolver(isSent ? request.receiverId : request.senderId);
                     const brandColor = mgr?.representativeColor || "gray.400";
                     return (
-                        <Badge
-                            variant="solid"
-                            bg={brandColor}
-                            color="white"
-                            borderRadius="full"
-                            w="18px"
-                            h="18px"
-                            display="flex"
-                            alignItems="center"
-                            justifyContent="center"
-                            fontSize="10px"
-                            fontWeight="700"
+                        <SurnameBadge
+                            name={mgr?.label}
+                            color={brandColor}
+                            badgeChar={(mgr?.label || "?").charAt(0)}
                             flexShrink={0}
-                            opacity={0.9}
-                        >
-                            {(mgr?.label || "?").charAt(0)}
-                        </Badge>
+                        />
                     );
                 })()}
 
@@ -226,6 +290,7 @@ const RequestCard = ({ request, onClick, isSent, managerResolver, activity }: { 
                     flexShrink={0}
                     whiteSpace="pre"
                     lineHeight="1.2"
+                    ml={2}
                     opacity={0.8}
                 >
                     {formattedDateTime}
@@ -250,7 +315,7 @@ export default function WorkRequestsPage() {
         if (!userData?.uid) return;
         const unsubscribe = getRequests(userData.uid, (data) => {
             setRequests(data);
-        });
+        }, userData.role);
         return () => unsubscribe && unsubscribe();
     }, [userData]);
 
@@ -289,16 +354,31 @@ export default function WorkRequestsPage() {
     );
 
     const receivedRequests = filteredRequests.filter(req =>
-        req.receiverId === userData?.uid && req.status !== 'approved' // Completed goes to bottom? "검토 완료" usually means approved/rejected
+        req.receiverId === userData?.uid && req.status === 'pending'
     );
 
     const sentRequests = filteredRequests.filter(req =>
-        req.senderId === userData?.uid && req.status !== 'approved'
+        req.senderId === userData?.uid && req.status === 'pending'
     );
 
-    const completedRequests = filteredRequests.filter(req =>
-        req.status === 'approved' || req.status === 'rejected'
-    );
+    const completedRequests = filteredRequests.filter(req => {
+        const isMasterOrAdmin = userData?.role === 'master' || userData?.role === 'admin';
+        const isSystemTask = req.senderId === 'TEASY_SYSTEM';
+        const isParticipant = req.participants?.includes(userData?.uid || '');
+
+        if (req.status === 'approved') {
+            if (isParticipant || (isSystemTask && isMasterOrAdmin)) {
+                return isWithin3BusinessDays(req.createdAt);
+            }
+            return false;
+        }
+
+        if (req.status === 'rejected' || req.status === 'review_requested') {
+            return isParticipant || (isSystemTask && isMasterOrAdmin);
+        }
+
+        return false;
+    });
 
     const handleCardClick = (req: WorkRequest) => {
         setSelectedRequest(req);
@@ -409,16 +489,25 @@ export default function WorkRequestsPage() {
                     </Box>
                 ) : (
                     <VStack align="stretch" spacing={0} border="1px" borderColor="purple.50" borderRadius="lg" overflow="hidden">
-                        {completedRequests.map(req => (
-                            <RequestCard
-                                key={req.id}
-                                request={req}
-                                onClick={() => handleCardClick(req)}
-                                isSent={req.senderId === userData?.uid}
-                                managerResolver={resolveManager}
-                                activity={req.relatedActivityId ? activityMap[req.relatedActivityId] : null}
-                            />
-                        ))}
+                        {completedRequests.map((req, idx) => {
+                            const currentDate = formatDateForDivider(req.createdAt);
+                            const prevDate = idx > 0 ? formatDateForDivider(completedRequests[idx - 1].createdAt) : null;
+                            // Only show divider if date changed AND it's not today
+                            const showDivider = currentDate !== prevDate && !isToday(req.createdAt);
+
+                            return (
+                                <React.Fragment key={req.id}>
+                                    {showDivider && <DateDivider dateStr={currentDate} />}
+                                    <RequestCard
+                                        request={req}
+                                        onClick={() => handleCardClick(req)}
+                                        isSent={req.senderId === userData?.uid}
+                                        managerResolver={resolveManager}
+                                        activity={req.relatedActivityId ? activityMap[req.relatedActivityId] : null}
+                                    />
+                                </React.Fragment>
+                            );
+                        })}
                     </VStack>
                 )}
             </Box>

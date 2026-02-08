@@ -3,10 +3,12 @@ import { Box, Flex, Grid, GridItem, HStack, Text, SimpleGrid, useDisclosure } fr
 import { useState } from "react";
 import { CalendarBadge } from "./CalendarBadge";
 import { SideStatusCard } from "@/components/dashboard/SideStatusCards";
-import { ReportBadge, TeasyListItem, TeasyButton, SurnameBadge, TeasyList, TeasyListText, TeasyListSubText, ThinParen } from "@/components/common/UIComponents";
+import { ReportBadge, TeasyListItem, TeasyButton, SurnameBadge, TeasyList, TeasyListText, TeasyListSubText, ThinParen, TeasyDivider } from "@/components/common/UIComponents";
 import { ReportDetailModal } from "@/components/features/customer/ReportDetailModal";
+import { WorkRequestModal } from "@/components/features/work-order/WorkRequestModal";
+import { CreateWorkRequestModal } from "@/components/features/work-order/CreateWorkRequestModal";
 import { useDashboardLogic } from "./hooks/useDashboardLogic";
-import { getBadgeInfo, getBadgeColor, extractRegion } from "./utils/dashboardUtils";
+import { getBadgeInfo, getBadgeColor, extractRegion, formatDashboardDate } from "./utils/dashboardUtils";
 
 export const MainDashboard = () => {
     const {
@@ -22,7 +24,6 @@ export const MainDashboard = () => {
         dismissRecent,
         markWorkAsRead,
         markScheduleAsRead,
-        initAudio,
         userData
     } = useDashboardLogic();
 
@@ -30,6 +31,25 @@ export const MainDashboard = () => {
     const [selectedActivity, setSelectedActivity] = useState<any>(null);
     const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
     const [isDashboardView, setIsDashboardView] = useState(false);
+
+    const workRequestDisclosure = useDisclosure();
+    const workViewDisclosure = useDisclosure();
+    const [selectedWorkRequest, setSelectedWorkRequest] = useState<any>(null);
+    const [initialWorkRequestData, setInitialWorkRequestData] = useState<{ receiverId?: string, relatedActivityId?: string } | undefined>(undefined);
+
+    const handleCreateRequestFromDetail = (activity: any) => {
+        // Close detail modal
+        onClose();
+
+        // Set initial data for work request
+        setInitialWorkRequestData({
+            receiverId: activity.createdBy, // Assign to the author of the report
+            relatedActivityId: activity.id
+        });
+
+        // Open work request modal
+        workRequestDisclosure.onOpen();
+    };
 
     const year = selectedDate.getFullYear();
     const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
@@ -61,6 +81,12 @@ export const MainDashboard = () => {
         onOpen();
     };
 
+    const handleWorkRequestClick = (req: any) => {
+        markWorkAsRead(req.id);
+        setSelectedWorkRequest(req);
+        workViewDisclosure.onOpen();
+    };
+
     const selectedDateStr = `${year}-${month}-${String(selectedDate.getDate()).padStart(2, '0')}`;
     const normalizedSchedules = schedulesList
         .filter(s => (s.date || "").startsWith(selectedDateStr) && ['demo_schedule', 'install_schedule', 'as_schedule'].includes(s.type))
@@ -75,17 +101,53 @@ export const MainDashboard = () => {
             };
         });
 
-    const normalizedWorkRequests = workRequestsList.map(item => ({ ...item, isRead: readWorkIds.has(item.id) }));
+    const normalizedWorkRequests = workRequestsList
+        .filter(item => item.receiverId === userData?.uid && item.status === 'pending')
+        .map(item => {
+            // 1. Sender Name
+            const senderId = item.senderId || '';
+            const senderName = (userMetadata && (userMetadata[senderId] as any)?.name) || '알 수 없음';
+
+            // 2. Date Formatting (Simplified via util)
+            const dateStr = formatDashboardDate(item.createdAt);
+
+            // 3. Category & Customer (Link to Activity)
+            let category = 'general';
+            let customer = '일반 요청';
+
+            if (item.relatedActivityId) {
+                const found = [...recentList, ...schedulesList].find(a => a.id === item.relatedActivityId);
+                if (found) {
+                    category = found.type || 'general';
+                    customer = found.customerName || found.name || '고객';
+                }
+            }
+
+            // Fallback: Guess category from title
+            const title = item.title || '';
+            if (category === 'general' && title) {
+                if (title.includes('구매')) category = 'purchase_confirm';
+                else if (title.includes('설치')) category = 'install_schedule';
+                else if (title.includes('AS') || title.includes('A/S')) category = 'as_schedule';
+                else if (title.includes('문의')) category = 'inquiry';
+            }
+
+            return {
+                ...item,
+                isRead: readWorkIds.has(item.id),
+                name: senderName,
+                date: dateStr,
+                category,
+                customer,
+                createdBy: senderId
+            };
+        });
     const visibleRecent = recentList.filter(item => !dismissedRecentIds.has(item.id));
 
-    const unreadSchedules = normalizedSchedules.filter(i => !i.completed && !i.isRead).length;
-    const unreadRecent = visibleRecent.length;
-    const unreadWorkRequests = normalizedWorkRequests.filter(i => !i.isRead).length;
-
     return (
-        <Box h="full" display="flex" flexDirection="column" gap={0} pb={2} onClick={initAudio}>
+        <Box h="full" display="flex" flexDirection="column" gap={0} pb={2}>
             <Grid
-                templateColumns={{ base: "1fr", lg: "7fr 3fr" }}
+                templateColumns={{ base: "1fr", lg: "5.5fr 4.5fr" }}
                 templateRows={{ base: "auto", lg: "auto auto 1fr" }}
                 columnGap={6} rowGap={0} flex={1} h="full"
             >
@@ -146,26 +208,43 @@ export const MainDashboard = () => {
                 </GridItem>
 
                 {/* Row 2+3: Work Request */}
-                <GridItem colSpan={1} rowSpan={2} mt={10} minH="0" display="flex" flexDirection="column">
-                    <SideStatusCard title="업무 요청" count={unreadWorkRequests > 0 ? `+${unreadWorkRequests}` : 0} placeholder="모든 업무를 처리하였습니다." h="full" isEmpty={normalizedWorkRequests.length === 0}>
+                <GridItem colSpan={1} rowSpan={2} mt={10} minH="0" minW="0" display="flex" flexDirection="column">
+                    <SideStatusCard title="업무 요청" count={0} placeholder="모든 업무를 처리하였습니다." h="full" isEmpty={normalizedWorkRequests.length === 0}>
                         <TeasyList>
                             {normalizedWorkRequests.map((req, idx) => (
-                                <TeasyListItem key={req.id} isLast={idx === normalizedWorkRequests.length - 1} onClick={() => markWorkAsRead(req.id)} cursor="pointer" opacity={req.isRead ? 0.6 : 1} spacing={3}>
-                                    <Box flexShrink={0} w="22px" display="flex" justifyContent="center">
+                                <TeasyListItem key={req.id} isLast={idx === normalizedWorkRequests.length - 1} onClick={() => handleWorkRequestClick(req)} cursor="pointer" opacity={req.isRead ? 0.6 : 1} spacing={3} alignItems="center">
+                                    {/* 1. 요청자 배지 */}
+                                    <Box flexShrink={0}>
                                         <SurnameBadge name={req.name} badgeChar={userMetadata[req.createdBy]?.badgeChar} color={userMetadata[req.createdBy]?.color || getBadgeColor(req.category)} w="22px" h="22px" />
                                     </Box>
-                                    <Box flexShrink={0} w="50px">
-                                        <ReportBadge colorType={getBadgeInfo(req.category).color as any}>{getBadgeInfo(req.category).text}</ReportBadge>
-                                    </Box>
-                                    <Box flexShrink={0} w="70px" overflow="hidden">
-                                        <TeasyListText color="gray.800" fontWeight="bold" w="full">{req.customer}</TeasyListText>
-                                    </Box>
-                                    <Box flex={1} overflow="hidden">
-                                        <TeasyListText color="gray.500" fontWeight="medium" isTruncated w="full">{req.title}</TeasyListText>
-                                    </Box>
-                                    <Box flexShrink={0} w="110px" textAlign="right">
-                                        <TeasyListSubText whiteSpace="pre" fontWeight="medium"><ThinParen text={(req.date || '').replace(/\s+/g, "  ").replace(/\//g, "-")} /></TeasyListSubText>
-                                    </Box>
+
+                                    {/* 2. 제목 (남은 공간 차지, 말줄임) */}
+                                    <TeasyListText flex={1} minW={0} fontWeight="bold" isTruncated mr={3}>
+                                        {req.title}
+                                    </TeasyListText>
+
+                                    {/* 3. 우측 그룹: [업무 배지 + 고객명] --gap=2-- [구분선 + 일시] */}
+                                    <Flex align="center" flexShrink={0} gap={2}>
+                                        {req.category !== 'general' && (
+                                            <Flex align="center" gap={2} w="140px">
+                                                <Box flexShrink={0}>
+                                                    <ReportBadge colorType={getBadgeInfo(req.category).color as any} fontSize="10px" h="16px" px={1}>
+                                                        {getBadgeInfo(req.category).text}
+                                                    </ReportBadge>
+                                                </Box>
+                                                <Text color="gray.500" fontSize="sm" fontWeight="normal" flex={1} minW={0} isTruncated>
+                                                    {req.customer}
+                                                </Text>
+                                            </Flex>
+                                        )}
+
+                                        <Flex align="center" gap={2}>
+                                            <TeasyDivider orientation="vertical" h="10px" borderColor="gray.300" />
+                                            <TeasyListSubText whiteSpace="pre" fontWeight="medium" sx={{ fontVariantNumeric: "tabular-nums" }}>
+                                                <ThinParen text={req.date || ''} />
+                                            </TeasyListSubText>
+                                        </Flex>
+                                    </Flex>
                                 </TeasyListItem>
                             ))}
                         </TeasyList>
@@ -173,9 +252,9 @@ export const MainDashboard = () => {
                 </GridItem>
 
                 {/* Row 3: Bottom Stats */}
-                <GridItem colSpan={1} mt={6} minH="0">
+                <GridItem colSpan={1} mt={6} minH="0" minW="0">
                     <Grid templateColumns="1fr 1fr" gap={6} h="full">
-                        <SideStatusCard title="외근 일정" count={unreadSchedules > 0 ? `+${unreadSchedules}` : 0} placeholder="해당 일자 외근 일정이 없습니다." h="full" mb={1} isEmpty={normalizedSchedules.length === 0}>
+                        <SideStatusCard title="외근 일정" count={0} placeholder="해당 일자 외근 일정이 없습니다." h="full" mb={1} isEmpty={normalizedSchedules.length === 0}>
                             <TeasyList>
                                 {normalizedSchedules.map((s, idx) => (
                                     <TeasyListItem key={s.id} isLast={idx === normalizedSchedules.length - 1} onClick={() => handleScheduleClick(s)} cursor="pointer" opacity={s.completed ? 0.6 : 1} spacing={3}>
@@ -191,9 +270,9 @@ export const MainDashboard = () => {
                                         <Box flexShrink={0} w="22px" display="flex" justifyContent="center">
                                             <SurnameBadge name={s.managerName} badgeChar={userMetadata[s.manager]?.badgeChar} color={userMetadata[s.manager]?.color} w="22px" h="22px" fontSize="10px" />
                                         </Box>
-                                        <Box flexShrink={0} w="45px" textAlign="right">
-                                            <TeasyListSubText fontWeight="medium" color={s.completed ? "gray.300" : "gray.400"} textDecoration={s.completed ? "line-through" : "none"} whiteSpace="pre">
-                                                <ThinParen text={(s.date || '').split('  ')[1] || (s.date || '').split(' ')[1] || ''} />
+                                        <Box flexShrink={0} minW="fit-content" textAlign="right">
+                                            <TeasyListSubText fontWeight="medium" color={s.completed ? "gray.300" : "gray.400"} textDecoration={s.completed ? "line-through" : "none"} whiteSpace="pre" sx={{ fontVariantNumeric: "tabular-nums" }}>
+                                                <ThinParen text={formatDashboardDate(s.date, s.startTime)} />
                                             </TeasyListSubText>
                                         </Box>
                                     </TeasyListItem>
@@ -201,7 +280,7 @@ export const MainDashboard = () => {
                             </TeasyList>
                         </SideStatusCard>
 
-                        <SideStatusCard title="최신 등록" count={unreadRecent > 0 ? `+${unreadRecent}` : 0} placeholder="등록된 보고서가 없습니다." h="full" isEmpty={visibleRecent.length === 0}>
+                        <SideStatusCard title="최신 등록" count={0} placeholder="등록된 보고서가 없습니다." h="full" isEmpty={visibleRecent.length === 0}>
                             <TeasyList>
                                 {visibleRecent.map((r, idx) => (
                                     <TeasyListItem key={r.id} isLast={idx === visibleRecent.length - 1} onClick={() => handleRecentClick(r)} cursor="pointer" spacing={3}>
@@ -211,8 +290,23 @@ export const MainDashboard = () => {
                                         <Box flex={1} overflow="hidden">
                                             <TeasyListText fontWeight="bold" isTruncated w="full">{r.customerName || '알 수 없는 고객'}</TeasyListText>
                                         </Box>
-                                        <Box flexShrink={0} w="110px" textAlign="right">
-                                            <TeasyListSubText whiteSpace="pre" fontWeight="medium"><ThinParen text={(r.date || '').replace(/\s+/g, "  ").replace(/\//g, "-")} /></TeasyListSubText>
+                                        <Box flexShrink={0} minW="fit-content" textAlign="right">
+                                            <HStack spacing={2} justify="flex-end">
+                                                <SurnameBadge
+                                                    name={userMetadata[r.createdBy]?.name}
+                                                    badgeChar={userMetadata[r.createdBy]?.badgeChar}
+                                                    color={userMetadata[r.createdBy]?.color}
+                                                    w="22px"
+                                                    h="22px"
+                                                    minW="22px"
+                                                    minH="22px"
+                                                    fontSize="11px"
+                                                />
+                                                <TeasyDivider orientation="vertical" h="10px" borderColor="gray.300" />
+                                                <TeasyListSubText whiteSpace="pre" fontWeight="medium" sx={{ fontVariantNumeric: "tabular-nums" }}>
+                                                    <ThinParen text={formatDashboardDate(r.date)} />
+                                                </TeasyListSubText>
+                                            </HStack>
                                         </Box>
                                     </TeasyListItem>
                                 ))}
@@ -227,6 +321,7 @@ export const MainDashboard = () => {
                     isOpen={isOpen}
                     onClose={() => {
                         if (recentList.some(r => r.id === selectedActivity.id)) dismissRecent(selectedActivity.id);
+                        if (recentList.some(r => r.id === selectedActivity.id)) dismissRecent(selectedActivity.id);
                         onClose();
                         setSelectedActivity(null);
                         setIsDashboardView(false);
@@ -234,8 +329,22 @@ export const MainDashboard = () => {
                     customer={selectedCustomer}
                     activity={selectedActivity}
                     isDashboardView={isDashboardView}
+                    onCreateWorkRequest={handleCreateRequestFromDetail}
                 />
             )}
+
+            <WorkRequestModal
+                isOpen={workViewDisclosure.isOpen}
+                onClose={workViewDisclosure.onClose}
+                data={selectedWorkRequest}
+                currentUser={userData}
+            />
+
+            <CreateWorkRequestModal
+                isOpen={workRequestDisclosure.isOpen}
+                onClose={workRequestDisclosure.onClose}
+                initialData={initialWorkRequestData}
+            />
         </Box>
     );
 };

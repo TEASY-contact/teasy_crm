@@ -59,3 +59,51 @@ export const extractRegion = (loc: string) => {
  * Utility: Get color from type via getBadgeInfo
  */
 export const getBadgeColor = (type: string) => getBadgeInfo(type).color;
+
+/**
+ * Utility: Format date for dashboard list items (MM-DD (Day) HH:MM)
+ * Handles Firestore Timestamp, Date object, ISO string, and YYYY-MM-DD string.
+ * @param inputDate Date | Timestamp | string
+ * @param timeStr Optional time string (HH:mm) if inputDate is just a date string
+ */
+export const formatDashboardDate = (inputDate: any, timeStr?: string) => {
+    if (!inputDate) return "";
+
+    let d: Date | null = null;
+
+    try {
+        if (inputDate?.toDate) {
+            // Firestore Timestamp
+            d = inputDate.toDate();
+        } else if (inputDate instanceof Date) {
+            d = inputDate;
+        } else if (typeof inputDate === "string") {
+            // "2024-02-08" or "2024-02-08T10:00:00"
+            if (inputDate.includes("T") || inputDate.includes(" ")) {
+                const parsed = new Date(inputDate);
+                if (!isNaN(parsed.getTime())) d = parsed;
+            } else if (/^\d{4}-\d{2}-\d{2}$/.test(inputDate)) {
+                // "YYYY-MM-DD" + optional timeStr
+                const [year, month, day] = inputDate.split("-").map(Number);
+                d = new Date(year, month - 1, day);
+                if (timeStr) {
+                    const [hh, mm] = timeStr.split(":").map(Number);
+                    if (!isNaN(hh) && !isNaN(mm)) d.setHours(hh, mm);
+                }
+            }
+        }
+    } catch (e) {
+        console.warn("Date parsing error", e);
+        return "";
+    }
+
+    if (!d) return "";
+
+    const MM = String(d.getMonth() + 1).padStart(2, '0');
+    const DD = String(d.getDate()).padStart(2, '0');
+    const W = ['일', '월', '화', '수', '목', '금', '토'][d.getDay()];
+    const HH = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+
+    return `${MM}-${DD} (${W})  ${HH}:${mm}`;
+};

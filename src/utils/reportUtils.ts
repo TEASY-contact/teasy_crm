@@ -16,8 +16,8 @@ export const cleanupOrphanedPhotos = async (urlsToDelete: string[]): Promise<voi
 
     await Promise.allSettled(cloudUrls.map(async (url) => {
         try {
-            const storageRef = sRef(storage, url);
-            await deleteObject(storageRef);
+            // Changed to Soft Delete (move to deleted_files/) instead of hard delete (v127.1)
+            await moveFileToTrash(url);
         } catch (e) {
             console.warn("Resource cleanup attempt failed:", url, e);
         }
@@ -44,9 +44,6 @@ export const invalidateReportQueries = async (
     }
 };
 
-/**
- * Upload a single file to Firebase Storage and return the download URL (v127.0)
- */
 export const uploadFileToStorage = async (
     file: File,
     storagePath: string
@@ -55,3 +52,40 @@ export const uploadFileToStorage = async (
     await uploadBytes(storageRef, file);
     return getDownloadURL(storageRef);
 };
+
+/**
+ * Move a file to the 'deleted_files' folder (Soft Delete) for 30-day retention policies (v127.1)
+ * This copies the file to 'deleted_files/{yyyy-mm-dd}/{filename}' and deletes the original.
+ */
+export const moveFileToTrash = async (url: string): Promise<void> => {
+    try {
+        const storageRef = sRef(storage, url);
+        // 1. Download the file as Blob
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Failed to fetch file for soft delete");
+        const blob = await response.blob();
+
+        // 2. Upload to Trash (deleted_files/YYYY-MM-DD/filename)
+        const now = new Date();
+        const dateFolder = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        const fileName = storageRef.name;
+        const trashPath = `deleted_files/${dateFolder}/${fileName}`;
+        const trashRef = sRef(storage, trashPath);
+
+        await uploadBytes(trashRef, blob, {
+            customMetadata: {
+                originalPath: storageRef.fullPath,
+                deletedAt: now.toISOString(),
+                deletedBy: "system_soft_delete"
+            }
+        });
+
+        // 3. Delete Original
+        await deleteObject(storageRef);
+    } catch (e) {
+        console.warn("Soft delete failed for:", url, e);
+        // Fail silently or handle error? For now, we warn.
+        throw e;
+    }
+};
+

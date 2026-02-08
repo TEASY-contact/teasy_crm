@@ -11,25 +11,18 @@ export const useWorkOrder = () => {
     const { userData } = useAuth();
 
     // Fetch Requests (Sender OR Receiver) - Real-time
-    const getRequests = (userId: string, callback: (requests: WorkRequest[]) => void) => {
+    const getRequests = (userId: string, callback: (requests: WorkRequest[]) => void, role?: string) => {
         if (!userId) return () => { };
 
-        // Query: Participate as Sender OR Receiver
-        // Firestore OR queries are tricky, usually split or use 'in' if properly indexed.
-        // For simplicity and standard usage: fetch where (senderId == user) OR (receiverId == user) requires separate queries merging,
-        // OR a composite field 'participants': [id1, id2].
-        // Given current structure, we might listen to 2 queries or user 'participants' array if we change schema.
-        // Let's assume for now we change schema to include 'participants' array for easier querying,
-        // OR we just listen to two queries. Listening to two queries is safer without schema migration.
-
-        // Actually, let's keep it simple: filter client-side if data set is small, 
-        // OR use 'participants' array in createRequest. 
-        // Let's UPDATE createRequest to add 'participants' field.
-
-        const q = query(
-            collection(db, "work_requests"),
-            where("participants", "array-contains", userId)
-        );
+        let q;
+        if (role === 'master' || role === 'admin') {
+            q = query(collection(db, "work_requests"));
+        } else {
+            q = query(
+                collection(db, "work_requests"),
+                where("participants", "array-contains", userId)
+            );
+        }
 
         return onSnapshot(q, {
             next: (snapshot) => {
@@ -78,12 +71,19 @@ export const useWorkOrder = () => {
         await addDoc(collection(db, "work_requests"), newRequest);
     };
 
-    const handleStatusChange = async (requestId: string, newStatus: WorkRequestStatus, targetUserId: string) => {
+    const handleStatusChange = async (requestId: string, newStatus: WorkRequestStatus, additionalData: any = {}) => {
         const ref = doc(db, "work_requests", requestId);
-        await updateDoc(ref, {
+        const updateData: any = {
             status: newStatus,
-            updatedAt: serverTimestamp()
-        });
+            updatedAt: serverTimestamp(),
+            ...additionalData
+        };
+
+        if (newStatus === 'review_requested') {
+            updateData.reviewRequestedAt = serverTimestamp();
+        }
+
+        await updateDoc(ref, updateData);
     };
 
     const sendMessage = async (requestId: string, content: string) => {
