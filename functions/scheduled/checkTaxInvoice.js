@@ -222,9 +222,6 @@ const checkTaxInvoice = functions
         }
     });
 
-
-
-
 /**
  * Case C: 후속 요청 발송 (SYSTEM 발신)
  */
