@@ -9,10 +9,11 @@ import { ThinParen } from "@/components/common/UIComponents";
  */
 
 /**
- * 변경 전/후 텍스트를 쉼표 구분 항목 단위로 비교하여,
- * 달라진 항목만 볼드 처리한 React 노드를 반환합니다.
+ * 변경 전/후 텍스트를 비교하여 달라진 부분을 강조합니다.
+ * - 쉼표 구분 목록: 삭제된 항목은 취소선, 추가/변경된 항목은 볼드
+ * - 자유 텍스트: 추가된 부분만 볼드, 삭제된 부분은 취소선
  */
-const renderDiffText = (text: string, compareWith: string | undefined): React.ReactNode => {
+const renderDiffText = (text: string, compareWith: string | undefined, side: "before" | "after"): React.ReactNode => {
     if (!text || text === "없음" || !compareWith || compareWith === "없음") {
         return <ThinParen text={text || "없음"} />;
     }
@@ -20,14 +21,35 @@ const renderDiffText = (text: string, compareWith: string | undefined): React.Re
     const items = text.split(", ");
     const otherItems = compareWith.split(", ");
 
-    // 항목 수가 다르거나 쉼표 구분이 아닌 단일 값이면 전체 비교
+    // 쉼표 구분이 아닌 단일 값 → 자유 텍스트 비교
     if (items.length === 1 && otherItems.length === 1) {
+        // 자유 텍스트: 한쪽이 다른쪽으로 시작하는지 체크 (텍스트 추가/삭제 감지)
+        if (side === "after" && text.startsWith(compareWith)) {
+            // 변경 후가 변경 전으로 시작 → 뒤에 추가된 부분만 볼드
+            const added = text.substring(compareWith.length);
+            return <><ThinParen text={compareWith} /><Box as="span" fontWeight="bold">{added}</Box></>;
+        }
+        if (side === "before" && compareWith.startsWith(text)) {
+            // 변경 전이 변경 후의 앞부분 → 그대로 표시 (삭제된 건 없음)
+            return <ThinParen text={text} />;
+        }
+        if (side === "before" && text.startsWith(compareWith)) {
+            // 변경 전이 더 긴 경우 → 뒤에 삭제된 부분 취소선
+            const removed = text.substring(compareWith.length);
+            return <><ThinParen text={compareWith} /><Box as="span" textDecoration="line-through" color="gray.400">{removed}</Box></>;
+        }
+        if (side === "after" && compareWith.startsWith(text)) {
+            // 변경 후가 변경 전의 앞부분 → 그대로 표시
+            return <ThinParen text={text} />;
+        }
+        // 완전히 다른 값
         const changed = text !== compareWith;
         return changed
             ? <Box as="span" fontWeight="bold"><ThinParen text={text} /></Box>
             : <ThinParen text={text} />;
     }
 
+    // 쉼표 구분 목록 비교
     return (
         <>
             {items.map((item, i) => {
@@ -37,7 +59,9 @@ const renderDiffText = (text: string, compareWith: string | undefined): React.Re
                     <React.Fragment key={i}>
                         {i > 0 && ", "}
                         {isChanged
-                            ? <Box as="span" fontWeight="bold">{trimmed}</Box>
+                            ? side === "before"
+                                ? <Box as="span" textDecoration="line-through" color="gray.400">{trimmed}</Box>
+                                : <Box as="span" fontWeight="bold">{trimmed}</Box>
                             : <>{trimmed}</>
                         }
                     </React.Fragment>
@@ -96,11 +120,11 @@ export const ModificationHistoryPanel = ({ historyArr }: { historyArr: any[] }) 
                                     </Flex>
                                     <Flex align="baseline" fontSize="sm" color="gray.400" fontWeight="medium">
                                         <Text flexShrink={0}>· 변경 전{"\u00A0"}:{"\u00A0\u00A0"}</Text>
-                                        <Box color="gray.500" fontWeight="normal" whiteSpace="pre-wrap">{renderDiffText(log.before || "없음", log.after)}</Box>
+                                        <Box color="gray.500" fontWeight="normal" whiteSpace="pre-wrap">{renderDiffText(log.before || "없음", log.after, "before")}</Box>
                                     </Flex>
                                     <Flex align="baseline" fontSize="sm" color="gray.400" fontWeight="medium">
                                         <Text flexShrink={0}>· 변경 후{"\u00A0"}:{"\u00A0\u00A0"}</Text>
-                                        <Box color="gray.700" fontWeight="normal" whiteSpace="pre-wrap">{renderDiffText(log.after || "없음", log.before)}</Box>
+                                        <Box color="gray.700" fontWeight="normal" whiteSpace="pre-wrap">{renderDiffText(log.after || "없음", log.before, "after")}</Box>
                                     </Flex>
                                 </VStack>
                             </Box>
