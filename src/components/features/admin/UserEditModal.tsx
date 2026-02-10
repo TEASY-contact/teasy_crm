@@ -228,7 +228,7 @@ const UserEditModalContent = ({ onClose, user, existingUsers = [], hideAdminFiel
                     onClick={onClose}
                     type="button"
                 />
-                <Box as="span" ml={10}>
+                <Box as="span">
                     임직원 계정 관리
                 </Box>
             </TeasyModalHeader>

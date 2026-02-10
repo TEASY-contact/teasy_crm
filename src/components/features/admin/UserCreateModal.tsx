@@ -235,7 +235,7 @@ const UserCreateModalContent = ({ onClose, existingUsers }: { onClose: () => voi
                     onClick={onClose}
                     type="button"
                 />
-                <Box as="span" ml={10}>
+                <Box as="span">
                     임직원 계정 생성
                 </Box>
             </TeasyModalHeader>

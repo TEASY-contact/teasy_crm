@@ -227,7 +227,7 @@ export const InventoryMasterModal: React.FC<InventoryMasterModalProps> = ({ isOp
                         onClick={onClose}
                         type="button"
                     />
-                    <Box as="span" ml={10}>
+                    <Box as="span">
                         신규 물품 등록
                     </Box>
                 </TeasyModalHeader>

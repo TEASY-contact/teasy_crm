@@ -161,7 +161,7 @@ const ReportDetailModalContent = ({ onClose, customer, activity, activities = []
                     onClick={onClose}
                     type="button"
                 />
-                <Box as="span" ml={10}>
+                <Box as="span">
                     {activity.typeName || "업무 요청"}
                     <span style={{ fontWeight: 300, marginLeft: '4px' }}>(</span>{isReadOnly ? "확인" : "수정"}<span style={{ fontWeight: 300 }}>)</span>
                 </Box>

@@ -163,7 +163,7 @@ export const ProfileEditModal = ({
                         onClick={onClose}
                         type="button"
                     />
-                    <Box as="span" ml={10}>
+                    <Box as="span">
                         {label || "정보 수정"}
                     </Box>
                 </TeasyModalHeader>

@@ -133,7 +133,7 @@ const CustomerRegistrationModalContent = ({ onClose }: { onClose: () => void }) 
                     onClick={onClose}
                     type="button"
                 />
-                <Box as="span" ml={10}>
+                <Box as="span">
                     신규 고객 등록
                 </Box>
             </TeasyModalHeader>

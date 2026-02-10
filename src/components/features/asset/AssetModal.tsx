@@ -65,7 +65,7 @@ export const AssetModal: React.FC<AssetModalProps> = ({
                         onClick={handleClose}
                         type="button"
                     />
-                    <Box as="span" ml={10}>
+                    <Box as="span">
                         {isProduct ? (isEdit ? "상품 정보 수정" : "상품 등록") : (isEdit ? "재고 물품 상세/수정" : "재고 물품 등록")}
                     </Box>
                 </TeasyModalHeader>

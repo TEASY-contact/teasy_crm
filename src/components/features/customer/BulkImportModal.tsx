@@ -120,7 +120,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({
                         type="button"
                         isDisabled={isProcessing}
                     />
-                    <Box as="span" ml={10}>
+                    <Box as="span">
                         일괄 등록
                     </Box>
                 </TeasyModalHeader>
