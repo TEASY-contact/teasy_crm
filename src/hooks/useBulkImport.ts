@@ -9,6 +9,7 @@ import {
 } from "firebase/firestore";
 import { useQueryClient } from "@tanstack/react-query";
 import { REPORT_SHEETS, CUSTOMER_SHEET } from "@/utils/bulkTemplateGenerator";
+import { DISTRIBUTOR_COLORS } from "@/utils/constants";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -309,7 +310,8 @@ export const useBulkImport = () => {
                 const cust = uniqueCustomers[i];
                 const row = cust.raw;
                 const existing = phoneIndex.get(cust.normalizedPhone);
-                const distributor = cellStr(row, "관리 총판*") || "TEASY";
+                const rawDistributor = cellStr(row, "관리 총판*").trim();
+                const distributor = (rawDistributor && rawDistributor in DISTRIBUTOR_COLORS) ? rawDistributor : "TEASY";
                 const managerName = cellStr(row, "담당 직원");
                 const manager = resolveManager(managerName, managerMap, duplicateNames);
 
