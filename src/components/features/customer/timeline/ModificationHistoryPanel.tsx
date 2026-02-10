@@ -27,7 +27,7 @@ const renderDiffText = (text: string, compareWith: string | undefined, side: "be
         if (side === "after" && text.startsWith(compareWith)) {
             // 변경 후가 변경 전으로 시작 → 뒤에 추가된 부분만 볼드
             const added = text.substring(compareWith.length);
-            return <><ThinParen text={compareWith} /><Box as="span" fontWeight="bold">{added}</Box></>;
+            return <><ThinParen text={compareWith} /><Box as="span" fontWeight="bold" color="gray.700">{added}</Box></>;
         }
         if (side === "before" && compareWith.startsWith(text)) {
             // 변경 전이 변경 후의 앞부분 → 그대로 표시 (삭제된 건 없음)
@@ -36,7 +36,7 @@ const renderDiffText = (text: string, compareWith: string | undefined, side: "be
         if (side === "before" && text.startsWith(compareWith)) {
             // 변경 전이 더 긴 경우 → 뒤에 삭제된 부분 취소선
             const removed = text.substring(compareWith.length);
-            return <><ThinParen text={compareWith} /><Box as="span" textDecoration="line-through" color="gray.400">{removed}</Box></>;
+            return <><ThinParen text={compareWith} /><Box as="span" textDecoration="line-through" color="gray.700">{removed}</Box></>;
         }
         if (side === "after" && compareWith.startsWith(text)) {
             // 변경 후가 변경 전의 앞부분 → 그대로 표시
@@ -45,7 +45,7 @@ const renderDiffText = (text: string, compareWith: string | undefined, side: "be
         // 완전히 다른 값
         const changed = text !== compareWith;
         return changed
-            ? <Box as="span" fontWeight="bold"><ThinParen text={text} /></Box>
+            ? <Box as="span" fontWeight="bold" color="gray.700"><ThinParen text={text} /></Box>
             : <ThinParen text={text} />;
     }
 
@@ -60,8 +60,8 @@ const renderDiffText = (text: string, compareWith: string | undefined, side: "be
                         {i > 0 && ", "}
                         {isChanged
                             ? side === "before"
-                                ? <Box as="span" textDecoration="line-through" color="gray.400">{trimmed}</Box>
-                                : <Box as="span" fontWeight="bold">{trimmed}</Box>
+                                ? <Box as="span" textDecoration="line-through" color="gray.700">{trimmed}</Box>
+                                : <Box as="span" fontWeight="bold" color="gray.700">{trimmed}</Box>
                             : <>{trimmed}</>
                         }
                     </React.Fragment>
@@ -124,7 +124,7 @@ export const ModificationHistoryPanel = ({ historyArr }: { historyArr: any[] }) 
                                     </Flex>
                                     <Flex align="baseline" fontSize="sm" color="gray.400" fontWeight="medium">
                                         <Text flexShrink={0}>· 변경 후{"\u00A0"}:{"\u00A0\u00A0"}</Text>
-                                        <Box color="gray.700" fontWeight="normal" whiteSpace="pre-wrap">{renderDiffText(log.after || "없음", log.before, "after")}</Box>
+                                        <Box color="gray.500" fontWeight="normal" whiteSpace="pre-wrap">{renderDiffText(log.after || "없음", log.before, "after")}</Box>
                                     </Flex>
                                 </VStack>
                             </Box>
