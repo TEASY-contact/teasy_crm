@@ -99,3 +99,7 @@ exports.mediaCompressionPipeline = functions
 
         return null;
     });
+
+// --- Scheduled Functions ---
+const { checkTaxInvoice } = require('./scheduled/checkTaxInvoice');
+exports.checkTaxInvoice = checkTaxInvoice;
