@@ -129,11 +129,11 @@ const ReportDetailModalContent = ({ onClose, customer, activity, activities = []
         if (activity.type === "demo_schedule") return <DemoScheduleForm {...commonProps} />;
         if (activity.type === "demo_complete") return <DemoCompleteForm {...commonProps} />;
         if (activity.type === "purchase_confirm") return <PurchaseConfirmForm {...commonProps} />;
-        if (activity.type === "install_schedule") return <InstallScheduleForm {...commonProps} />;
-        if (activity.type === "install_complete") return <InstallCompleteForm {...commonProps} />;
-        if (activity.type === "as_schedule") return <AsScheduleForm {...commonProps} />;
-        if (activity.type === "as_complete") return <AsCompleteForm {...commonProps} />;
-        if (activity.type === "remoteas_complete") return <RemoteAsCompleteForm {...commonProps} />;
+        if (activity.type === "install_schedule") return <InstallScheduleForm {...commonProps as any} />;
+        if (activity.type === "install_complete") return <InstallCompleteForm {...commonProps as any} />;
+        if (activity.type === "as_schedule") return <AsScheduleForm {...commonProps as any} />;
+        if (activity.type === "as_complete") return <AsCompleteForm {...commonProps as any} />;
+        if (activity.type === "remoteas_complete") return <RemoteAsCompleteForm {...commonProps as any} />;
         return <StandardReportForm {...commonProps} />;
     };
 
