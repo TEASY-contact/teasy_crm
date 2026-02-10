@@ -8,6 +8,9 @@ import { ThinParen } from "@/components/common/ui/BaseAtoms";
 import { useState, useMemo } from "react";
 import { Customer } from "@/types/domain";
 import { CustomerRegistrationModal } from "@/components/features/customer/CustomerRegistrationModal";
+import { BulkImportModal } from "@/components/features/customer/BulkImportModal";
+import { BulkImportResultModal } from "@/components/features/customer/BulkImportResultModal";
+import { useBulkImport, BulkImportResult } from "@/hooks/useBulkImport";
 import { db } from "@/lib/firebase";
 import { collection, getDocs, orderBy, query, doc, deleteDoc } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
@@ -58,6 +61,9 @@ export default function CustomersPage() {
     const toast = useToast();
     const [delConfirmInput, setDelConfirmInput] = useState("");
     const isMaster = userData?.role === 'master';
+    const { isOpen: isBulkOpen, onOpen: onBulkOpen, onClose: onBulkClose } = useDisclosure();
+    const [bulkResult, setBulkResult] = useState<BulkImportResult | null>(null);
+    const { downloadFailedTemplate } = useBulkImport();
 
     const refreshCustomers = async () => {
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -172,7 +178,7 @@ export default function CustomersPage() {
                             >
                                 전체 다운로드
                             </TeasyButton>
-                            <TeasyButton version="secondary" onClick={() => { /* TODO: Implement register */ }} fontWeight="500">
+                            <TeasyButton version="secondary" onClick={onBulkOpen} fontWeight="500">
                                 일괄 등록
                             </TeasyButton>
                         </>
@@ -193,6 +199,17 @@ export default function CustomersPage() {
             </Box>
 
             <CustomerRegistrationModal isOpen={isOpen} onClose={onClose} />
+            <BulkImportModal
+                isOpen={isBulkOpen}
+                onClose={onBulkClose}
+                onResult={(r) => setBulkResult(r)}
+            />
+            <BulkImportResultModal
+                isOpen={!!bulkResult}
+                onClose={() => setBulkResult(null)}
+                result={bulkResult}
+                onDownloadFailed={() => bulkResult?.failedRows && downloadFailedTemplate(bulkResult.failedRows)}
+            />
 
             {/* Delete Confirmation Modal */}
             <TeasyModal isOpen={isDelOpen} onClose={onDelClose} size="sm">
