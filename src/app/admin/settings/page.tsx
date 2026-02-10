@@ -7,7 +7,7 @@ import {
     FormControl, SimpleGrid, useDisclosure,
     Modal, ModalOverlay, ModalContent, ModalHeader,
     ModalBody, ModalFooter, Circle, Center,
-    Icon, Select
+    Icon
 } from "@chakra-ui/react";
 import {
     MdAdd, MdRemove, MdArrowBack, MdMenu
@@ -19,7 +19,6 @@ import {
 } from "@/components/common/UIComponents";
 import { useDistributorMaster, DistributorItem } from "@/hooks/useDistributorMaster";
 import { useAsTypeMaster } from "@/hooks/useAsTypeMaster";
-import { useAutomationConfig } from "@/hooks/useAutomationConfig";
 
 const COLOR_THEMES = [
     { bg: "rgba(107, 70, 193, 0.1)", color: "#6B46C1" }, // Purple
@@ -94,26 +93,6 @@ export default function SettingsPage() {
     const [isRemoteAsProductSubmitting, setIsRemoteAsProductSubmitting] = useState(false);
     const [selectedTarget, setSelectedTarget] = useState<DistributorItem | null>(null);
     const colorDisclosure = useDisclosure();
-
-    const {
-        config: automationConfig,
-        users: automationUsers,
-        isLoading: isAutomationLoading,
-        isSaving: isAutomationSaving,
-        saveConfig: saveAutomationConfig
-    } = useAutomationConfig();
-    const [localBizManager, setLocalBizManager] = useState("");
-    const [localTaxManager, setLocalTaxManager] = useState("");
-    const [automationInitialized, setAutomationInitialized] = useState(false);
-
-    // Sync local state with fetched config
-    React.useEffect(() => {
-        if (!isAutomationLoading && !automationInitialized) {
-            setLocalBizManager(automationConfig.bizLicenseManagerId);
-            setLocalTaxManager(automationConfig.taxInvoiceManagerId);
-            setAutomationInitialized(true);
-        }
-    }, [isAutomationLoading, automationConfig, automationInitialized]);
 
     const renderItem = (item: any, onRemove: (id: string) => void, onColorClick?: () => void, showColor = true) => {
         return (
@@ -513,87 +492,6 @@ export default function SettingsPage() {
                                 </Reorder.Group>
                             )}
                         </Box>
-                    </VStack>
-                </Box>
-                {/* 5. Automation Manager Settings Card */}
-                <Box
-                    bg="white"
-                    p={5}
-                    borderRadius="2xl"
-                    shadow="sm"
-                    border="1px"
-                    borderColor="gray.100"
-                    h="420px"
-                >
-                    <VStack align="stretch" spacing={5} h="full">
-                        <Box borderBottom="1px" borderColor="gray.100" pb={3}>
-                            <Text fontSize="md" fontWeight="bold" color="gray.700">자동화 업무 담당자 설정</Text>
-                        </Box>
-
-                        {isAutomationLoading ? (
-                            <Center flex={1}><Spinner /></Center>
-                        ) : (
-                            <VStack align="stretch" spacing={5} flex={1}>
-                                <FormControl>
-                                    <TeasyFormLabel>사업자등록증 담당자</TeasyFormLabel>
-                                    <Select
-                                        value={localBizManager}
-                                        onChange={(e) => setLocalBizManager(e.target.value)}
-                                        placeholder="담당자 선택"
-                                        size="sm"
-                                        borderRadius="lg"
-                                        bg="gray.50"
-                                        _focus={{ bg: "white", borderColor: "brand.400" }}
-                                    >
-                                        {automationUsers.map(u => (
-                                            <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-                                        ))}
-                                    </Select>
-                                </FormControl>
-
-                                <FormControl>
-                                    <TeasyFormLabel>전자세금계산서 담당자</TeasyFormLabel>
-                                    <Select
-                                        value={localTaxManager}
-                                        onChange={(e) => setLocalTaxManager(e.target.value)}
-                                        placeholder="담당자 선택"
-                                        size="sm"
-                                        borderRadius="lg"
-                                        bg="gray.50"
-                                        _focus={{ bg: "white", borderColor: "brand.400" }}
-                                    >
-                                        {automationUsers.map(u => (
-                                            <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-                                        ))}
-                                    </Select>
-                                </FormControl>
-
-                                <Box flex={1} />
-
-                                <TeasyButton
-                                    version="primary"
-                                    onClick={async () => {
-                                        if (!localBizManager || !localTaxManager) {
-                                            toast({ title: "두 담당자를 모두 선택해주세요.", status: "warning", position: "top" });
-                                            return;
-                                        }
-                                        const success = await saveAutomationConfig({
-                                            bizLicenseManagerId: localBizManager,
-                                            taxInvoiceManagerId: localTaxManager,
-                                        });
-                                        if (success) {
-                                            toast({ title: "담당자 설정이 저장되었습니다.", status: "success", position: "top" });
-                                        } else {
-                                            toast({ title: "저장에 실패했습니다.", status: "error", position: "top" });
-                                        }
-                                    }}
-                                    isLoading={isAutomationSaving}
-                                    w="full"
-                                >
-                                    저장
-                                </TeasyButton>
-                            </VStack>
-                        )}
                     </VStack>
                 </Box>
             </SimpleGrid>
