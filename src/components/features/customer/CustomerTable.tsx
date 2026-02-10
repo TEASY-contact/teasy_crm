@@ -332,7 +332,7 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
                                                 </Box>
                                             </TruncatedTooltip>
                                         </Td>
-                                        <Td px={3} fontSize="sm" color="gray.600" py={2} borderBottom="1px" borderColor="gray.100" whiteSpace="pre-wrap">
+                                        <Td px={3} fontSize="sm" color="gray.600" py={2} borderBottom="1px" borderColor="gray.100" whiteSpace="pre-wrap" textAlign="center">
                                             {(customer.registeredDate || "").replace(/\s+/g, "  ").replace(/\//g, "-")}
                                         </Td>
                                         <Td py={2} px={2} borderBottom="1px" borderColor="gray.100" whiteSpace="nowrap">
