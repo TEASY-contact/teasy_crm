@@ -51,6 +51,40 @@ const TruncatedTooltip = ({ label, children }: { label: string, children: React.
  */
 const HighlightedText = ({ text, query }: { text: string, query: string }) => {
     if (!query || !text) return <>{text}</>;
+
+    // 하이픈 무시 매칭: 검색어와 텍스트 모두 하이픈 제거 후 비교
+    const strippedText = text.replace(/-/g, "");
+    const strippedQuery = query.replace(/-/g, "");
+    const escapedQuery = strippedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = strippedText.match(new RegExp(escapedQuery, 'i'));
+
+    if (match && match.index !== undefined) {
+        // 원본 텍스트에서 매칭 범위를 역추적
+        let origStart = 0, stripped = 0;
+        while (stripped < match.index && origStart < text.length) {
+            if (text[origStart] !== '-') stripped++;
+            origStart++;
+        }
+        let origEnd = origStart, matchLen = 0;
+        while (matchLen < match[0].length && origEnd < text.length) {
+            if (text[origEnd] !== '-') matchLen++;
+            origEnd++;
+        }
+        const before = text.slice(0, origStart);
+        const matched = text.slice(origStart, origEnd);
+        const after = text.slice(origEnd);
+        return (
+            <>
+                {before}
+                <Box as="span" bg="yellow.200" borderRadius="sm" px={0.5} fontWeight="extrabold">
+                    {matched}
+                </Box>
+                {after}
+            </>
+        );
+    }
+
+    // 기본 정확 매칭 (하이픈 포함 일치)
     const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
     return (
         <>
@@ -249,7 +283,7 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
                                         <Td px={3} fontSize="sm" color="gray.600" py={2} borderBottom="1px" borderColor="gray.100" whiteSpace="pre-wrap">
                                             {(customer.registeredDate || "").replace(/\s+/g, "  ").replace(/\//g, "-")}
                                         </Td>
-                                        <Td py={2} borderBottom="1px" borderColor="gray.100" whiteSpace="nowrap">
+                                        <Td py={2} px={2} borderBottom="1px" borderColor="gray.100" whiteSpace="nowrap">
                                             <Flex justify="center" align="center">
                                                 <Link href={`/customers/${customer.id}`}>
                                                     <Badge
