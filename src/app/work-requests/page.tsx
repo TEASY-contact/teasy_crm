@@ -367,7 +367,11 @@ export default function WorkRequestsPage() {
         const isParticipant = req.participants?.includes(userData?.uid || '');
 
         if (req.status === 'approved') {
-            if (isParticipant || (isSystemTask && isMasterOrAdmin)) {
+            // SYSTEM 발신 완료 요청: admin/master만 로그로 볼 수 있음
+            if (isSystemTask) {
+                return isMasterOrAdmin && isWithin3BusinessDays(req.createdAt);
+            }
+            if (isParticipant) {
                 return isWithin3BusinessDays(req.createdAt);
             }
             return false;
