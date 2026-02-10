@@ -5,7 +5,48 @@ import { ThinParen } from "@/components/common/UIComponents";
 /**
  * ModificationHistoryPanel - 수정이력 패널
  * TimelineCard 내 수정이력 로그를 카드 형태로 표시합니다.
+ * 변경 전/후 텍스트를 비교하여 실제 변경된 항목만 볼드로 강조합니다.
  */
+
+/**
+ * 변경 전/후 텍스트를 쉼표 구분 항목 단위로 비교하여,
+ * 달라진 항목만 볼드 처리한 React 노드를 반환합니다.
+ */
+const renderDiffText = (text: string, compareWith: string | undefined): React.ReactNode => {
+    if (!text || text === "없음" || !compareWith || compareWith === "없음") {
+        return <ThinParen text={text || "없음"} />;
+    }
+
+    const items = text.split(", ");
+    const otherItems = compareWith.split(", ");
+
+    // 항목 수가 다르거나 쉼표 구분이 아닌 단일 값이면 전체 비교
+    if (items.length === 1 && otherItems.length === 1) {
+        const changed = text !== compareWith;
+        return changed
+            ? <Box as="span" fontWeight="bold"><ThinParen text={text} /></Box>
+            : <ThinParen text={text} />;
+    }
+
+    return (
+        <>
+            {items.map((item, i) => {
+                const trimmed = item.trim();
+                const isChanged = !otherItems.includes(trimmed);
+                return (
+                    <React.Fragment key={i}>
+                        {i > 0 && ", "}
+                        {isChanged
+                            ? <Box as="span" fontWeight="bold">{trimmed}</Box>
+                            : <>{trimmed}</>
+                        }
+                    </React.Fragment>
+                );
+            })}
+        </>
+    );
+};
+
 export const ModificationHistoryPanel = ({ historyArr }: { historyArr: any[] }) => {
     if (!historyArr || historyArr.length === 0) return null;
 
@@ -55,11 +96,11 @@ export const ModificationHistoryPanel = ({ historyArr }: { historyArr: any[] }) 
                                     </Flex>
                                     <Flex align="baseline" fontSize="sm" color="gray.400" fontWeight="medium">
                                         <Text flexShrink={0}>· 변경 전{"\u00A0"}:{"\u00A0\u00A0"}</Text>
-                                        <Box color="gray.500" fontWeight="light" whiteSpace="pre-wrap"><ThinParen text={log.before || "없음"} /></Box>
+                                        <Box color="gray.500" fontWeight="normal" whiteSpace="pre-wrap">{renderDiffText(log.before || "없음", log.after)}</Box>
                                     </Flex>
                                     <Flex align="baseline" fontSize="sm" color="gray.400" fontWeight="medium">
                                         <Text flexShrink={0}>· 변경 후{"\u00A0"}:{"\u00A0\u00A0"}</Text>
-                                        <Box color="gray.700" fontWeight="medium" whiteSpace="pre-wrap"><ThinParen text={log.after || "없음"} /></Box>
+                                        <Box color="gray.700" fontWeight="normal" whiteSpace="pre-wrap">{renderDiffText(log.after || "없음", log.before)}</Box>
                                     </Flex>
                                 </VStack>
                             </Box>
