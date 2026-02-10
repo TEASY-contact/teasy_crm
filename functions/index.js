@@ -103,3 +103,7 @@ exports.mediaCompressionPipeline = functions
 // --- Scheduled Functions ---
 const { checkTaxInvoice } = require('./scheduled/checkTaxInvoice');
 exports.checkTaxInvoice = checkTaxInvoice;
+
+// --- Firestore Triggers ---
+const { onActivityUpdate } = require('./triggers/onActivityUpdate');
+exports.onActivityUpdate = onActivityUpdate;

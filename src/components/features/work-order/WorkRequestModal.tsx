@@ -76,7 +76,14 @@ const WorkRequestModalContent = ({ onClose, data, currentUser }: { onClose: () =
 
     // --- Status Change Handler ---
     const handleStatusChange = async (requestId: string, newStatus: string, additionalData: any = {}) => {
-        // Execute base change without any automation logic
+        // SYSTEM 발신 요청: '검토 요청' 시 즉시 '최종 승인'으로 처리
+        if (data.senderId === 'TEASY_SYSTEM' && newStatus === 'review_requested') {
+            await baseHandleStatusChange(requestId, 'approved' as any, {
+                ...additionalData,
+                reviewRequestedAt: serverTimestamp(),
+            });
+            return;
+        }
         await baseHandleStatusChange(requestId, newStatus as any, additionalData);
     };
 

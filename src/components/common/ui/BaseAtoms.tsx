@@ -53,32 +53,39 @@ export const ReportBadge = TeasyBadge;
 
 export const TeasyPlaceholderText = (props: TextProps) => <Text fontSize="sm" color="gray.300" textAlign="center" {...props} />;
 
-export const SurnameBadge = ({ name, color, badgeChar, ...props }: any) => (
-    <Center
-        bg={color || "brand.500"}
-        color="white"
-        fontSize="10px"
-        w="18px"
-        h="18px"
-        minW="18px"
-        minH="18px"
-        borderRadius="full"
-        shadow="0 2px 4px rgba(0,0,0,0.12)"
-        fontWeight="bold"
-        border="1px solid rgba(255, 255, 255, 0.4)"
-        p={0}
-        {...props}
-    >
-        <Box
-            as="span"
-            lineHeight="1"
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
+export const SurnameBadge = ({ name, color, badgeChar, ...props }: any) => {
+    // TEASY_SYSTEM 전용 배지: 보라색 배경 + 'T' 텍스트
+    const isSystem = name === 'TEASY_SYSTEM' || name === '시스템';
+    const resolvedColor = isSystem ? 'purple.500' : (color || "brand.500");
+    const resolvedChar = isSystem ? 'T' : (badgeChar || (name ? name[0] : "?"));
+
+    return (
+        <Center
+            bg={resolvedColor}
+            color="white"
+            fontSize="10px"
+            w="18px"
+            h="18px"
+            minW="18px"
+            minH="18px"
+            borderRadius="full"
+            shadow="0 2px 4px rgba(0,0,0,0.12)"
+            fontWeight="bold"
+            border="1px solid rgba(255, 255, 255, 0.4)"
+            p={0}
+            {...props}
         >
-            {badgeChar || (name ? name[0] : "?")}
-        </Box>
-    </Center>
-);
+            <Box
+                as="span"
+                lineHeight="1"
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+            >
+                {resolvedChar}
+            </Box>
+        </Center>
+    );
+};
 
 export const TeasyDivider = (props: any) => <Divider borderColor="gray.100" {...props} />;
