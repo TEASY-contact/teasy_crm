@@ -114,16 +114,18 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
     const isAllSelected = customers.length > 0 && selectedIds.length === customers.length;
     const isIndeterminate = selectedIds.length > 0 && selectedIds.length < customers.length;
 
-    // 연락처 모달 상태
-    const { isOpen: isContactOpen, onOpen: onContactOpen, onClose: onContactClose } = useDisclosure();
-    const [contactTarget, setContactTarget] = useState<{ id: string; phones: string[] } | null>(null);
+    // 프로필 편집 모달 상태 (연락처/주소/보유 상품 공용)
+    const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
+    const [editTarget, setEditTarget] = useState<{ id: string; label: string; field: string; values: string[] } | null>(null);
 
-    const handleContactClick = (customer: Customer) => {
-        setContactTarget({
-            id: customer.id,
-            phones: [customer.phone, ...(customer.sub_phones || [])].filter(Boolean)
-        });
-        onContactOpen();
+    const handleEditClick = (customer: Customer, type: "phone" | "address" | "product") => {
+        const config = {
+            phone: { label: "연락처", field: "phone", values: [customer.phone, ...(customer.sub_phones || [])].filter(Boolean) },
+            address: { label: "주소", field: "address", values: [customer.address, ...(customer.sub_addresses || [])].filter(Boolean) },
+            product: { label: "보유 상품", field: "ownedProducts", values: (customer.ownedProducts || []).filter(Boolean) },
+        };
+        setEditTarget({ id: customer.id, ...config[type] });
+        onEditOpen();
     };
 
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -244,7 +246,7 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
                                                                 _hover={{ color: "brand.500", borderColor: "brand.500", bg: "brand.50" }}
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    handleContactClick(customer);
+                                                                    handleEditClick(customer, "phone");
                                                                 }}
                                                             />
                                                         )}
@@ -253,23 +255,73 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
                                             })()}
                                         </Td>
                                         <Td py={2} fontSize="sm" color="gray.600" borderBottom="1px" borderColor="gray.100" textAlign="left" px={4}>
-                                            <VStack spacing={0} align="start" whiteSpace="nowrap">
-                                                <Box w="full">
-                                                    <HighlightedText text={customer.address} query={searchQuery} />
-                                                </Box>
-                                                {customer.sub_addresses?.map((a, idx) => (
-                                                    <Box key={idx} w="full" color="gray.400" fontSize="sm">
-                                                        <HighlightedText text={a} query={searchQuery} />
-                                                    </Box>
-                                                ))}
-                                            </VStack>
+                                            {(() => {
+                                                const subAddresses = customer.sub_addresses || [];
+                                                const hasMultiple = subAddresses.length > 0;
+                                                const normalizedQuery = searchQuery.replace(/[\s-]/g, "").toLowerCase();
+                                                const primaryMatches = normalizedQuery
+                                                    ? (customer.address || "").replace(/[\s-]/g, "").toLowerCase().includes(normalizedQuery)
+                                                    : true;
+                                                const matchedSub = (!primaryMatches && normalizedQuery)
+                                                    ? subAddresses.find(a => (a || "").replace(/[\s-]/g, "").toLowerCase().includes(normalizedQuery))
+                                                    : undefined;
+                                                const displayAddress = matchedSub || customer.address;
+
+                                                return (
+                                                    <Flex align="center" whiteSpace="nowrap" gap={1}>
+                                                        <Box isTruncated>
+                                                            <HighlightedText text={displayAddress} query={searchQuery} />
+                                                        </Box>
+                                                        {hasMultiple && (
+                                                            <IconButton
+                                                                aria-label="주소 관리"
+                                                                icon={<AddIcon />}
+                                                                size="xs"
+                                                                variant="ghost"
+                                                                isRound
+                                                                color="gray.400"
+                                                                fontSize="8px"
+                                                                minW="18px"
+                                                                h="18px"
+                                                                border="1px"
+                                                                borderColor="gray.300"
+                                                                _hover={{ color: "brand.500", borderColor: "brand.500", bg: "brand.50" }}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleEditClick(customer, "address");
+                                                                }}
+                                                            />
+                                                        )}
+                                                    </Flex>
+                                                );
+                                            })()}
                                         </Td>
                                         <Td py={2} fontSize="sm" color="gray.600" borderBottom="1px" borderColor="gray.100" textAlign="left" px={4}>
-                                            <TruncatedTooltip label={(customer.ownedProducts || []).join(", ") || "-"}>
-                                                <Box as="span" isTruncated display="block">
+                                            <Flex align="center" gap={1}>
+                                                <Box isTruncated>
                                                     <ThinParen text={(customer.ownedProducts || []).join(", ") || "-"} />
                                                 </Box>
-                                            </TruncatedTooltip>
+                                                {(customer.ownedProducts || []).length >= 2 && (
+                                                    <IconButton
+                                                        aria-label="보유 상품 관리"
+                                                        icon={<AddIcon />}
+                                                        size="xs"
+                                                        variant="ghost"
+                                                        isRound
+                                                        color="gray.400"
+                                                        fontSize="8px"
+                                                        minW="18px"
+                                                        h="18px"
+                                                        border="1px"
+                                                        borderColor="gray.300"
+                                                        _hover={{ color: "brand.500", borderColor: "brand.500", bg: "brand.50" }}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleEditClick(customer, "product");
+                                                        }}
+                                                    />
+                                                )}
+                                            </Flex>
                                         </Td>
                                         <Td py={2} fontSize="sm" color="gray.600" borderBottom="1px" borderColor="gray.100" textAlign="center" px={3}>
                                             <TruncatedTooltip label={customer.distributor || "-"}>
@@ -312,15 +364,15 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
                 </Box>
             </Box>
 
-            {/* 연락처 관리 모달 */}
-            {contactTarget && (
+            {/* 프로필 편집 모달 (연락처/주소/보유 상품) */}
+            {editTarget && (
                 <ProfileEditModal
-                    isOpen={isContactOpen}
-                    onClose={onContactClose}
-                    customerId={contactTarget!.id}
-                    label="연락처"
-                    field="phone"
-                    initialValues={contactTarget!.phones}
+                    isOpen={isEditOpen}
+                    onClose={onEditClose}
+                    customerId={editTarget!.id}
+                    label={editTarget!.label}
+                    field={editTarget!.field}
+                    initialValues={editTarget!.values}
                 />
             )}
         </>
