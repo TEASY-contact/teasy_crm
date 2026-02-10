@@ -4,7 +4,8 @@ import { useState, useCallback } from "react";
 import { db } from "@/lib/firebase";
 import {
     writeBatch, doc, collection,
-    getDocs, serverTimestamp, addDoc
+    getDocs, serverTimestamp, addDoc,
+    query, where
 } from "firebase/firestore";
 import { useQueryClient } from "@tanstack/react-query";
 import { REPORT_SHEETS, CUSTOMER_SHEET } from "@/utils/bulkTemplateGenerator";
@@ -462,7 +463,8 @@ export const useBulkImport = () => {
             // 기존 보고서 수 조회 (sequenceNumber 계산)
             for (const docId of new Set(seqToDocId.values())) {
                 try {
-                    const actSnap = await getDocs(collection(db, "customers", docId, "activities"));
+                    const actQ = query(collection(db, "activities"), where("customerId", "==", docId));
+                    const actSnap = await getDocs(actQ);
                     actSnap.docs.forEach(d => {
                         const ad = d.data();
                         const key = `${docId}_${ad.type}`;
@@ -518,7 +520,7 @@ export const useBulkImport = () => {
                 const currentSeqNum = (seqNumMap.get(seqKey) || 0) + 1;
                 seqNumMap.set(seqKey, currentSeqNum);
 
-                const activityRef = doc(collection(db, "customers", customerId, "activities"));
+                const activityRef = doc(collection(db, "activities"));
                 const activity: Record<string, any> = {
                     customerId,
                     customerName,
@@ -527,10 +529,12 @@ export const useBulkImport = () => {
                     sequenceNumber: currentSeqNum,
                     date: dateVal,
                     manager: mgr.uid,
-                    managerName: writer.name,
+                    managerName: mgr.name,
                     managerRole: mgr.role,
                     memo: cellStr(row, "참고 사항"),
                     createdAt: serverTimestamp(),
+                    createdBy: writer.uid,
+                    createdByName: writer.name,
                 };
 
                 // 시트 타입별 추가 필드
@@ -619,7 +623,7 @@ export const useBulkImport = () => {
             // ══════════════════════════════════════════════════════════════════
             // STEP 7: lastConsultDate 업데이트
             // ══════════════════════════════════════════════════════════════════
-            const lcBatch = writeBatch(db);
+            let lcBatch = writeBatch(db);
             let lcCount = 0;
 
             for (const [customerId, latestDate] of latestDateMap.entries()) {
@@ -629,6 +633,7 @@ export const useBulkImport = () => {
                 lcCount++;
                 if (lcCount >= BATCH_LIMIT) {
                     await lcBatch.commit();
+                    lcBatch = writeBatch(db);
                     lcCount = 0;
                 }
             }
