@@ -92,7 +92,7 @@ export const REPORT_SHEETS = [
         widths: [8, 14, 16, 18, 12, 12, 20, 24, 16, 24],
     },
     {
-        name: "방문 A/S 확정",
+        name: "방문 AS 확정",
         activityType: "as_schedule",
         headers: [
             "순번*", "고객명", "연락처",
@@ -103,7 +103,7 @@ export const REPORT_SHEETS = [
         widths: [8, 14, 16, 18, 12, 12, 14, 20, 24, 16, 24],
     },
     {
-        name: "방문 A/S 완료",
+        name: "방문 AS 완료",
         activityType: "as_complete",
         headers: [
             "순번*", "고객명", "연락처",
@@ -114,7 +114,7 @@ export const REPORT_SHEETS = [
         widths: [8, 14, 16, 18, 12, 12, 14, 20, 24, 16, 24, 24],
     },
     {
-        name: "원격 A/S 완료",
+        name: "원격 AS 완료",
         activityType: "remoteas_complete",
         headers: [
             "순번*", "고객명", "연락처",
