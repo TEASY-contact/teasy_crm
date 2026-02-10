@@ -49,17 +49,27 @@ const renderDiffText = (text: string, compareWith: string | undefined, side: "be
             : <ThinParen text={text} />;
     }
 
+    // 제품명 추출 (수량 제거): "EB-L210SWx3" → "EB-L210SW", "빔 프로젝터 × 1" → "빔 프로젝터"
+    const extractItemName = (item: string): string => {
+        return item.replace(/\s*[×x]\s*\d+$/i, "").trim();
+    };
+
+    const otherNames = otherItems.map(o => extractItemName(o.trim()));
+
     // 쉼표 구분 목록 비교
     return (
         <>
             {items.map((item, i) => {
                 const trimmed = item.trim();
                 const isChanged = !otherItems.includes(trimmed);
+                const itemName = extractItemName(trimmed);
+                const nameExistsInOther = otherNames.includes(itemName);
+
                 return (
                     <React.Fragment key={i}>
                         {i > 0 && ", "}
                         {isChanged
-                            ? side === "before"
+                            ? side === "before" && !nameExistsInOther
                                 ? <Box as="span" textDecoration="line-through" color="gray.700">{trimmed}</Box>
                                 : <Box as="span" fontWeight="bold" color="gray.700">{trimmed}</Box>
                             : <>{trimmed}</>
