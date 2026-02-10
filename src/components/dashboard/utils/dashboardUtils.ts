@@ -7,7 +7,6 @@ export const getBadgeInfo = (type: string) => {
     const t = type || "";
 
     const mapping: Record<string, { text: string, color: string }> = {
-        'customer_registered': { text: "신규등록", color: "blue" },
         'inquiry': { text: "신규문의", color: "purple" },
         'demo_schedule': { text: "시연확정", color: "blue" },
         'demo_complete': { text: "시연완료", color: "purple" },

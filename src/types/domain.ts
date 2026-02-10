@@ -83,8 +83,7 @@ export type ActivityType =
     | 'demo_schedule' | 'demo_complete'
     | 'purchase_confirm'
     | 'install_schedule' | 'install_complete'
-    | 'as_schedule' | 'as_complete' | 'remoteas_complete'
-    | 'customer_registered';
+    | 'as_schedule' | 'as_complete' | 'remoteas_complete';
 
 /** 구매확정 제품 선택 */
 export interface SelectedProduct {

@@ -4,8 +4,7 @@ import { getTeasyStandardFileName } from "@/utils/textFormatter";
 export const STEP_LABELS: Record<string, string> = {
     inquiry: "신규 문의", demo_schedule: "시연 확정", demo_complete: "시연 완료",
     purchase_confirm: "구매 확정", install_schedule: "시공 확정", install_complete: "시공 완료",
-    as_schedule: "방문 A/S 확정", as_complete: "방문 A/S 완료", remoteas_complete: "원격 A/S 완료",
-    customer_registered: "고객 등록"
+    as_schedule: "방문 A/S 확정", as_complete: "방문 A/S 완료", remoteas_complete: "원격 A/S 완료"
 };
 
 /**
@@ -14,7 +13,7 @@ export const STEP_LABELS: Record<string, string> = {
 export const getBadgeColor = (type: string) => {
     const t = type || "";
     const mapping: Record<string, string> = {
-        'customer_registered': "blue", 'inquiry': "purple", 'demo_schedule': "blue", 'demo_complete': "purple",
+        'inquiry': "purple", 'demo_schedule': "blue", 'demo_complete': "purple",
         'purchase_confirm': "purple", 'install_schedule': "green", 'install_complete': "purple",
         'as_schedule': "pink", 'as_complete': "purple", 'remoteas_complete': "purple"
     };
