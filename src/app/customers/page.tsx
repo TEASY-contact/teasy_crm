@@ -11,6 +11,7 @@ import { CustomerRegistrationModal } from "@/components/features/customer/Custom
 import { BulkImportModal } from "@/components/features/customer/BulkImportModal";
 import { BulkImportResultModal } from "@/components/features/customer/BulkImportResultModal";
 import { useBulkImport, BulkImportResult } from "@/hooks/useBulkImport";
+import { generateBulkTestData } from "@/utils/bulkTestDataGenerator"; // ⚠️ 임시 — 배포 전 삭제
 import { db } from "@/lib/firebase";
 import { collection, getDocs, orderBy, query, doc, deleteDoc } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
@@ -180,6 +181,18 @@ export default function CustomersPage() {
                             </TeasyButton>
                             <TeasyButton version="secondary" onClick={onBulkOpen} fontWeight="500">
                                 일괄 등록
+                            </TeasyButton>
+                            {/* ⚠️ 임시 테스트 버튼 — 배포 전 삭제 */}
+                            <TeasyButton
+                                version="secondary"
+                                borderColor="orange.300"
+                                color="orange.500"
+                                _hover={{ bg: "orange.50" }}
+                                onClick={() => generateBulkTestData()}
+                                fontWeight="500"
+                                fontSize="sm"
+                            >
+                                🧪 테스트 데이터
                             </TeasyButton>
                         </>
                     )}
