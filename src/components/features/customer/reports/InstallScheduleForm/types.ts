@@ -4,7 +4,7 @@ export type { SelectedItem };
 
 export const INSTALL_SCHEDULE_CONSTANTS = {
     TYPE: "install_schedule",
-    TYPE_NAME: "시공 예약",
+    TYPE_NAME: "시공 확정",
     META_PREFIX: "install",
     MAX_PHOTOS: 10,
     STORAGE_PATH_PREFIX: "install_schedule"
