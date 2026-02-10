@@ -468,7 +468,7 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
                 await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
                 await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
                 await queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
-                toast({ title: "시공 예약 완료", status: "success", duration: 2000, position: "top" });
+                toast({ title: "시공 확정 완료", status: "success", duration: 2000, position: "top" });
                 return true;
             }
             return false;
