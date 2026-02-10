@@ -107,3 +107,6 @@ exports.checkTaxInvoice = checkTaxInvoice;
 // --- Firestore Triggers ---
 const { onActivityUpdate } = require('./triggers/onActivityUpdate');
 exports.onActivityUpdate = onActivityUpdate;
+
+const { onActivityCreate } = require('./triggers/onActivityCreate');
+exports.onActivityCreate = onActivityCreate;

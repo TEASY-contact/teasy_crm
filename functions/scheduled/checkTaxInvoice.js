@@ -135,9 +135,6 @@ const checkTaxInvoice = functions
             const taxManagerName = taxManagerSnap.exists ? taxManagerSnap.data().name : '담당자';
 
             // 6. 전자세금계산서 미등록 보고서 조회
-            //    - type: 'purchase_confirm'
-            //    - payMethod: '입금' (세금계산서 발행 대상)
-            //    - taxInvoice 필드가 없거나 null인 문서
             const activitiesSnap = await db.collection('activities')
                 .where('type', '==', 'purchase_confirm')
                 .where('payMethod', '==', '입금')
@@ -145,14 +142,13 @@ const checkTaxInvoice = functions
 
             const targetActivities = activitiesSnap.docs.filter(doc => {
                 const data = doc.data();
-                // taxInvoice 필드가 없거나 null이면 미등록
                 return !data.taxInvoice;
             });
 
             console.log(`[checkTaxInvoice] 미등록 보고서 ${targetActivities.length}건 발견`);
 
-            // 7. 각 보고서별 처리
-            let firstRequestCount = 0;
+            // 7. 각 보고서별 처리 (2차 이후 SYSTEM 후속 요청만 담당)
+            //    1차 요청은 onActivityCreate/onActivityUpdate 트리거에서 즉시 발송됨
             let followUpCount = 0;
             let skippedCount = 0;
 
@@ -163,6 +159,11 @@ const checkTaxInvoice = functions
                 // 보고서 등록일 (createdAt)
                 const createdAt = actData.createdAt?.toDate ? actData.createdAt.toDate() : new Date(actData.createdAt);
 
+                // 3영업일 경과 확인 (보고서 등록일 포함 3영업일 + 다음날)
+                if (!hasElapsedBusinessDays(createdAt, 3, today, holidaySet)) {
+                    continue; // 아직 3영업일 미경과
+                }
+
                 // 해당 보고서와 연결된 기존 요청서 조회
                 const existingRequests = await db.collection('work_requests')
                     .where('relatedActivityId', '==', activityId)
@@ -170,51 +171,49 @@ const checkTaxInvoice = functions
                     .get();
 
                 if (existingRequests.empty) {
-                    // Case A: 최초 요청 대상 - 3영업일 경과 확인
-                    if (hasElapsedBusinessDays(createdAt, 3, today, holidaySet)) {
-                        await createFirstRequest(activityId, taxManagerId, bizManagerId);
-                        firstRequestCount++;
-                    }
+                    // 1차 요청도 없음 → 트리거가 미발동된 케이스 (안전장치)
+                    continue;
+                }
+
+                // 진행 중인 SYSTEM(tax_biz_delay) 요청이 있는지 확인
+                // 1차(tax_biz_securing)은 별개이므로 체크하지 않음
+                const hasPendingSystemRequest = existingRequests.docs.some(d => {
+                    const data = d.data();
+                    return data.triggerType === 'tax_biz_delay' &&
+                        (data.status === 'pending' || data.status === 'review_requested');
+                });
+
+                if (hasPendingSystemRequest) {
+                    // 이전 SYSTEM 요청이 아직 처리되지 않음 → 발송 안 함
+                    skippedCount++;
                 } else {
-                    // 진행 중인 요청이 있는지 확인
-                    const hasPending = existingRequests.docs.some(d => {
-                        const status = d.data().status;
-                        return status === 'pending' || status === 'review_requested';
-                    });
+                    // 2차+ 후속 SYSTEM 요청 발송
+                    const firstRequest = existingRequests.docs
+                        .filter(d => d.data().triggerType === 'tax_biz_securing')
+                        .sort((a, b) => {
+                            const tA = a.data().createdAt?.toMillis?.() || 0;
+                            const tB = b.data().createdAt?.toMillis?.() || 0;
+                            return tA - tB;
+                        })[0];
 
-                    if (hasPending) {
-                        // Case B: 진행 중인 요청 존재 → 발송 안 함
-                        skippedCount++;
-                    } else {
-                        // Case C: 모든 이전 요청 완료 → 후속 요청 발송
-                        // 1차 요청의 reviewRequestedAt 찾기
-                        const firstRequest = existingRequests.docs
-                            .filter(d => d.data().triggerType === 'tax_biz_securing')
-                            .sort((a, b) => {
-                                const tA = a.data().createdAt?.toMillis?.() || 0;
-                                const tB = b.data().createdAt?.toMillis?.() || 0;
-                                return tA - tB;
-                            })[0];
-
-                        let reviewDateStr = '(날짜 정보 없음)';
-                        if (firstRequest) {
-                            const reviewedAt = firstRequest.data().reviewRequestedAt;
-                            if (reviewedAt) {
-                                const reviewDate = reviewedAt.toDate ? reviewedAt.toDate() : new Date(reviewedAt);
-                                reviewDateStr = formatDateKorean(reviewDate);
-                            }
+                    let reviewDateStr = '(날짜 정보 없음)';
+                    if (firstRequest) {
+                        const reviewedAt = firstRequest.data().reviewRequestedAt;
+                        if (reviewedAt) {
+                            const reviewDate = reviewedAt.toDate ? reviewedAt.toDate() : new Date(reviewedAt);
+                            reviewDateStr = formatDateKorean(reviewDate);
                         }
-
-                        await createFollowUpRequest(
-                            activityId, bizManagerId,
-                            bizManagerName, taxManagerName, reviewDateStr
-                        );
-                        followUpCount++;
                     }
+
+                    await createFollowUpRequest(
+                        activityId, bizManagerId,
+                        bizManagerName, taxManagerName, reviewDateStr
+                    );
+                    followUpCount++;
                 }
             }
 
-            console.log(`[checkTaxInvoice] 완료 - 1차: ${firstRequestCount}건, 후속: ${followUpCount}건, 건너뜀: ${skippedCount}건`);
+            console.log(`[checkTaxInvoice] 완료 - 후속: ${followUpCount}건, 건너뜀: ${skippedCount}건`);
             return null;
 
         } catch (error) {
@@ -223,30 +222,8 @@ const checkTaxInvoice = functions
         }
     });
 
-/**
- * Case A: 1차 요청 발송
- */
-async function createFirstRequest(activityId, senderId, receiverId) {
-    await db.collection('work_requests').add({
-        title: '사업자등록증 확보 요청',
-        content: '전자세금계산서 발행을 위한 사업자등록증 전달 바랍니다.',
-        senderId,
-        receiverId,
-        participants: [senderId, receiverId],
-        status: 'pending',
-        attachments: [],
-        relatedActivityId: activityId,
-        triggerType: 'tax_biz_securing',
-        messages: [],
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        lastReadTimestamp: admin.firestore.FieldValue.serverTimestamp(),
-        readStatus: {
-            [senderId]: true,
-            [receiverId]: false
-        }
-    });
-}
+
+
 
 /**
  * Case C: 후속 요청 발송 (SYSTEM 발신)

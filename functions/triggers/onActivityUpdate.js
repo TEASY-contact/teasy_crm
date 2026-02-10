@@ -5,8 +5,9 @@ const admin = require('firebase-admin');
 const db = admin.firestore();
 
 /**
- * 전자세금계산서가 등록되면, 해당 보고서와 연결된
- * 미완료 업무 요청서(tax_biz_securing, tax_biz_delay)를 자동 완료 처리
+ * activities 문서 업데이트 시 두 가지 자동 처리:
+ * 1. 전자세금계산서 등록 → 미완료 요청서 자동 완료
+ * 2. purchase_confirm + 입금 + 전자세금계산서 미등록 조건 충족 시 → 1차 요청 발송
  */
 const onActivityUpdate = functions
     .region('asia-northeast3')
@@ -17,53 +18,100 @@ const onActivityUpdate = functions
         const after = change.after.data();
         const activityId = context.params.activityId;
 
-        // 1. purchase_confirm 타입만 처리
-        if (after.type !== 'purchase_confirm') return null;
+        // === Case 1: 전자세금계산서 등록 → 미완료 요청 자동 완료 ===
+        if (after.type === 'purchase_confirm') {
+            const hadTaxInvoice = !!before.taxInvoice;
+            const hasTaxInvoice = !!after.taxInvoice;
 
-        // 2. taxInvoice 필드가 '없음 → 있음'으로 변경된 경우만 처리
-        const hadTaxInvoice = !!before.taxInvoice;
-        const hasTaxInvoice = !!after.taxInvoice;
+            if (!hadTaxInvoice && hasTaxInvoice) {
+                console.log(`[onActivityUpdate] 전자세금계산서 등록 감지: ${activityId}`);
 
-        if (hadTaxInvoice || !hasTaxInvoice) {
-            // 이미 있었거나, 여전히 없으면 무시
-            return null;
-        }
+                const requestsSnap = await db.collection('work_requests')
+                    .where('relatedActivityId', '==', activityId)
+                    .where('triggerType', 'in', ['tax_biz_securing', 'tax_biz_delay'])
+                    .get();
 
-        console.log(`[onActivityUpdate] 전자세금계산서 등록 감지: ${activityId}`);
+                if (!requestsSnap.empty) {
+                    const batch = db.batch();
+                    let updatedCount = 0;
 
-        // 3. 해당 보고서와 연결된 미완료 업무 요청서 조회
-        const requestsSnap = await db.collection('work_requests')
-            .where('relatedActivityId', '==', activityId)
-            .where('triggerType', 'in', ['tax_biz_securing', 'tax_biz_delay'])
-            .get();
+                    requestsSnap.docs.forEach(docSnap => {
+                        const data = docSnap.data();
+                        if (data.status === 'pending' || data.status === 'review_requested') {
+                            batch.update(docSnap.ref, {
+                                status: 'approved',
+                                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                autoCompletedByTaxInvoice: true
+                            });
+                            updatedCount++;
+                        }
+                    });
 
-        if (requestsSnap.empty) {
-            console.log('[onActivityUpdate] 연결된 업무 요청서 없음');
-            return null;
-        }
+                    if (updatedCount > 0) {
+                        await batch.commit();
+                        console.log(`[onActivityUpdate] ${updatedCount}건 자동 완료 처리`);
+                    }
+                }
 
-        // 4. 미완료(pending, review_requested) 요청서 → approved로 변경
-        const batch = db.batch();
-        let updatedCount = 0;
-
-        requestsSnap.docs.forEach(docSnap => {
-            const data = docSnap.data();
-            if (data.status === 'pending' || data.status === 'review_requested') {
-                batch.update(docSnap.ref, {
-                    status: 'approved',
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    autoCompletedByTaxInvoice: true // 자동 완료 플래그
-                });
-                updatedCount++;
+                return null;
             }
-        });
+        }
 
-        if (updatedCount > 0) {
-            await batch.commit();
-            console.log(`[onActivityUpdate] ${updatedCount}건 자동 완료 처리`);
+        // === Case 2: purchase_confirm + 입금 + 전자세금계산서 미등록 → 1차 요청 발송 ===
+        // 업데이트 후 이 조건이 새로 충족된 경우에만 처리
+        const wasTarget = before.type === 'purchase_confirm' && before.payMethod === '입금' && !before.taxInvoice;
+        const isTarget = after.type === 'purchase_confirm' && after.payMethod === '입금' && !after.taxInvoice;
+
+        if (isTarget && !wasTarget) {
+            console.log(`[onActivityUpdate] 1차 요청 대상 조건 충족 감지: ${activityId}`);
+
+            // 중복 확인
+            const existingRequests = await db.collection('work_requests')
+                .where('relatedActivityId', '==', activityId)
+                .where('triggerType', 'in', ['tax_biz_securing', 'tax_biz_delay'])
+                .get();
+
+            if (!existingRequests.empty) {
+                console.log('[onActivityUpdate] 이미 요청서 존재 - 건너뜀');
+                return null;
+            }
+
+            // 담당자 설정 조회
+            const settingsSnap = await db.doc('settings/work_managers').get();
+            if (!settingsSnap.exists) return null;
+            const settings = settingsSnap.data();
+            const bizManagerId = settings.bizRegistrationManagerId;
+            const taxManagerId = settings.taxInvoiceManagerId;
+
+            if (!bizManagerId || !taxManagerId) return null;
+
+            // 1차 요청서 발송
+            await db.collection('work_requests').add({
+                title: '사업자등록증 확보 요청',
+                content: '전자세금계산서 발행을 위한 사업자등록증 전달 바랍니다.',
+                senderId: taxManagerId,
+                receiverId: bizManagerId,
+                participants: [taxManagerId, bizManagerId],
+                status: 'pending',
+                attachments: [],
+                relatedActivityId: activityId,
+                triggerType: 'tax_biz_securing',
+                messages: [],
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                lastReadTimestamp: admin.firestore.FieldValue.serverTimestamp(),
+                readStatus: {
+                    [taxManagerId]: true,
+                    [bizManagerId]: false
+                }
+            });
+
+            console.log(`[onActivityUpdate] 1차 요청서 발송 완료: ${activityId}`);
+            return null;
         }
 
         return null;
     });
 
 module.exports = { onActivityUpdate };
+
