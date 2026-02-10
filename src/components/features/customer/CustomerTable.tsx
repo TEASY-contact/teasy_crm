@@ -183,7 +183,10 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
                                                 const hasMultiple = subPhones.length > 0;
                                                 // 검색어가 sub_phones에 매칭되면 해당 번호를 표시
                                                 const normalizedQuery = searchQuery.replace(/[\s-]/g, "").toLowerCase();
-                                                const matchedSub = normalizedQuery
+                                                const primaryMatches = normalizedQuery
+                                                    ? (customer.phone || "").replace(/[\s-]/g, "").toLowerCase().includes(normalizedQuery)
+                                                    : true;
+                                                const matchedSub = (!primaryMatches && normalizedQuery)
                                                     ? subPhones.find(p => (p || "").replace(/[\s-]/g, "").toLowerCase().includes(normalizedQuery))
                                                     : undefined;
                                                 const displayPhone = matchedSub || customer.phone;
