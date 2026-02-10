@@ -1,10 +1,5 @@
-import { SelectedItem } from "../InstallScheduleForm/types";
-export type { SelectedItem };
-
-export interface SymptomItem {
-    text: string;
-    isResolved: boolean;
-}
+import { SelectedItem, SymptomItem } from "@/types/domain";
+export type { SelectedItem, SymptomItem };
 
 export interface RemoteAsCompleteFormHandle {
     submit: (managerOptions: any[]) => Promise<boolean>;

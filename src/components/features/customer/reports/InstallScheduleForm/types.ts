@@ -1,13 +1,6 @@
 // src/components/features/customer/reports/InstallScheduleForm/types.ts
-export interface SelectedItem {
-    id: string; // For supplies: product_id + "_" + supply_id (auto) or supply_id (manual)
-    name: string;
-    quantity: number;
-    category?: string;
-    isAuto?: boolean;
-    linkedId?: string; // Links supply to a specific product
-    isInherited?: boolean;
-}
+import { SelectedItem } from "@/types/domain";
+export type { SelectedItem };
 
 export const INSTALL_SCHEDULE_CONSTANTS = {
     TYPE: "install_schedule",

@@ -1,12 +1,6 @@
 // src/components/features/customer/reports/AsScheduleForm/types.ts
-import { ActivityType } from "@/types/domain";
-
-export interface SelectedItem {
-    id: string;
-    name: string;
-    quantity: number;
-    category?: string;
-}
+import { ActivityType, SelectedItem } from "@/types/domain";
+export type { SelectedItem };
 
 export interface AsScheduleFormData {
     date: string;

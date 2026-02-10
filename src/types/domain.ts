@@ -86,6 +86,40 @@ export type ActivityType =
     | 'as_schedule' | 'as_complete' | 'remoteas_complete'
     | 'customer_registered';
 
+/** 구매확정 제품 선택 */
+export interface SelectedProduct {
+    id: string;
+    name: string;
+    quantity: number;
+    masterId?: string;
+}
+
+/**
+ * 범용 제품/소모품 선택 (시공, A/S)
+ * id: For supplies: product_id + "_" + supply_id (auto) or supply_id (manual)
+ */
+export interface SelectedItem {
+    id: string;
+    name: string;
+    quantity: number;
+    category?: string;
+    isAuto?: boolean;
+    linkedId?: string; // Links supply to a specific product
+    isInherited?: boolean;
+}
+
+/** 체크리스트 항목 (완료폼) */
+export interface ChecklistItem {
+    text: string;
+    completed: boolean;
+}
+
+/** 원격 A/S 증상 항목 */
+export interface SymptomItem {
+    text: string;
+    isResolved: boolean;
+}
+
 export interface ModificationLog {
     time: string;
     manager: string;
@@ -118,10 +152,10 @@ export interface Activity extends BaseDoc {
     discountAmount?: number;
     userId?: string;
     productCategory?: 'product' | 'inventory';
-    selectedProducts?: any[];
-    selectedSupplies?: any[];
-    tasksBefore?: any[];
-    tasksAfter?: any[];
+    selectedProducts?: SelectedProduct[] | SelectedItem[];
+    selectedSupplies?: SelectedItem[];
+    tasksBefore?: string[] | ChecklistItem[];
+    tasksAfter?: string[] | ChecklistItem[];
     incompleteReason?: string;
     deliveryInfo?: DeliveryInfo;
     taxInvoice?: InquiryFile;
@@ -136,8 +170,8 @@ export interface Activity extends BaseDoc {
     discountValue?: string;
 
     // A/S specific
-    symptoms?: any[];
-    tasks?: any[];
+    symptoms?: string[] | ChecklistItem[] | SymptomItem[];
+    tasks?: string[] | ChecklistItem[];
     supportContent?: string;
     symptomIncompleteReason?: string;
     taskIncompleteReason?: string;
@@ -149,7 +183,7 @@ export interface Activity extends BaseDoc {
 
     // Compatibility for work_requests or nested content
     category?: string;
-    content?: any;
+    content?: Record<string, any>;
     modificationHistory?: ModificationLog[];
 }
 

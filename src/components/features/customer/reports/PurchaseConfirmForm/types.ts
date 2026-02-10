@@ -1,12 +1,6 @@
 // src/components/features/customer/reports/PurchaseConfirmForm/types.ts
-import { DeliveryInfo, InquiryFile as TaxInvoiceFile } from "@/types/domain";
-
-export interface SelectedProduct {
-    id: string;
-    name: string;
-    quantity: number;
-    masterId?: string;
-}
+import { DeliveryInfo, InquiryFile as TaxInvoiceFile, SelectedProduct } from "@/types/domain";
+export type { SelectedProduct };
 
 export interface PurchaseFormData {
     date: string;
