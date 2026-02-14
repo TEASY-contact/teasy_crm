@@ -213,19 +213,19 @@ export const ChatCard = ({ userMetadata }: ChatCardProps) => {
             {/* Input Area */}
             <Box
                 px={3}
-                py={2}
+                py="10px"
                 borderTop="1px"
                 borderColor="gray.100"
                 bg="gray.50"
             >
-                <HStack spacing={2}>
+                <HStack spacing={2} mt="-1px">
                     <Input
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder="메시지 입력..."
-                        size="sm"
-                        borderRadius="full"
+                        h="38px"
+                        borderRadius="lg"
                         bg="white"
                         border="1px"
                         borderColor="gray.200"
@@ -237,8 +237,8 @@ export const ChatCard = ({ userMetadata }: ChatCardProps) => {
                         version="primary"
                         onClick={handleSend}
                         isLoading={isSending}
-                        minW="32px"
-                        h="32px"
+                        minW="38px"
+                        h="38px"
                         p={0}
                         borderRadius="full"
                         isDisabled={!inputValue.trim()}
