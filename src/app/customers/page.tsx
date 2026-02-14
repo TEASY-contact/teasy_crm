@@ -122,7 +122,13 @@ export default function CustomersPage() {
             {/* Filter & Actions Section */}
             <Flex align="center" mb={4} px={8} pt={4}>
                 <HStack spacing={4}>
-                    <FilterBar onSearch={setSearchQuery} onSort={setSortBy} currentSort={sortBy} />
+                    <FilterBar
+                        onSearch={setSearchQuery}
+                        onSort={setSortBy}
+                        currentSort={sortBy}
+                        onViewMode={setViewMode}
+                        currentViewMode={viewMode}
+                    />
                     {isMaster && (
                         <HStack spacing={2} ml={2}>
                             <TeasyButton
