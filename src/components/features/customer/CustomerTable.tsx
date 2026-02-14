@@ -21,7 +21,7 @@ import { Customer } from "@/types/domain";
 import Link from "next/link";
 import { ThinParen } from "@/components/common/ui/BaseAtoms";
 import { ProfileEditModal } from "@/components/features/customer/ProfileEditModal";
-import { List as FixedSizeList } from "react-window";
+import { FixedSizeList, ListChildComponentProps } from "react-window";
 
 const ROW_HEIGHT = 45;
 
@@ -149,7 +149,7 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
     const listHeight = Math.min(customers.length * ROW_HEIGHT, typeof window !== 'undefined' ? window.innerHeight - 355 : 600);
 
     // 가상 스크롤 행 렌더러
-    const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => {
+    const Row = ({ index, style }: ListChildComponentProps) => {
         const customer = customers[index];
         return (
             <Flex
@@ -387,7 +387,6 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
                         width="100%"
                         overscanCount={5}
                     >
-                        {/* @ts-expect-error react-window List children type mismatch with @types/react-window */}
                         {Row}
                     </FixedSizeList>
                 )}
