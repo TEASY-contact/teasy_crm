@@ -12,7 +12,7 @@ import { CustomerRegistrationModal } from "@/components/features/customer/Custom
 import { BulkImportModal } from "@/components/features/customer/BulkImportModal";
 import { BulkImportResultModal } from "@/components/features/customer/BulkImportResultModal";
 import { useBulkImport, BulkImportResult } from "@/hooks/useBulkImport";
-import { generateBulkTestData } from "@/utils/bulkTestDataGenerator"; // ⚠️ 임시 — 배포 전 삭제
+
 import { db } from "@/lib/firebase";
 import { doc, deleteDoc } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
@@ -130,7 +130,7 @@ export default function CustomersPage() {
                         onSearch={setSearchQuery}
                         onSort={setSortBy}
                         currentSort={sortBy}
-                        onViewMode={(val) => setViewMode(val as "recent" | "all")}
+                        onViewMode={(val) => { setViewMode(val as "recent" | "all"); setSelectedIds([]); }}
                         currentViewMode={viewMode}
                         currentSearch={searchQuery}
                     />
@@ -175,18 +175,7 @@ export default function CustomersPage() {
                             <TeasyButton version="secondary" onClick={onBulkOpen} fontWeight="500">
                                 일괄 등록
                             </TeasyButton>
-                            {/* ⚠️ 임시 테스트 버튼 — 배포 전 삭제 */}
-                            <TeasyButton
-                                version="secondary"
-                                borderColor="orange.300"
-                                color="orange.500"
-                                _hover={{ bg: "orange.50" }}
-                                onClick={() => generateBulkTestData()}
-                                fontWeight="500"
-                                fontSize="sm"
-                            >
-                                🧪 테스트 데이터
-                            </TeasyButton>
+
                         </>
                     )}
                     <TeasyButton shadow="sm" onClick={onOpen} fontWeight="500">+ 신규 고객 등록</TeasyButton>
