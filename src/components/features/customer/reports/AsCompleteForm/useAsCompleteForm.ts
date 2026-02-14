@@ -163,6 +163,55 @@ export const useAsCompleteForm = ({ customer, activities = [], activityId, initi
         });
     }, []);
 
+    // Attachment management for commitmentFiles, collectionVideo, reinstallationVideo
+    const handleAttachmentUpload = useCallback((files: FileList | null, type: 'commitment' | 'collection_video' | 'reinstall_video') => {
+        if (!files || files.length === 0) return;
+        const fileArr = Array.from(files);
+
+        if (type === 'commitment') {
+            const remaining = 5 - formData.commitmentFiles.length;
+            const toAdd: InquiryFile[] = fileArr.slice(0, remaining).map(f => {
+                const ext = f.name.split('.').pop() || '';
+                const displayName = f.name.replace(/\.[^/.]+$/, '');
+                return {
+                    id: `${Date.now()}_${Math.random().toString(36).substring(7)}`,
+                    name: f.name,
+                    displayName,
+                    ext,
+                    url: URL.createObjectURL(f),
+                    _file: f
+                } as InquiryFile & { _file: File };
+            });
+            setFormData(prev => ({ ...prev, commitmentFiles: [...prev.commitmentFiles, ...toAdd] }));
+        } else if (type === 'collection_video') {
+            const f = fileArr[0];
+            const ext = f.name.split('.').pop() || '';
+            setFormData(prev => ({
+                ...prev,
+                collectionVideo: { id: `${Date.now()}_cv`, name: f.name, displayName: f.name.replace(/\.[^/.]+$/, ''), ext, url: URL.createObjectURL(f), _file: f } as InquiryFile & { _file: File }
+            }));
+        } else if (type === 'reinstall_video') {
+            const f = fileArr[0];
+            const ext = f.name.split('.').pop() || '';
+            setFormData(prev => ({
+                ...prev,
+                reinstallationVideo: { id: `${Date.now()}_rv`, name: f.name, displayName: f.name.replace(/\.[^/.]+$/, ''), ext, url: URL.createObjectURL(f), _file: f } as InquiryFile & { _file: File }
+            }));
+        }
+    }, [formData.commitmentFiles.length]);
+
+    const removeAttachment = useCallback((id: string, type: 'commitment' | 'collection_video' | 'reinstall_video') => {
+        if (type === 'commitment') {
+            setFormData(prev => ({ ...prev, commitmentFiles: prev.commitmentFiles.filter(f => f.id !== id) }));
+        } else if (type === 'collection_video') {
+            setFormData(prev => ({ ...prev, collectionVideo: null }));
+        } else if (type === 'reinstall_video') {
+            setFormData(prev => ({ ...prev, reinstallationVideo: null }));
+        }
+    }, []);
+
+    // Alias toggleTask as toggleCheck for UI compatibility
+    const toggleCheck = toggleTask;
 
 
     const submit = useCallback(async (managerOptions: import("@/types/domain").ManagerOption[]) => {
@@ -607,7 +656,9 @@ export const useAsCompleteForm = ({ customer, activities = [], activityId, initi
 
     return {
         formData, isLoading, pendingFiles, setFormData, handleUpdateQty, handleRemoveItem,
-        toggleTask, handleFileUpload, removePhoto, submit, handleDelete
+        toggleTask, toggleCheck, handleFileUpload, removePhoto,
+        handleAttachmentUpload, removeAttachment,
+        submit, handleDelete
     };
 };
 

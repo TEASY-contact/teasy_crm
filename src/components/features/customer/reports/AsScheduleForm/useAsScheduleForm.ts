@@ -21,6 +21,7 @@ interface UseAsScheduleFormProps {
     activities?: any[];
     activityId?: string;
     initialData?: Partial<AsScheduleFormData>;
+    isReadOnly?: boolean;
     defaultManager?: string;
 }
 
@@ -269,7 +270,7 @@ export const useAsScheduleForm = ({ customer, activities = [], activityId, initi
                     tasks: formData.tasks.filter(t => t && t.trim() !== "").map(t => normalizeText(t)),
                     photos: finalPhotos,
                     memo: applyColonStandard(formData.memo || ""),
-                    updatedAt: serverTimestamp()
+                    updatedAt: serverTimestamp() as any
                 };
 
                 // History (ModificationHistory)
@@ -525,8 +526,51 @@ export const useAsScheduleForm = ({ customer, activities = [], activityId, initi
     }, [activityId, initialData, activities, userData?.role, holidayMap, toast, customer.id, queryClient]);
 
     return {
-        formData, isLoading, pendingFiles, setFormData, handleUpdateQty, handleRemoveItem,
-        addRow, updateRow, removeRow, handleFileUpload, removePhoto, submit, handleDelete
+        formData, isLoading, pendingFiles, setFormData,
+        // Product/Supply management
+        handleAddProduct: (val: string, products: import("@/types/domain").ProductOption[]) => {
+            const selected = products.find(p => p.value === val);
+            if (!selected) return;
+            setFormData(prev => ({
+                ...prev,
+                selectedProducts: [...prev.selectedProducts, { id: `${val}_${Date.now()}`, name: selected.label, quantity: 1, category: selected.category }]
+            }));
+        },
+        handleUpdateQty: (id: string, delta: number) => {
+            setFormData(prev => ({
+                ...prev,
+                selectedProducts: prev.selectedProducts.map(p =>
+                    p.id === id ? { ...p, quantity: Math.max(1, p.quantity + delta) } : p
+                )
+            }));
+        },
+        handleReorder: (newOrder: typeof formData.selectedProducts) => setFormData(prev => ({ ...prev, selectedProducts: newOrder })),
+        handleAddSupply: (val: string, inventoryItems: import("@/types/domain").ProductOption[]) => {
+            const selected = inventoryItems.find(p => p.value === val);
+            if (!selected) return;
+            setFormData(prev => ({
+                ...prev,
+                selectedSupplies: [...prev.selectedSupplies, { id: `${val}_${Date.now()}`, name: selected.label, quantity: 1, category: selected.category }]
+            }));
+        },
+        handleUpdateSupplyQty: (id: string, delta: number) => {
+            setFormData(prev => ({
+                ...prev,
+                selectedSupplies: prev.selectedSupplies.map(s =>
+                    s.id === id ? { ...s, quantity: Math.max(1, s.quantity + delta) } : s
+                )
+            }));
+        },
+        handleReorderSupplies: (newOrder: typeof formData.selectedSupplies) => setFormData(prev => ({ ...prev, selectedSupplies: newOrder })),
+        // Symptom/Task management
+        addSymptom: () => addRow('symptom'),
+        updateSymptom: (index: number, value: string) => updateRow('symptom', index, value),
+        removeSymptom: (index: number) => removeRow('symptom', index),
+        addTask: () => addRow('task'),
+        updateTask: (index: number, value: string) => updateRow('task', index, value),
+        removeTask: (index: number) => removeRow('task', index),
+        // File management
+        handleFileUpload, removePhoto, submit, handleDelete
     };
 };
 

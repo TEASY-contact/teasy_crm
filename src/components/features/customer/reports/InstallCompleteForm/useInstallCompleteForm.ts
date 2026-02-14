@@ -361,7 +361,7 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
                     incompleteReason: [...formData.tasksBefore, ...formData.tasksAfter].every(t => t.completed) ? "" : formData.incompleteReason,
                     photos: finalPhotos,
                     memo: applyColonStandard(formData.memo || ""),
-                    updatedAt: serverTimestamp()
+                    updatedAt: serverTimestamp() as any
                 };
 
                 // History (ModificationHistory)

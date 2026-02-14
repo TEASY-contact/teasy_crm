@@ -497,7 +497,7 @@ export const useRemoteAsCompleteForm = ({
                     supportContent: normalizeText(supportContent),
                     memo: applyColonStandard(formData.memo),
                     photos: finalPhotos,
-                    updatedAt: serverTimestamp()
+                    updatedAt: serverTimestamp() as any
                 };
 
                 if (!activityId) {

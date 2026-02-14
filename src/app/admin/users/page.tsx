@@ -11,6 +11,7 @@ import { PageHeader, TeasyButton, SurnameBadge } from "@/components/common/UICom
 import { db } from "@/lib/firebase";
 import { collection, getDocs, query, orderBy, doc, updateDoc } from "firebase/firestore";
 import { UserData, UserRole } from "@/types/auth";
+import { isTimestamp } from "@/utils/typeGuards";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { UserCreateModal } from "../../../components/features/admin/UserCreateModal";
 import { UserEditModal } from "../../../components/features/admin/UserEditModal";
@@ -151,7 +152,7 @@ export default function UserManagementPage() {
                                 <Tbody>
                                     {filteredUsers.map((user) => {
                                         const isBanned = user.status === 'banned';
-                                        const formattedDate = user.createdAt?.toDate
+                                        const formattedDate = isTimestamp(user.createdAt)
                                             ? user.createdAt.toDate().toISOString().split('T')[0]
                                             : (typeof user.createdAt === 'string' ? user.createdAt.split(' ')[0] : '-');
 

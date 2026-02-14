@@ -63,7 +63,7 @@ export const MainDashboard = () => {
                 return (d.startsWith(dateStr) || d === dateStr) &&
                     ['demo_schedule', 'install_schedule', 'as_schedule'].includes(s.type);
             })
-            .map(s => ({ ...s, region: s.region || extractRegion(s.location) }));
+            .map(s => ({ ...s, region: s.region || extractRegion(s.location || '') }));
     };
 
     const handleScheduleClick = (item: any) => {
@@ -96,7 +96,7 @@ export const MainDashboard = () => {
             return {
                 ...item,
                 isRead: readScheduleIds.has(item.id),
-                region: item.region || extractRegion(item.location),
+                region: item.region || extractRegion(item.location || ''),
                 completed: isCompleted
             };
         });
@@ -293,9 +293,9 @@ export const MainDashboard = () => {
                                         <Box flexShrink={0} minW="fit-content" textAlign="right">
                                             <HStack spacing={2} justify="flex-end">
                                                 <SurnameBadge
-                                                    name={userMetadata[r.createdBy]?.name}
-                                                    badgeChar={userMetadata[r.createdBy]?.badgeChar}
-                                                    color={userMetadata[r.createdBy]?.color}
+                                                    name={userMetadata[r.createdBy || '']?.name}
+                                                    badgeChar={userMetadata[r.createdBy || '']?.badgeChar}
+                                                    color={userMetadata[r.createdBy || '']?.color}
                                                     w="22px"
                                                     h="22px"
                                                     minW="22px"

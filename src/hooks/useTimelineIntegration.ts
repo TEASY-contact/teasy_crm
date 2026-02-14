@@ -27,7 +27,7 @@ export const useTimelineIntegration = () => {
 
             let inventorySnaps: InventorySnap[] = [];
             if (reportData.stepType === 'install_schedule' || reportData.stepType === 'as_schedule') {
-                const items = (reportData.content?.preparedParts as PreparedPart[]) || [];
+                const items = ((reportData.content as any)?.preparedParts as PreparedPart[]) || [];
                 inventorySnaps = await Promise.all(items.map(async (item) => {
                     const itemRef = doc(db, "inventory_items", item.id);
                     const snap = await transaction.get(itemRef);

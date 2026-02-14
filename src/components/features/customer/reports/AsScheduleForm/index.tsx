@@ -496,7 +496,7 @@ export const AsScheduleForm = forwardRef<AsScheduleFormHandle, AsScheduleFormPro
                             photos={formData.photos}
                             isReadOnly={isReadOnly}
                             onAddClick={() => fileInputRef.current?.click()}
-                            onRemoveClick={removePhoto}
+                            onRemoveClick={(idx) => removePhoto(idx, false)}
                             maxPhotos={AS_SCHEDULE_CONSTANTS.MAX_PHOTOS}
                         />
                         <input

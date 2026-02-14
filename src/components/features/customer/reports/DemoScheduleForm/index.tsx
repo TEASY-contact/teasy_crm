@@ -7,7 +7,7 @@ import { applyColonStandard, normalizeText } from "@/utils/textFormatter";
 import { useReportMetadata } from "@/hooks/useReportMetadata";
 import { useDemoScheduleForm } from "./useDemoScheduleForm";
 import { DemoScheduleFormData, DemoScheduleFormHandle } from "./types";
-import { ManagerOption } from "../DemoCompleteForm/types";
+import { ManagerOption } from "@/types/domain";
 
 interface DemoScheduleFormProps {
     customer: { id: string, name: string, address?: string, phone?: string };

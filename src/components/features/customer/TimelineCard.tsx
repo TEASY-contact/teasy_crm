@@ -38,10 +38,10 @@ export const TimelineCard = React.memo(({
     const content = React.useMemo(() => ({ ...item, ...(item.content || {}) }), [item]);
 
     // Optimize file deduplication
-    const sitePhotos = React.useMemo(() => deduplicateFiles(content.photos), [content.photos]);
-    const quotes = React.useMemo(() => deduplicateFiles(content.quotes), [content.quotes]);
-    const recordings = React.useMemo(() => deduplicateFiles(content.recordings), [content.recordings]);
-    const commitments = React.useMemo(() => deduplicateFiles(content.commitmentFiles), [content.commitmentFiles]);
+    const sitePhotos = React.useMemo(() => deduplicateFiles(content.photos || []), [content.photos]);
+    const quotes = React.useMemo(() => deduplicateFiles(content.quotes || []), [content.quotes]);
+    const recordings = React.useMemo(() => deduplicateFiles(content.recordings || []), [content.recordings]);
+    const commitments = React.useMemo(() => deduplicateFiles(content.commitmentFiles || []), [content.commitmentFiles]);
     const collectionVideo = React.useMemo(() => content.collectionVideo ? [content.collectionVideo] : [], [content.collectionVideo]);
     const reinstallVideo = React.useMemo(() => content.reinstallationVideo ? [content.reinstallationVideo] : [], [content.reinstallationVideo]);
 
@@ -148,7 +148,7 @@ export const TimelineCard = React.memo(({
                         )}
                     </VStack>
 
-                    {!isPreview && ((content.memo && content.memo.trim() !== "") || (content.modificationHistory && content.modificationHistory.length > 0) || (content.content?.modificationHistory && content.content?.modificationHistory.length > 0)) && (
+                    {!isPreview && ((content.memo && String(content.memo).trim() !== "") || (content.modificationHistory && content.modificationHistory.length > 0)) && (
                         <Box flex={2} position="relative" minH="250px">
                             <Box position="absolute" top={0} left={0} right={0} bottom={0} bg="gray.50" borderRadius="xl" border="1px" borderColor="gray.100" overflow="hidden" display="flex" flexDirection="column">
                                 <Box overflowY="auto" flex={1} css={{
@@ -168,9 +168,9 @@ export const TimelineCard = React.memo(({
                                         </Box>
                                     )}
 
-                                    {((content.modificationHistory && content.modificationHistory.length > 0) || (content.content?.modificationHistory && content.content?.modificationHistory.length > 0)) && (
-                                        <Box borderTop={content.memo && content.memo.trim() !== "" ? "1px" : "0px"} borderColor="gray.100">
-                                            <ModificationHistoryPanel historyArr={content.modificationHistory || content.content?.modificationHistory || []} />
+                                    {(content.modificationHistory && content.modificationHistory.length > 0) && (
+                                        <Box borderTop={content.memo && String(content.memo).trim() !== "" ? "1px" : "0px"} borderColor="gray.100">
+                                            <ModificationHistoryPanel historyArr={content.modificationHistory || []} />
                                         </Box>
                                     )}
                                 </Box>

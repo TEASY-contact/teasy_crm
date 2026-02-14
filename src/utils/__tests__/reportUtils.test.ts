@@ -33,7 +33,7 @@ describe('deduplicateFiles', () => {
             { name: 'no-url' },
             null,
         ];
-        const result = deduplicateFiles(input);
+        const result = deduplicateFiles(input as any);
         expect(result).toHaveLength(1);
     });
 });
@@ -65,7 +65,7 @@ describe('checkEditPermission', () => {
 
     it('handles Firestore Timestamp-like objects', () => {
         const ts = { toDate: () => new Date() };
-        expect(checkEditPermission({ createdAt: ts, userRole: 'user', holidayMap: {} }))
+        expect(checkEditPermission({ createdAt: ts as any, userRole: 'user', holidayMap: {} }))
             .toEqual({ allowed: true });
     });
 });

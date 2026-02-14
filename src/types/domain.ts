@@ -184,6 +184,11 @@ export interface Activity extends BaseDoc {
     category?: string;
     content?: Record<string, unknown>;
     modificationHistory?: ModificationLog[];
+
+    // Dashboard/Calendar specific
+    region?: string;
+    startTime?: string;
+    name?: string; // alias for customerName in some views
 }
 
 export interface InquiryFile {

@@ -300,7 +300,7 @@ export const useInstallScheduleForm = ({ customer, activities = [], activityId, 
                     tasksAfter: formData.tasksAfter.filter(t => t && t.trim() !== "").map(t => normalizeText(t.trim())),
                     photos: finalPhotos,
                     memo: applyColonStandard(formData.memo || ""),
-                    updatedAt: serverTimestamp()
+                    updatedAt: serverTimestamp() as any
                 };
 
                 // History (ModificationHistory)

@@ -14,6 +14,7 @@ import { useReportMetadata } from "@/hooks/useReportMetadata";
 import { useQuery } from "@tanstack/react-query";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { isTimestamp } from "@/utils/typeGuards";
 import {
     TeasyBadge, SurnameBadge, TeasyDivider, TeasyButton
 } from "@/components/common/UIComponents";
@@ -162,7 +163,7 @@ const RequestCard = ({ request, onClick, isSent, managerResolver, activity }: { 
     const formattedDateTime = (() => {
         if (!request.createdAt) return "";
         try {
-            const date = request.createdAt.toDate ? request.createdAt.toDate() : new Date(request.createdAt);
+            const date = isTimestamp(request.createdAt) ? request.createdAt.toDate() : new Date(request.createdAt as string | number);
             if (isNaN(date.getTime())) return "";
 
             const rY = date.getFullYear();

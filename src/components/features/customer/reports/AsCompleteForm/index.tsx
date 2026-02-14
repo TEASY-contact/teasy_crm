@@ -362,7 +362,7 @@ export const AsCompleteForm = forwardRef<AsCompleteFormHandle, AsCompleteFormPro
                                         </HStack>
                                         <Checkbox
                                             isChecked={item.completed}
-                                            onChange={() => !isReadOnly && toggleCheck('symptoms', idx)}
+                                            onChange={() => !isReadOnly && toggleCheck('symptom', idx)}
                                             isDisabled={isReadOnly}
                                             colorScheme="brand"
                                         />
@@ -422,7 +422,7 @@ export const AsCompleteForm = forwardRef<AsCompleteFormHandle, AsCompleteFormPro
                                         </HStack>
                                         <Checkbox
                                             isChecked={item.completed}
-                                            onChange={() => !isReadOnly && toggleCheck('tasks', idx)}
+                                            onChange={() => !isReadOnly && toggleCheck('task', idx)}
                                             isDisabled={isReadOnly}
                                             colorScheme="brand"
                                         />
@@ -641,7 +641,7 @@ export const AsCompleteForm = forwardRef<AsCompleteFormHandle, AsCompleteFormPro
                 <FormControl isReadOnly={isReadOnly}>
                     <TeasyFormLabel>현장 사진 ({formData.photos.length}/{AS_COMPLETE_CONSTANTS.MAX_PHOTOS})</TeasyFormLabel>
                     <Box p={4} border="1px dashed" borderColor="gray.200" borderRadius="xl" bg="white">
-                        <PhotoGrid photos={formData.photos} isReadOnly={isReadOnly} onAddClick={() => fileInputRef.current?.click()} onRemoveClick={removePhoto} maxPhotos={AS_COMPLETE_CONSTANTS.MAX_PHOTOS} />
+                        <PhotoGrid photos={formData.photos} isReadOnly={isReadOnly} onAddClick={() => fileInputRef.current?.click()} onRemoveClick={(idx) => removePhoto(idx, false)} maxPhotos={AS_COMPLETE_CONSTANTS.MAX_PHOTOS} />
                         <input type="file" multiple accept="image/*" ref={fileInputRef} style={{ display: "none" }} onChange={(e) => e.target.files && (handleFileUpload(e.target.files), e.target.value = '')} />
                     </Box>
                 </FormControl>

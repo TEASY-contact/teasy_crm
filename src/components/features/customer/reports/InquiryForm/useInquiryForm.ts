@@ -257,7 +257,7 @@ export const useInquiryForm = ({ customer, activities = [], activityId, initialD
                     memo: applyColonStandard(formData.memo || ""),
                     recordings: isPhoneInquiry ? finalRecordings : [],
                     quotes: finalQuotes,
-                    updatedAt: serverTimestamp()
+                    updatedAt: serverTimestamp() as any
                 };
 
                 // Sync with Customer Document (Last Consult Date)

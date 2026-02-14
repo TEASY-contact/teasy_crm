@@ -104,7 +104,7 @@ describe('checkEditPermission', () => {
         const now = new Date();
         const firestoreTs = { toDate: () => now };
         const result = checkEditPermission({
-            createdAt: firestoreTs,
+            createdAt: firestoreTs as any,
             userRole: 'employee',
             holidayMap: undefined,
         });

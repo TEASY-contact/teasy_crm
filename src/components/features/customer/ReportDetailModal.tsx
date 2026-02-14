@@ -27,6 +27,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { db } from "@/lib/firebase";
 import { doc, updateDoc } from "firebase/firestore";
+import { isTimestamp } from "@/utils/typeGuards";
 
 interface ReportDetailModalProps {
     isOpen: boolean;
@@ -55,7 +56,7 @@ const ReportDetailModalContent = ({ onClose, customer, activity, activities = []
     const isAdmin = userData?.role === 'admin';
 
     // Business Day Logic (Author/Admin can edit within 3 days)
-    const createdAt = activity.createdAt?.toDate ? activity.createdAt.toDate() : new Date(activity.createdAt || Date.now());
+    const createdAt = isTimestamp(activity.createdAt) ? activity.createdAt.toDate() : new Date(activity.createdAt as string | number || Date.now());
     const isWithinEditTime = isWithinBusinessDays(createdAt, 3, holidayMap);
 
     // Permissions Logic (v124.83)
