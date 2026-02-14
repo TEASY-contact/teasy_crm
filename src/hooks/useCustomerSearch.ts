@@ -1,4 +1,5 @@
-
+// src/hooks/useCustomerSearch.ts
+"use client";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { collection, where, orderBy, getDocs, query as fsQuery } from "firebase/firestore";

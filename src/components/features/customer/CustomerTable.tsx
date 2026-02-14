@@ -25,12 +25,11 @@ import { FixedSizeList, ListChildComponentProps } from "react-window";
 
 const ROW_HEIGHT = 45;
 
-// 반응형 테이블 높이 계산 Hook
+// 반응형 테이블 높이 계산 Hook (SSR 안전)
 const useWindowHeight = () => {
-    const [height, setHeight] = useState(
-        typeof window !== 'undefined' ? window.innerHeight : 800
-    );
+    const [height, setHeight] = useState(800);
     useEffect(() => {
+        setHeight(window.innerHeight);
         const handleResize = () => setHeight(window.innerHeight);
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
