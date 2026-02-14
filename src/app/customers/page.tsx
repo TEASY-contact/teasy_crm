@@ -16,6 +16,7 @@ import { db } from "@/lib/firebase";
 import { collection, getDocs, orderBy, query, doc, deleteDoc } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 
 /**
  * Constants & Utilities: Standardized for Customer Management (v123.78)
