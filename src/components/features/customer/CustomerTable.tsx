@@ -168,7 +168,7 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
                                 </Th>
                                 <Th w="6%" color="gray.500" fontSize="xs" fontWeight="800" borderBottom="1px" borderColor="gray.100" textAlign="center" px={1}>순번</Th>
                                 <Th w="10%" color="gray.500" fontSize="xs" fontWeight="800" borderBottom="1px" borderColor="gray.100" textAlign="left" px={4}>고객명</Th>
-                                <Th w="12%" color="gray.500" fontSize="xs" fontWeight="800" borderBottom="1px" borderColor="gray.100" textAlign="center" px={3}>연락처</Th>
+                                <Th w="12%" color="gray.500" fontSize="xs" fontWeight="800" borderBottom="1px" borderColor="gray.100" textAlign="left" px={4}>연락처</Th>
                                 <Th w="28%" color="gray.500" fontSize="xs" fontWeight="800" borderBottom="1px" borderColor="gray.100" textAlign="left" px={4}>주소</Th>
                                 <Th w="18%" color="gray.500" fontSize="xs" fontWeight="800" borderBottom="1px" borderColor="gray.100" textAlign="left" px={4}>보유 상품</Th>
                                 <Th w="9%" color="gray.500" fontSize="xs" fontWeight="800" borderBottom="1px" borderColor="gray.100" textAlign="center" px={3}>관리 총판</Th>
@@ -213,7 +213,7 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
                                         <Td py={2} fontSize="sm" fontWeight="bold" color="gray.800" borderBottom="1px" borderColor="gray.100" textAlign="left" px={4} whiteSpace="nowrap">
                                             <HighlightedText text={customer.name} query={searchQuery} />
                                         </Td>
-                                        <Td px={3} py={2} fontSize="sm" color="gray.600" borderBottom="1px" borderColor="gray.100" textAlign="center">
+                                        <Td px={4} py={2} fontSize="sm" color="gray.600" borderBottom="1px" borderColor="gray.100" textAlign="left">
                                             {(() => {
                                                 const subPhones = customer.sub_phones || [];
                                                 const hasMultiple = subPhones.length > 0;
@@ -228,7 +228,7 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
                                                 const displayPhone = matchedSub || customer.phone;
 
                                                 return (
-                                                    <Flex align="center" justify="center" whiteSpace="nowrap" gap={1}>
+                                                    <Flex align="center" whiteSpace="nowrap" gap={1}>
                                                         <HighlightedText text={displayPhone} query={searchQuery} />
                                                         {hasMultiple && (
                                                             <IconButton
