@@ -5,7 +5,7 @@ import {
     Box, Flex, Input, VStack, Text, HStack, Spinner, Divider
 } from "@chakra-ui/react";
 import { useChat, ChatMessage } from "@/hooks/useChat";
-import { SurnameBadge, TeasyButton } from "@/components/common/UIComponents";
+import { SurnameBadge, TeasyButton, TeasyPlaceholderText } from "@/components/common/UIComponents";
 import { TeasyCardHeader } from "@/components/common/UIComponents";
 
 const AVATAR_COLORS = ["#805AD5", "#3182CE", "#38A169", "#D69E2E", "#DD6B20", "#E53E3E", "#D53F8C", "#4FD1C5"];
@@ -122,9 +122,7 @@ export const ChatCard = ({ userMetadata, selectedDate }: ChatCardProps) => {
                         </Flex>
                     ) : messages.length === 0 ? (
                         <Flex h="full" align="center" justify="center">
-                            <Text fontSize="xs" color="gray.400" fontWeight="medium">
-                                첫 메시지를 보내보세요!
-                            </Text>
+                            <TeasyPlaceholderText>첫 메시지를 보내보세요!</TeasyPlaceholderText>
                         </Flex>
                     ) : (
                         <VStack spacing={0} w="full" align="stretch">
