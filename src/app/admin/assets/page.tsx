@@ -55,7 +55,8 @@ export default function AssetManagementPage() {
 
                 return getAssetTimestamp(b.createdAt) - getAssetTimestamp(a.createdAt);
             });
-        }
+        },
+        staleTime: 1000 * 60 * 60, // 1시간 캐시
     });
 
     const refreshAssets = async () => {
