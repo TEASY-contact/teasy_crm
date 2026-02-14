@@ -77,7 +77,7 @@ export const useCustomerDetail = (paramsPromise: any) => {
 
     const lastActivityDate = activities.length > 0
         ? activities[activities.length - 1].date
-        : customer?.lastConsultDate;
+        : null;
 
     return {
         id, customer, activities, isLoading, userStatusMap,
