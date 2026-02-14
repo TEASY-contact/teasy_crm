@@ -3,6 +3,7 @@ import { Box, Flex, Grid, GridItem, HStack, Text, SimpleGrid, useDisclosure } fr
 import { useState } from "react";
 import { CalendarBadge } from "./CalendarBadge";
 import { SideStatusCard } from "@/components/dashboard/SideStatusCards";
+import { ChatCard } from "@/components/dashboard/ChatCard";
 import { ReportBadge, TeasyListItem, TeasyButton, SurnameBadge, TeasyList, TeasyListText, TeasyListSubText, ThinParen, TeasyDivider } from "@/components/common/UIComponents";
 import { ReportDetailModal } from "@/components/features/customer/ReportDetailModal";
 import { WorkRequestModal } from "@/components/features/work-order/WorkRequestModal";
@@ -235,11 +236,7 @@ export const MainDashboard = () => {
                             </TeasyList>
                         </SideStatusCard>
 
-                        <SideStatusCard title="업무 채팅" count={0} placeholder="진행 중인 채팅이 없습니다." h="full" isEmpty={true}>
-                            <TeasyList>
-                                {/* Chat items will be rendered here when chat feature is implemented */}
-                            </TeasyList>
-                        </SideStatusCard>
+                        <ChatCard userMetadata={userMetadata} />
                     </Grid>
                 </GridItem>
 
