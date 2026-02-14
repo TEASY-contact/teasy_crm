@@ -126,94 +126,92 @@ export const ChatCard = ({ userMetadata }: ChatCardProps) => {
                             </Text>
                         </Flex>
                     ) : (
-                        <Flex direction="column" minH="full" justifyContent="flex-end">
-                            <VStack spacing={0} w="full" align="stretch">
-                                {messages.map((msg, index) => {
-                                    const isMe = msg.senderId === currentUserId;
-                                    const { color: badgeColor, badgeChar } = getAvatarMetadata(msg.senderId, msg.senderName, userMetadata);
-                                    const currentDate = getSafeDateString(msg.createdAt);
-                                    const prevMsg = index > 0 ? messages[index - 1] : undefined;
-                                    const prevDate = prevMsg ? getSafeDateString(prevMsg.createdAt) : "";
-                                    const showDateDivider = currentDate !== prevDate;
+                        <VStack spacing={0} w="full" align="stretch">
+                            {messages.map((msg, index) => {
+                                const isMe = msg.senderId === currentUserId;
+                                const { color: badgeColor, badgeChar } = getAvatarMetadata(msg.senderId, msg.senderName, userMetadata);
+                                const currentDate = getSafeDateString(msg.createdAt);
+                                const prevMsg = index > 0 ? messages[index - 1] : undefined;
+                                const prevDate = prevMsg ? getSafeDateString(prevMsg.createdAt) : "";
+                                const showDateDivider = currentDate !== prevDate;
 
-                                    return (
-                                        <React.Fragment key={msg.id}>
-                                            {showDateDivider && (
-                                                <Flex align="center" my={6} w="full">
-                                                    <Divider borderColor="gray.200" />
-                                                    <Text px={3} whiteSpace="nowrap" color="gray.400" fontSize="10px" fontWeight="bold">
-                                                        {currentDate}
-                                                    </Text>
-                                                    <Divider borderColor="gray.200" />
-                                                </Flex>
-                                            )}
-                                            <VStack align="stretch" spacing={1} mb={4} w="full">
-                                                <Flex justify={isMe ? "flex-end" : "flex-start"} align="flex-start">
-                                                    <HStack spacing={1} align="flex-start">
-                                                        {/* Time for me (left side) */}
-                                                        {isMe && (
-                                                            <Text fontSize="9px" color="gray.400" whiteSpace="nowrap" fontWeight="medium" mt="auto" mb={1}>
-                                                                {formatCommentTime(msg.createdAt)}
-                                                            </Text>
-                                                        )}
+                                return (
+                                    <React.Fragment key={msg.id}>
+                                        {showDateDivider && (
+                                            <Flex align="center" my={6} w="full">
+                                                <Divider borderColor="gray.200" />
+                                                <Text px={3} whiteSpace="nowrap" color="gray.400" fontSize="10px" fontWeight="bold">
+                                                    {currentDate}
+                                                </Text>
+                                                <Divider borderColor="gray.200" />
+                                            </Flex>
+                                        )}
+                                        <VStack align="stretch" spacing={1} mb={4} w="full">
+                                            <Flex justify={isMe ? "flex-end" : "flex-start"} align="flex-start">
+                                                <HStack spacing={1} align="flex-start">
+                                                    {/* Time for me (left side) */}
+                                                    {isMe && (
+                                                        <Text fontSize="9px" color="gray.400" whiteSpace="nowrap" fontWeight="medium" mt="auto" mb={1}>
+                                                            {formatCommentTime(msg.createdAt)}
+                                                        </Text>
+                                                    )}
 
-                                                        {/* Badge for others (left side) */}
+                                                    {/* Badge for others (left side) */}
+                                                    {!isMe && (
+                                                        <SurnameBadge
+                                                            name={msg.senderName}
+                                                            badgeChar={badgeChar}
+                                                            color={badgeColor}
+                                                            mt={0}
+                                                        />
+                                                    )}
+
+                                                    {/* Message Bubble */}
+                                                    <Box
+                                                        bg={`${badgeColor}15`}
+                                                        backdropFilter="blur(15px)"
+                                                        px={3}
+                                                        py={1.5}
+                                                        maxW="85%"
+                                                        borderRadius={isMe ? "16px 4px 16px 16px" : "4px 16px 16px 16px"}
+                                                        shadow="xs"
+                                                        border="1px solid"
+                                                        borderColor={`${badgeColor}30`}
+                                                    >
+                                                        {/* Sender name for others */}
                                                         {!isMe && (
-                                                            <SurnameBadge
-                                                                name={msg.senderName}
-                                                                badgeChar={badgeChar}
-                                                                color={badgeColor}
-                                                                mt={0}
-                                                            />
-                                                        )}
-
-                                                        {/* Message Bubble */}
-                                                        <Box
-                                                            bg={`${badgeColor}15`}
-                                                            backdropFilter="blur(15px)"
-                                                            px={3}
-                                                            py={1.5}
-                                                            maxW="85%"
-                                                            borderRadius={isMe ? "16px 4px 16px 16px" : "4px 16px 16px 16px"}
-                                                            shadow="xs"
-                                                            border="1px solid"
-                                                            borderColor={`${badgeColor}30`}
-                                                        >
-                                                            {/* Sender name for others */}
-                                                            {!isMe && (
-                                                                <Text fontSize="10px" color="gray.500" fontWeight="600" mb={0.5}>
-                                                                    {userMetadata?.[msg.senderId]?.name || msg.senderName}
-                                                                </Text>
-                                                            )}
-                                                            <Text fontSize="13px" lineHeight="1.5" fontWeight="normal" color="gray.800" whiteSpace="pre-wrap" wordBreak="break-word">
-                                                                {msg.text}
-                                                            </Text>
-                                                        </Box>
-
-                                                        {/* Badge for me (right side) */}
-                                                        {isMe && (
-                                                            <SurnameBadge
-                                                                name={msg.senderName}
-                                                                badgeChar={badgeChar}
-                                                                color={badgeColor}
-                                                                mt={0}
-                                                            />
-                                                        )}
-
-                                                        {/* Time for others (right side) */}
-                                                        {!isMe && (
-                                                            <Text fontSize="9px" color="gray.400" whiteSpace="nowrap" fontWeight="medium" mt="auto" mb={1}>
-                                                                {formatCommentTime(msg.createdAt)}
+                                                            <Text fontSize="10px" color="gray.500" fontWeight="600" mb={0.5}>
+                                                                {userMetadata?.[msg.senderId]?.name || msg.senderName}
                                                             </Text>
                                                         )}
-                                                    </HStack>
-                                                </Flex>
-                                            </VStack>
-                                        </React.Fragment>
-                                    );
-                                })}
-                            </VStack>
-                        </Flex>
+                                                        <Text fontSize="13px" lineHeight="1.5" fontWeight="normal" color="gray.800" whiteSpace="pre-wrap" wordBreak="break-word">
+                                                            {msg.text}
+                                                        </Text>
+                                                    </Box>
+
+                                                    {/* Badge for me (right side) */}
+                                                    {isMe && (
+                                                        <SurnameBadge
+                                                            name={msg.senderName}
+                                                            badgeChar={badgeChar}
+                                                            color={badgeColor}
+                                                            mt={0}
+                                                        />
+                                                    )}
+
+                                                    {/* Time for others (right side) */}
+                                                    {!isMe && (
+                                                        <Text fontSize="9px" color="gray.400" whiteSpace="nowrap" fontWeight="medium" mt="auto" mb={1}>
+                                                            {formatCommentTime(msg.createdAt)}
+                                                        </Text>
+                                                    )}
+                                                </HStack>
+                                            </Flex>
+                                        </VStack>
+                                    </React.Fragment>
+                                );
+                            })}
+                        </VStack>
                     )}
                 </Box>
 
