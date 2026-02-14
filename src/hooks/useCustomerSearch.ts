@@ -8,19 +8,28 @@ import { Customer } from "@/types/domain";
 // 헬퍼: 문자열 정규화 (소문자, 공백/하이픈 제거)
 const normalize = (val: string) => (val || "").toLowerCase().replace(/[-\s]/g, "");
 
+// 헬퍼: 날짜 계산 (N일 전)
+const getPastDateByDays = (days: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return d.toISOString().split('T')[0]; // "YYYY-MM-DD"
+};
+
 // 헬퍼: 날짜 계산 (N개월 전)
 const getPastDate = (months: number) => {
     const d = new Date();
     d.setMonth(d.getMonth() - months);
-    return d.toISOString().split('T')[0]; // "YYYY-MM-DD" 포맷 (문자열 비교용)
+    return d.toISOString().split('T')[0];
 };
 
+type ViewMode = "none" | "week" | "recent" | "all";
+
 interface UseCustomerSearchProps {
-    initialViewMode?: "none" | "recent" | "all";
+    initialViewMode?: ViewMode;
 }
 
-export const useCustomerSearch = ({ initialViewMode = "none" }: UseCustomerSearchProps = {}) => {
-    const [viewMode, setViewMode] = useState<"none" | "recent" | "all">(initialViewMode);
+export const useCustomerSearch = ({ initialViewMode = "week" }: UseCustomerSearchProps = {}) => {
+    const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
     const [searchQuery, setSearchQuery] = useState("");
     const [debouncedQuery, setDebouncedQuery] = useState("");
 
@@ -32,18 +41,48 @@ export const useCustomerSearch = ({ initialViewMode = "none" }: UseCustomerSearc
         return () => clearTimeout(handler);
     }, [searchQuery]);
 
-    // 1. 최근 고객 (기본 뷰)
+    // 1. 최근 1주일 고객 (기본 뷰 & "선택 안함" 뷰)
+    const { data: weekCustomers = [], isLoading: isWeekLoading } = useQuery({
+        queryKey: ["customers", "week"],
+        queryFn: async () => {
+            const oneWeekAgo = getPastDateByDays(7);
+            const qRegister = fsQuery(
+                collection(db, "customers"),
+                where("registeredDate", ">=", oneWeekAgo),
+                orderBy("registeredDate", "desc")
+            );
+            const qActivity = fsQuery(
+                collection(db, "customers"),
+                where("lastConsultDate", ">=", oneWeekAgo),
+                orderBy("lastConsultDate", "desc")
+            );
+
+            const [snapReg, snapAct] = await Promise.all([getDocs(qRegister), getDocs(qActivity)]);
+
+            const map = new Map<string, Customer>();
+            snapReg.docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() } as Customer));
+            snapAct.docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() } as Customer));
+
+            return Array.from(map.values()).sort((a, b) => {
+                const dateA = (a.lastConsultDate || a.registeredDate || "").replace(/\D/g, "");
+                const dateB = (b.lastConsultDate || b.registeredDate || "").replace(/\D/g, "");
+                return dateB.localeCompare(dateA);
+            });
+        },
+        staleTime: 0, // 항상 최신 데이터
+        enabled: (viewMode === "week" || viewMode === "none") && !debouncedQuery
+    });
+
+    // 2. 최근 1개월 고객
     const { data: recentCustomers = [], isLoading: isRecentLoading } = useQuery({
         queryKey: ["customers", "recent"],
         queryFn: async () => {
             const oneMonthAgo = getPastDate(1);
-            // 최근 등록된 고객 (최근 1개월)
             const qRegister = fsQuery(
                 collection(db, "customers"),
                 where("registeredDate", ">=", oneMonthAgo),
                 orderBy("registeredDate", "desc")
             );
-            // 최근 활동(상담) 있는 고객 (최근 1개월)
             const qActivity = fsQuery(
                 collection(db, "customers"),
                 where("lastConsultDate", ">=", oneMonthAgo),
@@ -62,13 +101,12 @@ export const useCustomerSearch = ({ initialViewMode = "none" }: UseCustomerSearc
                 return dateB.localeCompare(dateA);
             });
         },
-        staleTime: 1000 * 60 * 5, // 5분 캐시
-        enabled: viewMode === "recent" && !debouncedQuery // 검색어가 없고 recent 모드일 때만 사용
+        staleTime: 1000 * 60 * 60, // 1시간 캐시
+        enabled: viewMode === "recent" && !debouncedQuery
     });
 
-    // 2. 전체 고객 (ViewMode = 'all' 또는 검색 시 공용)
-    // 검색 모드에서도 동일한 queryKey를 사용하여 캐시 공유
-    const needsAllData = (viewMode === "all" || !!debouncedQuery) && viewMode !== "none";
+    // 3. 전체 고객 (ViewMode = 'all' 또는 검색 시 공용)
+    const needsAllData = viewMode === "all" || (!!debouncedQuery && viewMode !== "none" && viewMode !== "week");
     const { data: allCustomers = [], isLoading: isAllLoading } = useQuery({
         queryKey: ["customers", "all"],
         queryFn: async () => {
@@ -76,18 +114,19 @@ export const useCustomerSearch = ({ initialViewMode = "none" }: UseCustomerSearc
             const snapshot = await getDocs(q);
             return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
         },
-        staleTime: 1000 * 60 * 5,
+        staleTime: 1000 * 60 * 60, // 1시간 캐시
         enabled: needsAllData
     });
 
     const finalData = useMemo(() => {
-        // 0. 선택 안함 모드: 빈 테이블
-        if (viewMode === "none") return [];
-
         // 1. 검색 모드: 전체 데이터에서 클라이언트 필터링
         if (debouncedQuery) {
+            // 검색 시에도 all 데이터가 없으면 현재 뷰 데이터에서 필터링
+            const sourceData = allCustomers.length > 0 ? allCustomers
+                : viewMode === "recent" ? recentCustomers
+                    : weekCustomers;
             const q = normalize(debouncedQuery);
-            return allCustomers.filter(c => {
+            return sourceData.filter(c => {
                 const fields = [
                     c.name, c.phone, ...(c.sub_phones || []),
                     c.address, ...(c.sub_addresses || []),
@@ -103,17 +142,23 @@ export const useCustomerSearch = ({ initialViewMode = "none" }: UseCustomerSearc
             return allCustomers;
         }
 
-        // 3. 최근 항목 모드 (기본)
-        return recentCustomers;
+        // 3. 최근 1개월 모드
+        if (viewMode === "recent") {
+            return recentCustomers;
+        }
 
-    }, [debouncedQuery, viewMode, recentCustomers, allCustomers]);
+        // 4. 최근 1주일 모드 또는 선택 안함 (기본)
+        return weekCustomers;
+
+    }, [debouncedQuery, viewMode, weekCustomers, recentCustomers, allCustomers]);
 
     const isLoading =
         (needsAllData && isAllLoading) ||
-        (viewMode === "recent" && !debouncedQuery && isRecentLoading);
+        (viewMode === "recent" && !debouncedQuery && isRecentLoading) ||
+        ((viewMode === "week" || viewMode === "none") && !debouncedQuery && isWeekLoading);
 
     // 뷰 모드 변경 시 검색어 자동 초기화
-    const handleSetViewMode = (mode: "none" | "recent" | "all") => {
+    const handleSetViewMode = (mode: ViewMode) => {
         setSearchQuery("");
         setViewMode(mode);
     };

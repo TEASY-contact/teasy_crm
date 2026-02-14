@@ -132,7 +132,7 @@ export default function CustomersPage() {
                         onSearch={setSearchQuery}
                         onSort={setSortBy}
                         currentSort={sortBy}
-                        onViewMode={(val) => { setViewMode(val as "none" | "recent" | "all"); setSelectedIds([]); }}
+                        onViewMode={(val) => { setViewMode(val as "none" | "week" | "recent" | "all"); setSelectedIds([]); }}
                         currentViewMode={viewMode}
                         currentSearch={searchQuery}
                     />

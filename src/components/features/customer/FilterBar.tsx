@@ -23,6 +23,7 @@ export const FilterBar = ({ onSearch, onSort, currentSort, onViewMode, currentVi
                 options={[
                     { value: "none", label: "선택 안함" },
                     { value: "divider", label: "", isDivider: true },
+                    { value: "week", label: "최근 1주일" },
                     { value: "recent", label: "최근 1개월" },
                     { value: "all", label: "전체 목록" },
                 ]}
