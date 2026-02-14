@@ -202,6 +202,24 @@ export const useDemoCompleteForm = ({ customer, activities, activityId, initialD
             }
         }
 
+        // Schedule Date Guard: 확정 보고서의 시연 일시 이후에만 완료 보고서 작성 가능
+        if (!activityId) {
+            const lastSchedule = [...(activities || [])].reverse().find(a => a.type === "demo_schedule");
+            if (lastSchedule?.date) {
+                const scheduleTime = new Date(lastSchedule.date.replace(/\s+/g, "T")).getTime();
+                const now = Date.now();
+                if (now < scheduleTime) {
+                    toast({ title: "작성 불가", description: "시연 확정 일시 이후에 완료 보고서를 작성할 수 있습니다.", status: "warning", duration: 3000, position: "top" });
+                    return false;
+                }
+                const completionTime = new Date(formData.date.replace(/\s+/g, "T")).getTime();
+                if (completionTime < scheduleTime) {
+                    toast({ title: "일시 오류", description: "완료 일시는 시연 확정 일시 이후여야 합니다.", status: "warning", duration: 3000, position: "top" });
+                    return false;
+                }
+            }
+        }
+
         // Validation Rule Object
         const validations = [
             { cond: !formData.manager, msg: "담당자를 선택해주세요." },
