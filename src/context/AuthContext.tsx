@@ -57,7 +57,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const isAtLogin = typeof window !== "undefined" && window.location.pathname === "/login";
 
         if (!isConscious && !isAtLogin) {
-            console.log("[AUTH] Unconscious session detected (restore from persistence). Forcing re-login.");
+            console.warn("[AUTH] Unconscious session detected (restore from persistence). Forcing re-login.");
             auth.signOut();
             setUserData(null);
             setLoading(false);

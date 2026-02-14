@@ -4,8 +4,6 @@ import { prepareFiles } from '@/components/features/customer/timeline/TimelineUt
 import { TimelineItem } from '@/types/timeline';
 
 test('TimelineUtils Logic Verification', () => {
-    console.log("🚀 Starting Strict Logic Verification for TimelineUtils...");
-
     // Test Case 1: Standard File Preparation
     const item1: any = {
         customerName: "홍길동",
@@ -44,6 +42,4 @@ test('TimelineUtils Logic Verification', () => {
     // Test Case 4: Null Safety
     const result4 = prepareFiles(null as any, "test", item1);
     expect(result4).toHaveLength(0);
-
-    console.log("🎉 Verification Complete: All assertions passed.");
 });

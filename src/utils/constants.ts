@@ -5,7 +5,6 @@
  * yyyy-MM-dd  HH:mm (Double space standard for CRM)
  */
 export const DATE_FORMAT_STANDARD = "yyyy-MM-dd  HH:mm";
-export const DATE_FORMAT_ONLY = "yyyy-MM-dd";
 
 /**
  * Common Limits
