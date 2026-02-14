@@ -39,17 +39,14 @@ export const useCustomerDetail = (paramsPromise: any) => {
             const snapshot = await getDocs(q);
             const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Activity));
 
-            // Client-side sort: 과거 순 (v123.73 standard)
+            // Client-side sort: 작성 일시(createdAt) 기준 오름차순 — 최신이 아래
             return fetched.sort((a, b) => {
-                const valA = (a.date || "").replace(/\D/g, "");
-                const valB = (b.date || "").replace(/\D/g, "");
-                if (valA !== valB) return valA.localeCompare(valB);
+                const timeA = (a.createdAt as any)?.toDate ? (a.createdAt as any).toDate().getTime() : 0;
+                const timeB = (b.createdAt as any)?.toDate ? (b.createdAt as any).toDate().getTime() : 0;
+                if (timeA !== timeB) return timeA - timeB;
                 const seqA = a.sequenceNumber || 0;
                 const seqB = b.sequenceNumber || 0;
-                if (seqA !== seqB) return seqA - seqB;
-                const timeA = (a.createdAt as any)?.toDate ? (a.createdAt as any).toDate().getTime() : Date.now();
-                const timeB = (b.createdAt as any)?.toDate ? (b.createdAt as any).toDate().getTime() : Date.now();
-                return timeA - timeB;
+                return seqA - seqB;
             });
         },
         enabled: !!id,
