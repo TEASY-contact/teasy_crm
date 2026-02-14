@@ -236,7 +236,7 @@ export const MainDashboard = () => {
                             </TeasyList>
                         </SideStatusCard>
 
-                        <ChatCard userMetadata={userMetadata} />
+                        <ChatCard userMetadata={userMetadata} selectedDate={selectedDate} />
                     </Grid>
                 </GridItem>
 

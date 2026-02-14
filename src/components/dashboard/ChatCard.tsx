@@ -36,10 +36,11 @@ const getSafeDateString = (date: Date | null): string => {
 
 interface ChatCardProps {
     userMetadata?: Record<string, any>;
+    selectedDate: Date;
 }
 
-export const ChatCard = ({ userMetadata }: ChatCardProps) => {
-    const { messages, isLoading, sendMessage, currentUserId } = useChat();
+export const ChatCard = ({ userMetadata, selectedDate }: ChatCardProps) => {
+    const { messages, isLoading, sendMessage, isToday, currentUserId } = useChat(selectedDate);
     const [inputValue, setInputValue] = useState("");
     const [isSending, setIsSending] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -228,38 +229,46 @@ export const ChatCard = ({ userMetadata }: ChatCardProps) => {
                 />
             </Box>
 
-            {/* Input Area — Matching AdminCommentRoom style */}
-            <Box p={3} borderTop="1px" borderColor="gray.50" w="full" bg="white">
-                <HStack spacing={2}>
-                    <Input
-                        placeholder="메세지를 입력하세요."
-                        size="md"
-                        h="42px"
-                        borderRadius="xl"
-                        bg="gray.50"
-                        border="none"
-                        focusBorderColor="brand.500"
-                        fontSize="sm"
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        _placeholder={{ color: "gray.400" }}
-                    />
-                    <TeasyButton
-                        h="42px"
-                        px={5}
-                        borderRadius="xl"
-                        onClick={handleSend}
-                        isLoading={isSending}
-                        isDisabled={!inputValue.trim()}
-                        fontSize="13px"
-                        _hover={{ transform: "none", boxShadow: "none" }}
-                        _active={{ transform: "none", boxShadow: "none" }}
-                    >
-                        전송
-                    </TeasyButton>
-                </HStack>
-            </Box>
+            {/* Input Area */}
+            {isToday ? (
+                <Box p={3} borderTop="1px" borderColor="gray.50" w="full" bg="white">
+                    <HStack spacing={2}>
+                        <Input
+                            placeholder="메세지를 입력하세요."
+                            size="md"
+                            h="42px"
+                            borderRadius="xl"
+                            bg="gray.50"
+                            border="none"
+                            focusBorderColor="brand.500"
+                            fontSize="sm"
+                            value={inputValue}
+                            onChange={(e) => setInputValue(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            _placeholder={{ color: "gray.400" }}
+                        />
+                        <TeasyButton
+                            h="42px"
+                            px={5}
+                            borderRadius="xl"
+                            onClick={handleSend}
+                            isLoading={isSending}
+                            isDisabled={!inputValue.trim()}
+                            fontSize="13px"
+                            _hover={{ transform: "none", boxShadow: "none" }}
+                            _active={{ transform: "none", boxShadow: "none" }}
+                        >
+                            전송
+                        </TeasyButton>
+                    </HStack>
+                </Box>
+            ) : (
+                <Box p={3} borderTop="1px" borderColor="gray.50" w="full" bg="gray.50">
+                    <Text fontSize="xs" color="gray.400" fontWeight="medium" textAlign="center" py={2}>
+                        지난 채팅 기록은 읽기 전용입니다.
+                    </Text>
+                </Box>
+            )}
         </Box>
     );
 };
