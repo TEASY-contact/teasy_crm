@@ -88,7 +88,7 @@ export const AdminCommentRoom = ({ customerId }: { customerId: string }) => {
 
     useEffect(() => {
         if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
         }
     }, [messages]);
 
@@ -165,90 +165,87 @@ export const AdminCommentRoom = ({ customerId }: { customerId: string }) => {
                             <Text fontSize="xs" color="gray.400">등록된 메세지가 없습니다.</Text>
                         </Flex>
                     ) : (
-                        <Flex direction="column" minH="full">
-                            <Box flex={1} /> {/* Spacer pushes content to bottom naturally without glitching */}
-                            <VStack spacing={0} w="full" align="stretch">
-                                {messages.map((msg, index) => {
-                                    const currentUid = userData?.uid || user?.uid || "";
-                                    const isMe = msg.senderId === currentUid;
-                                    const { color: badgeColor, badgeChar } = getAvatarMetadata(msg.senderId, msg.senderName, userMetadata);
-                                    const currentDate = getSafeDateString(msg.createdAt);
-                                    const prevMsg = index > 0 ? messages[index - 1] : null;
-                                    const prevDate = prevMsg ? getSafeDateString(prevMsg.createdAt) : "";
-                                    const showDateDivider = currentDate !== prevDate;
+                        <VStack spacing={0} w="full" align="stretch">
+                            {messages.map((msg, index) => {
+                                const currentUid = userData?.uid || user?.uid || "";
+                                const isMe = msg.senderId === currentUid;
+                                const { color: badgeColor, badgeChar } = getAvatarMetadata(msg.senderId, msg.senderName, userMetadata);
+                                const currentDate = getSafeDateString(msg.createdAt);
+                                const prevMsg = index > 0 ? messages[index - 1] : null;
+                                const prevDate = prevMsg ? getSafeDateString(prevMsg.createdAt) : "";
+                                const showDateDivider = currentDate !== prevDate;
 
-                                    return (
-                                        <React.Fragment key={msg.id}>
-                                            {showDateDivider && (
-                                                <Flex align="center" my={8} w="full">
-                                                    <Divider borderColor="gray.200" />
-                                                    <Text px={4} whiteSpace="nowrap" color="gray.400" fontSize="xs" fontWeight="bold">
-                                                        {currentDate}
-                                                    </Text>
-                                                    <Divider borderColor="gray.200" />
-                                                </Flex>
-                                            )}
-                                            <VStack align="stretch" spacing={1} mb={6} w="full">
-                                                <Flex justify={isMe ? "flex-end" : "flex-start"} align="flex-start">
-                                                    <HStack spacing={1} align="flex-start">
-                                                        {/* Time for isMe (Bottom side) */}
-                                                        {isMe && (
-                                                            <Text fontSize="9px" color="gray.400" whiteSpace="nowrap" fontWeight="medium" mt="auto" mb={1}>
-                                                                {formatCommentTime(msg.createdAt)}
-                                                            </Text>
-                                                        )}
+                                return (
+                                    <React.Fragment key={msg.id}>
+                                        {showDateDivider && (
+                                            <Flex align="center" my={8} w="full">
+                                                <Divider borderColor="gray.200" />
+                                                <Text px={4} whiteSpace="nowrap" color="gray.400" fontSize="xs" fontWeight="bold">
+                                                    {currentDate}
+                                                </Text>
+                                                <Divider borderColor="gray.200" />
+                                            </Flex>
+                                        )}
+                                        <VStack align="stretch" spacing={1} mb={6} w="full">
+                                            <Flex justify={isMe ? "flex-end" : "flex-start"} align="flex-start">
+                                                <HStack spacing={1} align="flex-start">
+                                                    {/* Time for isMe (Bottom side) */}
+                                                    {isMe && (
+                                                        <Text fontSize="9px" color="gray.400" whiteSpace="nowrap" fontWeight="medium" mt="auto" mb={1}>
+                                                            {formatCommentTime(msg.createdAt)}
+                                                        </Text>
+                                                    )}
 
-                                                        {/* Surname Badge for Others (Left side) */}
-                                                        {!isMe && (
-                                                            <SurnameBadge
-                                                                name={msg.senderName}
-                                                                badgeChar={badgeChar}
-                                                                color={badgeColor}
-                                                                mt={0}
-                                                            />
-                                                        )}
+                                                    {/* Surname Badge for Others (Left side) */}
+                                                    {!isMe && (
+                                                        <SurnameBadge
+                                                            name={msg.senderName}
+                                                            badgeChar={badgeChar}
+                                                            color={badgeColor}
+                                                            mt={0}
+                                                        />
+                                                    )}
 
-                                                        {/* Message Bubble (Dynamic Color Series v123.50) */}
-                                                        <Box
-                                                            bg={`${badgeColor}15`} // 15% opacity hex
-                                                            backdropFilter="blur(15px)"
-                                                            px={4}
-                                                            py={1.5}
-                                                            maxW="300px"
-                                                            borderRadius={isMe ? "20px 4px 20px 20px" : "4px 20px 20px 20px"}
-                                                            shadow="xs"
-                                                            border="1px solid"
-                                                            borderColor={`${badgeColor}30`} // 30% opacity hex for border
-                                                        >
-                                                            <Text fontSize="14px" lineHeight="1.6" fontWeight="normal" color="gray.800" whiteSpace="pre-wrap">
-                                                                {applyColonStandard(msg.content)}
-                                                            </Text>
-                                                        </Box>
+                                                    {/* Message Bubble (Dynamic Color Series v123.50) */}
+                                                    <Box
+                                                        bg={`${badgeColor}15`} // 15% opacity hex
+                                                        backdropFilter="blur(15px)"
+                                                        px={4}
+                                                        py={1.5}
+                                                        maxW="300px"
+                                                        borderRadius={isMe ? "20px 4px 20px 20px" : "4px 20px 20px 20px"}
+                                                        shadow="xs"
+                                                        border="1px solid"
+                                                        borderColor={`${badgeColor}30`} // 30% opacity hex for border
+                                                    >
+                                                        <Text fontSize="14px" lineHeight="1.6" fontWeight="normal" color="gray.800" whiteSpace="pre-wrap">
+                                                            {applyColonStandard(msg.content)}
+                                                        </Text>
+                                                    </Box>
 
-                                                        {/* Surname Badge for Me (Right side) */}
-                                                        {isMe && (
-                                                            <SurnameBadge
-                                                                name={msg.senderName}
-                                                                badgeChar={badgeChar}
-                                                                color={badgeColor}
-                                                                mt={0}
-                                                            />
-                                                        )}
+                                                    {/* Surname Badge for Me (Right side) */}
+                                                    {isMe && (
+                                                        <SurnameBadge
+                                                            name={msg.senderName}
+                                                            badgeChar={badgeChar}
+                                                            color={badgeColor}
+                                                            mt={0}
+                                                        />
+                                                    )}
 
-                                                        {/* Time for Others (Bottom side) */}
-                                                        {!isMe && (
-                                                            <Text fontSize="9px" color="gray.400" whiteSpace="nowrap" fontWeight="medium" mt="auto" mb={1}>
-                                                                {formatCommentTime(msg.createdAt)}
-                                                            </Text>
-                                                        )}
-                                                    </HStack>
-                                                </Flex>
-                                            </VStack>
-                                        </React.Fragment>
-                                    );
-                                })}
-                            </VStack>
-                        </Flex>
+                                                    {/* Time for Others (Bottom side) */}
+                                                    {!isMe && (
+                                                        <Text fontSize="9px" color="gray.400" whiteSpace="nowrap" fontWeight="medium" mt="auto" mb={1}>
+                                                            {formatCommentTime(msg.createdAt)}
+                                                        </Text>
+                                                    )}
+                                                </HStack>
+                                            </Flex>
+                                        </VStack>
+                                    </React.Fragment>
+                                );
+                            })}
+                        </VStack>
                     )}
                 </Box>
                 {/* ... (Bottom input area remains same) ... */}
@@ -292,11 +289,13 @@ export const AdminCommentRoom = ({ customerId }: { customerId: string }) => {
                         borderRadius="xl"
                         onClick={handleSendMessage}
                         isDisabled={!inputValue.trim()}
+                        _hover={{ transform: "none", boxShadow: "none" }}
+                        _active={{ transform: "none", boxShadow: "none" }}
                     >
                         전송
                     </TeasyButton>
                 </HStack>
             </Box>
-        </VStack>
+        </VStack >
     );
 };
