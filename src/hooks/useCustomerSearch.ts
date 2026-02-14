@@ -62,7 +62,7 @@ export const useCustomerSearch = ({ initialViewMode = "recent" }: UseCustomerSea
                 return dateB.localeCompare(dateA);
             });
         },
-        staleTime: 1000 * 60 * 5, // 5분 캐시
+        staleTime: 1000 * 60 * 30, // 30분 캐시 (Firebase 비용 최적화)
         enabled: viewMode === "recent" && !debouncedQuery // 검색어가 없을 때만 사용
     });
 
@@ -76,7 +76,7 @@ export const useCustomerSearch = ({ initialViewMode = "recent" }: UseCustomerSea
             const snapshot = await getDocs(q);
             return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
         },
-        staleTime: 1000 * 60 * 5,
+        staleTime: 1000 * 60 * 30,
         enabled: needsAllData
     });
 

@@ -6,7 +6,7 @@ import { FilterBar } from "@/components/features/customer/FilterBar";
 import { CustomerTable } from "@/components/features/customer/CustomerTable";
 import { PageHeader, TeasyButton, TeasyInput, TeasyModal, TeasyModalBody, TeasyModalContent, TeasyModalFooter, TeasyModalHeader, TeasyModalOverlay } from "@/components/common/UIComponents";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useDeferredValue } from "react";
 import { Customer } from "@/types/domain";
 import { CustomerRegistrationModal } from "@/components/features/customer/CustomerRegistrationModal";
 import { BulkImportModal } from "@/components/features/customer/BulkImportModal";
@@ -51,6 +51,8 @@ export default function CustomersPage() {
         searchQuery,
         setSearchQuery
     } = useCustomerSearch();
+
+    const deferredSearch = useDeferredValue(searchQuery);
 
 
     const [sortBy, setSortBy] = useState("none");
@@ -186,7 +188,7 @@ export default function CustomersPage() {
             <Box px={8}>
                 <CustomerTable
                     customers={finalData}
-                    searchQuery={searchQuery}
+                    searchQuery={deferredSearch}
                     selectedIds={selectedIds}
                     setSelectedIds={setSelectedIds}
                     isLoading={isLoading}
