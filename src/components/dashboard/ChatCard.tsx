@@ -2,11 +2,11 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
 import {
-    Box, Flex, Input, VStack, Text, HStack, Spinner, Center
+    Box, Flex, Input, VStack, Text, HStack, Spinner, Center, IconButton
 } from "@chakra-ui/react";
 import { MdSend } from "react-icons/md";
 import { useChat, ChatMessage } from "@/hooks/useChat";
-import { SurnameBadge, TeasyButton } from "@/components/common/UIComponents";
+import { SurnameBadge } from "@/components/common/UIComponents";
 import { TeasyCardHeader } from "@/components/common/UIComponents";
 
 const formatChatTime = (date: Date | null): string => {
@@ -52,9 +52,9 @@ const ChatBubble = ({ message, isOwn, showAvatar, userMetadata }: ChatBubbleProp
         >
             {/* Avatar */}
             <Box w="24px" flexShrink={0}>
-                {showAvatar && !isOwn && (
+                {showAvatar && (
                     <SurnameBadge
-                        name={message.senderName}
+                        name={meta?.name || message.senderName}
                         badgeChar={meta?.badgeChar}
                         color={meta?.color}
                         w="24px"
@@ -72,7 +72,7 @@ const ChatBubble = ({ message, isOwn, showAvatar, userMetadata }: ChatBubbleProp
             >
                 {showAvatar && !isOwn && (
                     <Text fontSize="10px" color="gray.500" fontWeight="600" ml={1}>
-                        {message.senderName}
+                        {meta?.name || message.senderName}
                     </Text>
                 )}
                 <Box
@@ -233,18 +233,18 @@ export const ChatCard = ({ userMetadata }: ChatCardProps) => {
                         _hover={{ borderColor: "gray.300" }}
                         fontSize="13px"
                     />
-                    <TeasyButton
-                        version="primary"
+                    <IconButton
+                        aria-label="메시지 전송"
+                        icon={<MdSend />}
                         onClick={handleSend}
                         isLoading={isSending}
+                        isDisabled={!inputValue.trim()}
+                        colorScheme="brand"
+                        borderRadius="full"
+                        size="sm"
                         minW="38px"
                         h="38px"
-                        p={0}
-                        borderRadius="full"
-                        isDisabled={!inputValue.trim()}
-                    >
-                        <MdSend size={14} />
-                    </TeasyButton>
+                    />
                 </HStack>
             </Box>
         </Box>
