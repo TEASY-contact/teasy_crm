@@ -12,7 +12,6 @@ import { ArrowBackIcon } from "@chakra-ui/icons";
 import {
     TeasyButton,
     TeasyInput,
-    TeasyTextarea,
     TeasyPhoneInput,
     TeasyFormLabel,
     TeasyModalHeader,
