@@ -14,7 +14,7 @@ import { BulkImportResultModal } from "@/components/features/customer/BulkImport
 import { useBulkImport, BulkImportResult } from "@/hooks/useBulkImport";
 
 import { db } from "@/lib/firebase";
-import { doc, deleteDoc } from "firebase/firestore";
+import { doc, deleteDoc, writeBatch } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
@@ -51,8 +51,6 @@ export default function CustomersPage() {
         searchQuery,
         setSearchQuery
     } = useCustomerSearch();
-
-
 
     const [sortBy, setSortBy] = useState("none");
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -92,8 +90,12 @@ export default function CustomersPage() {
         }
 
         try {
-            const promises = selectedIds.map(id => deleteDoc(doc(db, "customers", id)));
-            await Promise.all(promises);
+            // writeBatch로 안전한 대량 삭제 (500건 단위)
+            for (let i = 0; i < selectedIds.length; i += 500) {
+                const batch = writeBatch(db);
+                selectedIds.slice(i, i + 500).forEach(id => batch.delete(doc(db, "customers", id)));
+                await batch.commit();
+            }
             await refreshCustomers();
             toast({ title: "삭제 완료", description: `${selectedIds.length}명의 고객 정보가 삭제되었습니다.`, status: "success" });
             setSelectedIds([]);

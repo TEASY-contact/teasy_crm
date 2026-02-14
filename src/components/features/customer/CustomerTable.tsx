@@ -114,6 +114,95 @@ const HighlightedText = ({ text, query }: { text: string, query: string }) => {
     );
 };
 
+/**
+ * Helper: 연락처 셀 (검색 매칭 + 부번호 표시)
+ */
+interface CellProps {
+    customer: Customer;
+    searchQuery: string;
+    normalizedQuery: string;
+    onEdit: (customer: Customer, type: "phone" | "address" | "product") => void;
+}
+
+const PhoneCell = ({ customer, searchQuery, normalizedQuery, onEdit }: CellProps) => {
+    const subPhones = customer.sub_phones || [];
+    const hasMultiple = subPhones.length > 0;
+    const primaryMatches = normalizedQuery
+        ? (customer.phone || "").replace(/[\s-]/g, "").toLowerCase().includes(normalizedQuery)
+        : true;
+    const matchedSub = (!primaryMatches && normalizedQuery)
+        ? subPhones.find(p => (p || "").replace(/[\s-]/g, "").toLowerCase().includes(normalizedQuery))
+        : undefined;
+    const displayPhone = matchedSub || customer.phone;
+    return (
+        <Flex align="center" whiteSpace="nowrap" gap={1}>
+            <HighlightedText text={displayPhone} query={searchQuery} />
+            {hasMultiple && (
+                <IconButton
+                    aria-label="연락처 관리"
+                    icon={<AddIcon />}
+                    size="xs"
+                    variant="ghost"
+                    isRound
+                    color="gray.400"
+                    fontSize="8px"
+                    minW="18px"
+                    h="18px"
+                    border="1px"
+                    borderColor="gray.300"
+                    _hover={{ color: "brand.500", borderColor: "brand.500", bg: "brand.50" }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit(customer, "phone");
+                    }}
+                />
+            )}
+        </Flex>
+    );
+};
+
+/**
+ * Helper: 주소 셀 (검색 매칭 + 부주소 표시)
+ */
+const AddressCell = ({ customer, searchQuery, normalizedQuery, onEdit }: CellProps) => {
+    const subAddresses = customer.sub_addresses || [];
+    const hasMultiple = subAddresses.length > 0;
+    const primaryMatches = normalizedQuery
+        ? (customer.address || "").replace(/[\s-]/g, "").toLowerCase().includes(normalizedQuery)
+        : true;
+    const matchedSub = (!primaryMatches && normalizedQuery)
+        ? subAddresses.find(a => (a || "").replace(/[\s-]/g, "").toLowerCase().includes(normalizedQuery))
+        : undefined;
+    const displayAddress = matchedSub || customer.address;
+    return (
+        <Flex align="center" whiteSpace="nowrap" gap={1}>
+            <Box isTruncated>
+                <HighlightedText text={displayAddress} query={searchQuery} />
+            </Box>
+            {hasMultiple && (
+                <IconButton
+                    aria-label="주소 관리"
+                    icon={<AddIcon />}
+                    size="xs"
+                    variant="ghost"
+                    isRound
+                    color="gray.400"
+                    fontSize="8px"
+                    minW="18px"
+                    h="18px"
+                    border="1px"
+                    borderColor="gray.300"
+                    _hover={{ color: "brand.500", borderColor: "brand.500", bg: "brand.50" }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit(customer, "address");
+                    }}
+                />
+            )}
+        </Flex>
+    );
+};
+
 interface CustomerTableProps {
     customers: Customer[];
     searchQuery?: string;
@@ -161,6 +250,12 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
     const windowHeight = useWindowHeight();
     const listHeight = Math.min(customers.length * ROW_HEIGHT, windowHeight - 355);
 
+    // 검색어 정규화 (Row 외부에서 1회 계산)
+    const normalizedQuery = React.useMemo(
+        () => searchQuery.replace(/[\s-]/g, "").toLowerCase(),
+        [searchQuery]
+    );
+
     // 가상 스크롤 행 렌더러 (useCallback으로 안정화)
     const Row = useCallback(({ index, style }: ListChildComponentProps) => {
         const customer = customers[index];
@@ -193,91 +288,17 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
                 </Box>
                 {/* 연락처 12% */}
                 <Box w="12%" textAlign="left" px={4} flexShrink={0}>
-                    {(() => {
-                        const subPhones = customer.sub_phones || [];
-                        const hasMultiple = subPhones.length > 0;
-                        const normalizedQuery = searchQuery.replace(/[\s-]/g, "").toLowerCase();
-                        const primaryMatches = normalizedQuery
-                            ? (customer.phone || "").replace(/[\s-]/g, "").toLowerCase().includes(normalizedQuery)
-                            : true;
-                        const matchedSub = (!primaryMatches && normalizedQuery)
-                            ? subPhones.find(p => (p || "").replace(/[\s-]/g, "").toLowerCase().includes(normalizedQuery))
-                            : undefined;
-                        const displayPhone = matchedSub || customer.phone;
-                        return (
-                            <Flex align="center" whiteSpace="nowrap" gap={1}>
-                                <HighlightedText text={displayPhone} query={searchQuery} />
-                                {hasMultiple && (
-                                    <IconButton
-                                        aria-label="연락처 관리"
-                                        icon={<AddIcon />}
-                                        size="xs"
-                                        variant="ghost"
-                                        isRound
-                                        color="gray.400"
-                                        fontSize="8px"
-                                        minW="18px"
-                                        h="18px"
-                                        border="1px"
-                                        borderColor="gray.300"
-                                        _hover={{ color: "brand.500", borderColor: "brand.500", bg: "brand.50" }}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleEditClick(customer, "phone");
-                                        }}
-                                    />
-                                )}
-                            </Flex>
-                        );
-                    })()}
+                    <PhoneCell customer={customer} searchQuery={searchQuery} normalizedQuery={normalizedQuery} onEdit={handleEditClick} />
                 </Box>
                 {/* 주소 28% */}
                 <Box w="28%" textAlign="left" px={4} flexShrink={0}>
-                    {(() => {
-                        const subAddresses = customer.sub_addresses || [];
-                        const hasMultiple = subAddresses.length > 0;
-                        const normalizedQuery = searchQuery.replace(/[\s-]/g, "").toLowerCase();
-                        const primaryMatches = normalizedQuery
-                            ? (customer.address || "").replace(/[\s-]/g, "").toLowerCase().includes(normalizedQuery)
-                            : true;
-                        const matchedSub = (!primaryMatches && normalizedQuery)
-                            ? subAddresses.find(a => (a || "").replace(/[\s-]/g, "").toLowerCase().includes(normalizedQuery))
-                            : undefined;
-                        const displayAddress = matchedSub || customer.address;
-                        return (
-                            <Flex align="center" whiteSpace="nowrap" gap={1}>
-                                <Box isTruncated>
-                                    <HighlightedText text={displayAddress} query={searchQuery} />
-                                </Box>
-                                {hasMultiple && (
-                                    <IconButton
-                                        aria-label="주소 관리"
-                                        icon={<AddIcon />}
-                                        size="xs"
-                                        variant="ghost"
-                                        isRound
-                                        color="gray.400"
-                                        fontSize="8px"
-                                        minW="18px"
-                                        h="18px"
-                                        border="1px"
-                                        borderColor="gray.300"
-                                        _hover={{ color: "brand.500", borderColor: "brand.500", bg: "brand.50" }}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleEditClick(customer, "address");
-                                        }}
-                                    />
-                                )}
-                            </Flex>
-                        );
-                    })()}
+                    <AddressCell customer={customer} searchQuery={searchQuery} normalizedQuery={normalizedQuery} onEdit={handleEditClick} />
                 </Box>
                 {/* 보유 상품 18% */}
                 <Box w="18%" textAlign="left" px={4} flexShrink={0}>
                     <Flex align="center" gap={1}>
                         <Box isTruncated>
-                            <ThinParen text={(customer.ownedProducts || []).join(", ") || "-"} />
+                            <HighlightedText text={(customer.ownedProducts || []).join(", ") || "-"} query={searchQuery} />
                         </Box>
                         {(customer.ownedProducts || []).length >= 2 && (
                             <IconButton
@@ -339,7 +360,7 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
                 </Box>
             </Flex>
         );
-    }, [customers, selectedIds, searchQuery, handleSelectItem, handleEditClick]);
+    }, [customers, selectedIds, searchQuery, normalizedQuery, handleSelectItem, handleEditClick]);
 
     return (
         <>
@@ -410,10 +431,10 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
                 <ProfileEditModal
                     isOpen={isEditOpen}
                     onClose={onEditClose}
-                    customerId={editTarget!.id}
-                    label={editTarget!.label}
-                    field={editTarget!.field}
-                    initialValues={editTarget!.values}
+                    customerId={editTarget?.id || ""}
+                    label={editTarget?.label || ""}
+                    field={editTarget?.field || ""}
+                    initialValues={editTarget?.values || []}
                 />
             )}
         </>

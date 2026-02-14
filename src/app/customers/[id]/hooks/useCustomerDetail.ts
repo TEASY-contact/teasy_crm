@@ -27,7 +27,8 @@ export const useCustomerDetail = (paramsPromise: any) => {
             const statuses: Record<string, string> = {};
             snapshot.docs.forEach(d => { statuses[d.id] = d.data().status || 'active'; });
             return statuses;
-        }
+        },
+        staleTime: 1000 * 60 * 5, // 5분 캐시
     });
 
     // 3. Activity timeline
@@ -51,7 +52,8 @@ export const useCustomerDetail = (paramsPromise: any) => {
                 return timeA - timeB;
             });
         },
-        enabled: !!id
+        enabled: !!id,
+        staleTime: 1000 * 60 * 5, // 5분 캐시
     });
 
     const isLoading = isCustLoading || isActLoading;

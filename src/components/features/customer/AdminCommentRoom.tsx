@@ -109,10 +109,13 @@ export const AdminCommentRoom = ({ customerId }: { customerId: string }) => {
                 senderName: myName,
                 createdAt: serverTimestamp(),
             });
-
             // 채팅 메시지 전송 시 lastConsultDate 갱신 → 최근 1주일 목록 포함
-            const today = new Date().toISOString().split('T')[0];
-            await updateDoc(doc(db, "customers", customerId), { lastConsultDate: today });
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                await updateDoc(doc(db, "customers", customerId), { lastConsultDate: today });
+            } catch (updateErr) {
+                console.warn("lastConsultDate 갱신 실패 (메시지는 정상 전송됨):", updateErr);
+            }
         } catch (error) {
             console.error("Message send error:", error);
         }
