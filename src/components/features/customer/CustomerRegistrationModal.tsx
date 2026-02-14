@@ -6,7 +6,8 @@ import {
     VStack,
     useToast,
     Box,
-    IconButton
+    IconButton,
+    Textarea
 } from "@chakra-ui/react";
 import { ArrowBackIcon } from "@chakra-ui/icons";
 import {
@@ -38,8 +39,7 @@ const CustomerRegistrationModalContent = ({ onClose }: { onClose: () => void }) 
     const [phone, setPhone] = useState("");
     const [address, setAddress] = useState("");
     const [distributor, setDistributor] = useState("");
-    const [license, setLicense] = useState("");
-    const [notes, setNotes] = useState("");
+    const [memo, setMemo] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const queryClient = useQueryClient();
     const toast = useToast();
@@ -72,13 +72,13 @@ const CustomerRegistrationModalContent = ({ onClose }: { onClose: () => void }) 
         setIsLoading(true);
 
         try {
-            await addDoc(collection(db, "customers"), {
+            const docRef = await addDoc(collection(db, "customers"), {
                 name,
                 phone,
                 address,
                 distributor,
-                license: license || "",
-                notes: notes || "",
+                license: "",
+                notes: memo || "",
                 sub_phones: [],
                 sub_addresses: [],
                 ownedProducts: [],
@@ -89,6 +89,17 @@ const CustomerRegistrationModalContent = ({ onClose }: { onClose: () => void }) 
                 isLocked: false,
                 lockedBy: null
             });
+
+            // 참고 사항 → 채팅 메시지 자동 생성 (일괄 등록과 동일 구조)
+            if (memo.trim()) {
+                await addDoc(collection(db, "customer_comments"), {
+                    customerId: docRef.id,
+                    content: memo.trim(),
+                    senderId: "TEASY_SYSTEM",
+                    senderName: "시스템",
+                    createdAt: serverTimestamp(),
+                });
+            }
 
             toast({
                 title: "등록 성공",
@@ -177,6 +188,19 @@ const CustomerRegistrationModalContent = ({ onClose }: { onClose: () => void }) 
                                 { value: "뷰라클", label: "뷰라클" },
                             ]}
                             placeholder="선택"
+                        />
+                    </FormControl>
+                    <FormControl>
+                        <TeasyFormLabel>참고 사항</TeasyFormLabel>
+                        <Textarea
+                            placeholder="고객 관련 참고 사항을 입력하세요"
+                            value={memo}
+                            onChange={(e) => setMemo(e.target.value)}
+                            size="sm"
+                            borderRadius="lg"
+                            focusBorderColor="brand.500"
+                            rows={3}
+                            resize="vertical"
                         />
                     </FormControl>
                 </VStack>

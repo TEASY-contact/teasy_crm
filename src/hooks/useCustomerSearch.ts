@@ -12,7 +12,7 @@ const normalize = (val: string) => (val || "").toLowerCase().replace(/[-\s]/g, "
 const getPastDateByDays = (days: number) => {
     const d = new Date();
     d.setDate(d.getDate() - days);
-    return d.toISOString().split('T')[0]; // "YYYY-MM-DD"
+    return d.toISOString().split('T')[0];
 };
 
 // 헬퍼: 날짜 계산 (N개월 전)
@@ -20,6 +20,32 @@ const getPastDate = (months: number) => {
     const d = new Date();
     d.setMonth(d.getMonth() - months);
     return d.toISOString().split('T')[0];
+};
+
+// 공통: 날짜 범위 기반 고객 조회 (등록일 + 최근 활동일 합산)
+const fetchCustomersByDateRange = async (sinceDate: string): Promise<Customer[]> => {
+    const qRegister = fsQuery(
+        collection(db, "customers"),
+        where("registeredDate", ">=", sinceDate),
+        orderBy("registeredDate", "desc")
+    );
+    const qActivity = fsQuery(
+        collection(db, "customers"),
+        where("lastConsultDate", ">=", sinceDate),
+        orderBy("lastConsultDate", "desc")
+    );
+
+    const [snapReg, snapAct] = await Promise.all([getDocs(qRegister), getDocs(qActivity)]);
+
+    const map = new Map<string, Customer>();
+    snapReg.docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() } as Customer));
+    snapAct.docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() } as Customer));
+
+    return Array.from(map.values()).sort((a, b) => {
+        const dateA = (a.lastConsultDate || a.registeredDate || "").replace(/\D/g, "");
+        const dateB = (b.lastConsultDate || b.registeredDate || "").replace(/\D/g, "");
+        return dateB.localeCompare(dateA);
+    });
 };
 
 type ViewMode = "none" | "week" | "recent" | "all";
@@ -44,31 +70,7 @@ export const useCustomerSearch = ({ initialViewMode = "week" }: UseCustomerSearc
     // 1. 최근 1주일 고객 (기본 뷰 & "선택 안함" 뷰)
     const { data: weekCustomers = [], isLoading: isWeekLoading } = useQuery({
         queryKey: ["customers", "week"],
-        queryFn: async () => {
-            const oneWeekAgo = getPastDateByDays(7);
-            const qRegister = fsQuery(
-                collection(db, "customers"),
-                where("registeredDate", ">=", oneWeekAgo),
-                orderBy("registeredDate", "desc")
-            );
-            const qActivity = fsQuery(
-                collection(db, "customers"),
-                where("lastConsultDate", ">=", oneWeekAgo),
-                orderBy("lastConsultDate", "desc")
-            );
-
-            const [snapReg, snapAct] = await Promise.all([getDocs(qRegister), getDocs(qActivity)]);
-
-            const map = new Map<string, Customer>();
-            snapReg.docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() } as Customer));
-            snapAct.docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() } as Customer));
-
-            return Array.from(map.values()).sort((a, b) => {
-                const dateA = (a.lastConsultDate || a.registeredDate || "").replace(/\D/g, "");
-                const dateB = (b.lastConsultDate || b.registeredDate || "").replace(/\D/g, "");
-                return dateB.localeCompare(dateA);
-            });
-        },
+        queryFn: () => fetchCustomersByDateRange(getPastDateByDays(7)),
         staleTime: 0, // 항상 최신 데이터
         enabled: (viewMode === "week" || viewMode === "none") && !debouncedQuery
     });
@@ -76,31 +78,7 @@ export const useCustomerSearch = ({ initialViewMode = "week" }: UseCustomerSearc
     // 2. 최근 1개월 고객
     const { data: recentCustomers = [], isLoading: isRecentLoading } = useQuery({
         queryKey: ["customers", "recent"],
-        queryFn: async () => {
-            const oneMonthAgo = getPastDate(1);
-            const qRegister = fsQuery(
-                collection(db, "customers"),
-                where("registeredDate", ">=", oneMonthAgo),
-                orderBy("registeredDate", "desc")
-            );
-            const qActivity = fsQuery(
-                collection(db, "customers"),
-                where("lastConsultDate", ">=", oneMonthAgo),
-                orderBy("lastConsultDate", "desc")
-            );
-
-            const [snapReg, snapAct] = await Promise.all([getDocs(qRegister), getDocs(qActivity)]);
-
-            const map = new Map<string, Customer>();
-            snapReg.docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() } as Customer));
-            snapAct.docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() } as Customer));
-
-            return Array.from(map.values()).sort((a, b) => {
-                const dateA = (a.lastConsultDate || a.registeredDate || "").replace(/\D/g, "");
-                const dateB = (b.lastConsultDate || b.registeredDate || "").replace(/\D/g, "");
-                return dateB.localeCompare(dateA);
-            });
-        },
+        queryFn: () => fetchCustomersByDateRange(getPastDate(1)),
         staleTime: 1000 * 60 * 60, // 1시간 캐시
         enabled: viewMode === "recent" && !debouncedQuery
     });
@@ -121,7 +99,6 @@ export const useCustomerSearch = ({ initialViewMode = "week" }: UseCustomerSearc
     const finalData = useMemo(() => {
         // 1. 검색 모드: 전체 데이터에서 클라이언트 필터링
         if (debouncedQuery) {
-            // 검색 시 전체 데이터 기반 필터링
             const q = normalize(debouncedQuery);
             return allCustomers.filter(c => {
                 const fields = [
@@ -135,14 +112,10 @@ export const useCustomerSearch = ({ initialViewMode = "week" }: UseCustomerSearc
         }
 
         // 2. 전체 보기 모드
-        if (viewMode === "all") {
-            return allCustomers;
-        }
+        if (viewMode === "all") return allCustomers;
 
         // 3. 최근 1개월 모드
-        if (viewMode === "recent") {
-            return recentCustomers;
-        }
+        if (viewMode === "recent") return recentCustomers;
 
         // 4. 최근 1주일 모드 또는 선택 안함 (기본)
         return weekCustomers;

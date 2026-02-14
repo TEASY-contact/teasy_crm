@@ -1,12 +1,12 @@
 // src/app/customers/page.tsx
 "use client";
-import { Box, Flex, Spacer, useDisclosure, HStack, Badge, Text, VStack, useToast } from "@chakra-ui/react";
+import { Box, Flex, Spacer, useDisclosure, HStack, Badge, Text, VStack, useToast, Tooltip } from "@chakra-ui/react";
 import { ThinParen } from "@/components/common/ui/BaseAtoms";
 import { FilterBar } from "@/components/features/customer/FilterBar";
 import { CustomerTable } from "@/components/features/customer/CustomerTable";
 import { PageHeader, TeasyButton, TeasyInput, TeasyModal, TeasyModalBody, TeasyModalContent, TeasyModalFooter, TeasyModalHeader, TeasyModalOverlay } from "@/components/common/UIComponents";
 
-import { useState, useMemo, useDeferredValue } from "react";
+import { useState, useMemo } from "react";
 import { Customer } from "@/types/domain";
 import { CustomerRegistrationModal } from "@/components/features/customer/CustomerRegistrationModal";
 import { BulkImportModal } from "@/components/features/customer/BulkImportModal";
@@ -52,7 +52,6 @@ export default function CustomersPage() {
         setSearchQuery
     } = useCustomerSearch();
 
-    const deferredSearch = useDeferredValue(searchQuery);
 
 
     const [sortBy, setSortBy] = useState("none");
@@ -116,9 +115,11 @@ export default function CustomersPage() {
                         <Badge colorScheme="brand" borderRadius="full" px={3} py={1} fontSize="md">
                             {searchQuery
                                 ? `검색결과 ${finalData.length}건`
-                                : viewMode === "recent"
-                                    ? `최근 1개월 ${finalData.length}명`
-                                    : `TOTAL. ${finalData.length}`
+                                : viewMode === "week" || viewMode === "none"
+                                    ? `최근 1주일 ${finalData.length}명`
+                                    : viewMode === "recent"
+                                        ? `최근 1개월 ${finalData.length}명`
+                                        : `전체 ${finalData.length}명`
                             }
                         </Badge>
                     }
@@ -146,17 +147,17 @@ export default function CustomersPage() {
                             >
                                 선택 삭제 <Box as="span" ml={1}><ThinParen text={`(${selectedIds.length})`} /></Box>
                             </TeasyButton>
-                            <TeasyButton
-                                version="secondary"
-                                borderColor="rgba(16, 124, 65, 0.3)"
-                                color="#107C41"
-                                _hover={{ bg: "rgba(16, 124, 65, 0.1)" }}
-                                isDisabled={selectedIds.length === 0}
-                                onClick={() => { /* TODO: Implement download */ }}
-                                fontWeight="500"
-                            >
-                                선택 다운로드 <Box as="span" ml={1}><ThinParen text={`(${selectedIds.length})`} /></Box>
-                            </TeasyButton>
+                            <Tooltip label="준비 중인 기능입니다" hasArrow>
+                                <TeasyButton
+                                    version="secondary"
+                                    borderColor="rgba(16, 124, 65, 0.3)"
+                                    color="#107C41"
+                                    isDisabled
+                                    fontWeight="500"
+                                >
+                                    선택 다운로드 <Box as="span" ml={1}><ThinParen text={`(${selectedIds.length})`} /></Box>
+                                </TeasyButton>
+                            </Tooltip>
                         </HStack>
                     )}
                 </HStack>
@@ -164,16 +165,17 @@ export default function CustomersPage() {
                 <HStack spacing={3}>
                     {isMaster && (
                         <>
-                            <TeasyButton
-                                version="secondary"
-                                borderColor="rgba(16, 124, 65, 0.3)"
-                                color="#107C41"
-                                _hover={{ bg: "rgba(16, 124, 65, 0.1)" }}
-                                onClick={() => { /* TODO: Implement download */ }}
-                                fontWeight="500"
-                            >
-                                전체 다운로드
-                            </TeasyButton>
+                            <Tooltip label="준비 중인 기능입니다" hasArrow>
+                                <TeasyButton
+                                    version="secondary"
+                                    borderColor="rgba(16, 124, 65, 0.3)"
+                                    color="#107C41"
+                                    isDisabled
+                                    fontWeight="500"
+                                >
+                                    전체 다운로드
+                                </TeasyButton>
+                            </Tooltip>
                             <TeasyButton version="secondary" onClick={onBulkOpen} fontWeight="500">
                                 일괄 등록
                             </TeasyButton>
@@ -188,7 +190,7 @@ export default function CustomersPage() {
             <Box px={8}>
                 <CustomerTable
                     customers={finalData}
-                    searchQuery={deferredSearch}
+                    searchQuery={searchQuery}
                     selectedIds={selectedIds}
                     setSelectedIds={setSelectedIds}
                     isLoading={isLoading}

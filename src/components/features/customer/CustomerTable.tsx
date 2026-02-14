@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
     Table,
     Thead,
@@ -24,6 +24,19 @@ import { ProfileEditModal } from "@/components/features/customer/ProfileEditModa
 import { FixedSizeList, ListChildComponentProps } from "react-window";
 
 const ROW_HEIGHT = 45;
+
+// 반응형 테이블 높이 계산 Hook
+const useWindowHeight = () => {
+    const [height, setHeight] = useState(
+        typeof window !== 'undefined' ? window.innerHeight : 800
+    );
+    useEffect(() => {
+        const handleResize = () => setHeight(window.innerHeight);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+    return height;
+};
 
 /**
  * Helper: Tooltip that only shows when text is truncated (v123.79)
@@ -119,7 +132,7 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
     const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
     const [editTarget, setEditTarget] = useState<{ id: string; label: string; field: string; values: string[] } | null>(null);
 
-    const handleEditClick = (customer: Customer, type: "phone" | "address" | "product") => {
+    const handleEditClick = useCallback((customer: Customer, type: "phone" | "address" | "product") => {
         const config = {
             phone: { label: "연락처", field: "phone", values: [customer.phone, ...(customer.sub_phones || [])].filter(Boolean) },
             address: { label: "주소", field: "address", values: [customer.address, ...(customer.sub_addresses || [])].filter(Boolean) },
@@ -127,7 +140,7 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
         };
         setEditTarget({ id: customer.id, ...config[type] });
         onEditOpen();
-    };
+    }, [onEditOpen]);
 
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.checked) {
@@ -137,19 +150,20 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
         }
     };
 
-    const handleSelectItem = (id: string) => {
+    const handleSelectItem = useCallback((id: string) => {
         setSelectedIds(prev =>
             prev.includes(id)
                 ? prev.filter(itemId => itemId !== id)
                 : [...prev, id]
         );
-    };
+    }, [setSelectedIds]);
 
-    // 가상 스크롤 높이 계산
-    const listHeight = Math.min(customers.length * ROW_HEIGHT, typeof window !== 'undefined' ? window.innerHeight - 355 : 600);
+    // 반응형 높이 계산
+    const windowHeight = useWindowHeight();
+    const listHeight = Math.min(customers.length * ROW_HEIGHT, windowHeight - 355);
 
-    // 가상 스크롤 행 렌더러
-    const Row = ({ index, style }: ListChildComponentProps) => {
+    // 가상 스크롤 행 렌더러 (useCallback으로 안정화)
+    const Row = useCallback(({ index, style }: ListChildComponentProps) => {
         const customer = customers[index];
         return (
             <Flex
@@ -326,7 +340,7 @@ export const CustomerTable = ({ customers, searchQuery = "", selectedIds, setSel
                 </Box>
             </Flex>
         );
-    };
+    }, [customers, selectedIds, searchQuery, handleSelectItem, handleEditClick]);
 
     return (
         <>
