@@ -77,12 +77,12 @@ describe('formatTimestamp', () => {
 
     it('formats Date object', () => {
         const date = new Date(2026, 1, 7, 14, 30); // Feb 7, 2026 14:30
-        expect(formatTimestamp(date)).toBe('2026-02-07 14:30');
+        expect(formatTimestamp(date)).toBe('2026-02-07  14:30');
     });
 
     it('handles Firestore Timestamp-like objects', () => {
         const ts = { toDate: () => new Date(2026, 0, 15, 9, 5) };
-        expect(formatTimestamp(ts)).toBe('2026-01-15 09:05');
+        expect(formatTimestamp(ts)).toBe('2026-01-15  09:05');
     });
 
     it('returns empty for invalid date', () => {

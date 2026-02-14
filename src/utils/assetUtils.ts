@@ -1,6 +1,6 @@
 // src/utils/assetUtils.ts
 import { db } from "@/lib/firebase";
-import { doc, updateDoc, writeBatch, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc, updateDoc, writeBatch, collection, query, where, getDocs } from "firebase/firestore";
 
 export interface AssetData {
     id: string;
@@ -121,10 +121,9 @@ export const getLatestStockCount = async (name: string, category: string, master
     const metaId = masterId || `meta_${sanitizedName}_${sanitizedCategory}`.replace(/\//g, "_");
 
     try {
-        const metaDoc = doc(db, "asset_meta", metaId);
-        const metaSnap = await getDocs(query(collection(db, "asset_meta"), where("__name__", "==", metaId)));
-        if (!metaSnap.empty) {
-            return Number(metaSnap.docs[0].data().currentStock) || 0;
+        const metaSnap = await getDoc(doc(db, "asset_meta", metaId));
+        if (metaSnap.exists()) {
+            return Number(metaSnap.data()?.currentStock) || 0;
         }
     } catch (e) {
         console.warn("Meta read failed, falling back to history sum", e);

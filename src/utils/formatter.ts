@@ -50,5 +50,5 @@ export const formatTimestamp = (ts: any): string => {
     const HH = String(date.getHours()).padStart(2, "0");
     const mm = String(date.getMinutes()).padStart(2, "0");
 
-    return `${YYYY}-${MM}-${DD} ${HH}:${mm}`;
+    return `${YYYY}-${MM}-${DD}  ${HH}:${mm}`;
 };

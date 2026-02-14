@@ -259,7 +259,7 @@ export const CreateWorkRequestModal = ({ isOpen, onClose, initialData }: CreateW
                                     );
 
                                     const author = act.createdByName || act.managerName || "담당자 미지정";
-                                    const timeStr = formatTimestamp(act.createdAt).replace(/\s+/g, "  ");
+                                    const timeStr = formatTimestamp(act.createdAt);
 
                                     return (
                                         <>
