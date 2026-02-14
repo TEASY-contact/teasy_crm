@@ -106,7 +106,7 @@ export const useCustomerSearch = ({ initialViewMode = "week" }: UseCustomerSearc
     });
 
     // 3. 전체 고객 (ViewMode = 'all' 또는 검색 시 공용)
-    const needsAllData = viewMode === "all" || (!!debouncedQuery && viewMode !== "none" && viewMode !== "week");
+    const needsAllData = viewMode === "all" || !!debouncedQuery;
     const { data: allCustomers = [], isLoading: isAllLoading } = useQuery({
         queryKey: ["customers", "all"],
         queryFn: async () => {
@@ -114,19 +114,16 @@ export const useCustomerSearch = ({ initialViewMode = "week" }: UseCustomerSearc
             const snapshot = await getDocs(q);
             return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Customer));
         },
-        staleTime: 1000 * 60 * 60, // 1시간 캐시
+        staleTime: 1000 * 60 * 60 * 24, // 24시간 캐시
         enabled: needsAllData
     });
 
     const finalData = useMemo(() => {
         // 1. 검색 모드: 전체 데이터에서 클라이언트 필터링
         if (debouncedQuery) {
-            // 검색 시에도 all 데이터가 없으면 현재 뷰 데이터에서 필터링
-            const sourceData = allCustomers.length > 0 ? allCustomers
-                : viewMode === "recent" ? recentCustomers
-                    : weekCustomers;
+            // 검색 시 전체 데이터 기반 필터링
             const q = normalize(debouncedQuery);
-            return sourceData.filter(c => {
+            return allCustomers.filter(c => {
                 const fields = [
                     c.name, c.phone, ...(c.sub_phones || []),
                     c.address, ...(c.sub_addresses || []),
