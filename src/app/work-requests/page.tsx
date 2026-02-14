@@ -16,7 +16,7 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { isTimestamp } from "@/utils/typeGuards";
 import {
-    TeasyBadge, SurnameBadge, TeasyDivider, TeasyButton
+    TeasyBadge, SurnameBadge, TeasyDivider, TeasyButton, PageHeader
 } from "@/components/common/UIComponents";
 import { getBadgeColor } from "@/components/features/customer/timeline/TimelineUtils";
 
@@ -398,20 +398,21 @@ export default function WorkRequestsPage() {
     };
 
     return (
-        <Box p={8} h="100vh" overflowY="auto" bg="gray.50">
-            <Flex justify="space-between" align="center" mb={6}>
-                <Heading size="lg">업무 요청</Heading>
-                <IconButton
-                    aria-label="Create Request"
-                    icon={<AddIcon />}
-                    colorScheme="brand"
-                    borderRadius="full"
-                    onClick={onCreateOpen}
-                />
-            </Flex>
+        <Box p={0} h="100vh" overflowY="auto" bg="gray.50">
+            <Box px={8} pt={8}>
+                <PageHeader title="업무 요청">
+                    <IconButton
+                        aria-label="Create Request"
+                        icon={<AddIcon />}
+                        colorScheme="brand"
+                        borderRadius="full"
+                        onClick={onCreateOpen}
+                    />
+                </PageHeader>
+            </Box>
 
             {/* 1. Search Bar */}
-            <InputGroup mb={8} bg="white" borderRadius="md" shadow="sm">
+            <InputGroup mb={8} bg="white" borderRadius="md" shadow="sm" mx={8} maxW="calc(100% - 64px)">
                 <InputLeftElement pointerEvents="none"><SearchIcon color="gray.300" /></InputLeftElement>
                 <Input
                     placeholder="업무 제목, 내용 검색..."
@@ -423,7 +424,7 @@ export default function WorkRequestsPage() {
             </InputGroup>
 
             {/* 2. Active Requests (Received vs Sent) */}
-            <Grid templateColumns="1fr 1fr" gap={6} mb={8} maxH="calc(33vh - 52px)">
+            <Grid templateColumns="1fr 1fr" gap={6} mb={8} maxH="calc(33vh - 52px)" px={8}>
                 {/* Received */}
                 <Box bg="white" p={4} borderRadius="xl" shadow="sm" border="1px" borderColor="gray.100" h="full" overflowY="auto">
                     <VStack align="stretch" spacing={4}>
@@ -480,7 +481,7 @@ export default function WorkRequestsPage() {
             </Grid>
 
             {/* 3. Completed Requests */}
-            <Box bg="white" p={4} borderRadius="xl" shadow="sm" border="1px" borderColor="gray.100" maxH="calc(33vh - 52px)" overflowY="auto">
+            <Box bg="white" p={4} borderRadius="xl" shadow="sm" border="1px" borderColor="gray.100" maxH="calc(33vh - 52px)" overflowY="auto" mx={8}>
                 <HStack spacing={2} mb={4} pb={2} borderBottom="1px" borderColor="gray.100">
                     <Heading size="md" color="gray.800" fontWeight="700">
                         검토&nbsp;·&nbsp;완료 업무

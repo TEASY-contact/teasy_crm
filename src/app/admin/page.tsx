@@ -3,6 +3,7 @@
 import { Box, SimpleGrid, Heading, Text, Icon, VStack, HStack } from "@chakra-ui/react";
 import { MdPeople, MdSettings, MdHistory, MdStorage, MdTune, MdAssignmentInd } from "react-icons/md";
 import { useRouter } from "next/navigation";
+import { PageHeader } from "@/components/common/UIComponents";
 
 interface AdminCardProps {
     title: string;
@@ -40,10 +41,12 @@ export default function AdminPage() {
     const router = useRouter();
 
     return (
-        <Box p={8} bg="gray.50" minH="100vh">
-            <Heading size="lg" color="gray.700" mb={10}>관리자 페이지</Heading>
+        <Box p={0} bg="gray.50" minH="100vh">
+            <Box px={8} pt={8}>
+                <PageHeader title="관리자 페이지" />
+            </Box>
 
-            <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={8}>
+            <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={8} px={8}>
                 <AdminCard
                     title="임직원 관리"
                     description="직원 계정 생성 및 관리"

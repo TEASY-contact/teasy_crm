@@ -15,7 +15,7 @@ import {
 import { useRouter } from "next/navigation";
 import { Reorder, useDragControls } from "framer-motion";
 import {
-    TeasyButton, TeasyInput, TeasyFormLabel,
+    TeasyButton, TeasyInput, TeasyFormLabel, PageHeader
 } from "@/components/common/UIComponents";
 import { useDistributorMaster, DistributorItem } from "@/hooks/useDistributorMaster";
 import { useAsTypeMaster } from "@/hooks/useAsTypeMaster";
@@ -108,21 +108,19 @@ export default function SettingsPage() {
     };
 
     return (
-        <Box p={8} bg="gray.50" minH="100vh">
-            <VStack align="stretch" spacing={1} mb={10}>
-                <Flex align="center">
+        <Box p={0} bg="gray.50" minH="100vh">
+            <Box px={8} pt={8}>
+                <PageHeader title="기타 설정">
                     <IconButton
                         aria-label="Back"
                         icon={<MdArrowBack />}
                         variant="ghost"
-                        mr={2}
                         onClick={() => router.push("/admin")}
                     />
-                    <Heading size="lg" color="gray.700">기타 설정</Heading>
-                </Flex>
-            </VStack>
+                </PageHeader>
+            </Box>
 
-            <SimpleGrid columns={{ base: 1, lg: 5 }} spacing={6}>
+            <SimpleGrid columns={{ base: 1, lg: 5 }} spacing={6} px={8}>
                 {/* 1. Distributor Management Card */}
                 <Box
                     bg="white"

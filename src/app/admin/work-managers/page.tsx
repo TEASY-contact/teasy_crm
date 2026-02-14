@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation";
 import { useReportMetadata } from "@/hooks/useReportMetadata";
 import { CustomSelect } from "@/components/common/CustomSelect";
 import { useWorkManagerSettings, WorkManagerSettings } from "@/hooks/useWorkManagerSettings";
-import { TeasyButton } from "@/components/common/UIComponents";
+import { TeasyButton, PageHeader } from "@/components/common/UIComponents";
 
 export default function WorkManagersPage() {
     const router = useRouter();
@@ -154,20 +154,16 @@ export default function WorkManagersPage() {
     }
 
     return (
-        <Box p={8} bg="gray.50" minH="100vh">
+        <Box p={0} bg="gray.50" minH="100vh">
             {/* Header */}
-            <VStack align="stretch" spacing={1} mb={10}>
-                <Flex align="center" justify="space-between">
-                    <Flex align="center">
-                        <IconButton
-                            aria-label="Back"
-                            icon={<MdArrowBack />}
-                            variant="ghost"
-                            mr={2}
-                            onClick={() => router.push("/admin")}
-                        />
-                        <Heading size="lg" color="gray.700">업무 담당자 관리</Heading>
-                    </Flex>
+            <Box px={8} pt={8}>
+                <PageHeader title="업무 담당자 관리">
+                    <IconButton
+                        aria-label="Back"
+                        icon={<MdArrowBack />}
+                        variant="ghost"
+                        onClick={() => router.push("/admin")}
+                    />
                     <TeasyButton
                         leftIcon={<MdSave />}
                         onClick={handleSave}
@@ -176,10 +172,10 @@ export default function WorkManagersPage() {
                     >
                         설정 저장
                     </TeasyButton>
-                </Flex>
-            </VStack>
+                </PageHeader>
+            </Box>
 
-            <SimpleGrid columns={{ base: 1, lg: 5 }} spacing={6}>
+            <SimpleGrid columns={{ base: 1, lg: 5 }} spacing={6} px={8}>
                 {/* 1. Tax/Biz Card */}
                 <ManagerCard title="사업자등록증 확보" icon={MdReceipt}>
                     <VStack align="stretch" spacing={3} mt={3}>
