@@ -16,11 +16,11 @@ const getPastDate = (months: number) => {
 };
 
 interface UseCustomerSearchProps {
-    initialViewMode?: "recent" | "all";
+    initialViewMode?: "none" | "recent" | "all";
 }
 
-export const useCustomerSearch = ({ initialViewMode = "recent" }: UseCustomerSearchProps = {}) => {
-    const [viewMode, setViewMode] = useState<"recent" | "all">(initialViewMode);
+export const useCustomerSearch = ({ initialViewMode = "none" }: UseCustomerSearchProps = {}) => {
+    const [viewMode, setViewMode] = useState<"none" | "recent" | "all">(initialViewMode);
     const [searchQuery, setSearchQuery] = useState("");
     const [debouncedQuery, setDebouncedQuery] = useState("");
 
@@ -63,12 +63,12 @@ export const useCustomerSearch = ({ initialViewMode = "recent" }: UseCustomerSea
             });
         },
         staleTime: 1000 * 60 * 5, // 5분 캐시
-        enabled: viewMode === "recent" && !debouncedQuery // 검색어가 없을 때만 사용
+        enabled: viewMode === "recent" && !debouncedQuery // 검색어가 없고 recent 모드일 때만 사용
     });
 
     // 2. 전체 고객 (ViewMode = 'all' 또는 검색 시 공용)
     // 검색 모드에서도 동일한 queryKey를 사용하여 캐시 공유
-    const needsAllData = viewMode === "all" || !!debouncedQuery;
+    const needsAllData = (viewMode === "all" || !!debouncedQuery) && viewMode !== "none";
     const { data: allCustomers = [], isLoading: isAllLoading } = useQuery({
         queryKey: ["customers", "all"],
         queryFn: async () => {
@@ -80,8 +80,10 @@ export const useCustomerSearch = ({ initialViewMode = "recent" }: UseCustomerSea
         enabled: needsAllData
     });
 
-    // 결과 합성
     const finalData = useMemo(() => {
+        // 0. 선택 안함 모드: 빈 테이블
+        if (viewMode === "none") return [];
+
         // 1. 검색 모드: 전체 데이터에서 클라이언트 필터링
         if (debouncedQuery) {
             const q = normalize(debouncedQuery);
@@ -111,7 +113,7 @@ export const useCustomerSearch = ({ initialViewMode = "recent" }: UseCustomerSea
         (viewMode === "recent" && !debouncedQuery && isRecentLoading);
 
     // 뷰 모드 변경 시 검색어 자동 초기화
-    const handleSetViewMode = (mode: "recent" | "all") => {
+    const handleSetViewMode = (mode: "none" | "recent" | "all") => {
         setSearchQuery("");
         setViewMode(mode);
     };

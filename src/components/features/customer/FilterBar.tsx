@@ -21,8 +21,10 @@ export const FilterBar = ({ onSearch, onSort, currentSort, onViewMode, currentVi
                 value={currentViewMode}
                 onChange={(val) => onViewMode(val)}
                 options={[
-                    { value: "recent", label: "최신 1개월" },
-                    { value: "all", label: "전체 데이터" },
+                    { value: "none", label: "선택 안함" },
+                    { value: "divider", label: "", isDivider: true },
+                    { value: "recent", label: "최근 1개월" },
+                    { value: "all", label: "전체 목록" },
                 ]}
             />
             <InputGroup maxW="350px" bg="white">
