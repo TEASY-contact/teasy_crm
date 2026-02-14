@@ -2,99 +2,36 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
 import {
-    Box, Flex, Input, VStack, Text, HStack, Spinner, Center, IconButton
+    Box, Flex, Input, VStack, Text, HStack, Spinner, Divider
 } from "@chakra-ui/react";
-import { MdSend } from "react-icons/md";
 import { useChat, ChatMessage } from "@/hooks/useChat";
-import { SurnameBadge } from "@/components/common/UIComponents";
+import { SurnameBadge, TeasyButton } from "@/components/common/UIComponents";
 import { TeasyCardHeader } from "@/components/common/UIComponents";
 
-const formatChatTime = (date: Date | null): string => {
+const AVATAR_COLORS = ["#805AD5", "#3182CE", "#38A169", "#D69E2E", "#DD6B20", "#E53E3E", "#D53F8C", "#4FD1C5"];
+
+const getAvatarMetadata = (senderId: string, senderName: string, userMetadata?: Record<string, any>) => {
+    if (userMetadata?.[senderId]) {
+        return {
+            color: userMetadata[senderId].color || "#805AD5",
+            badgeChar: userMetadata[senderId].badgeChar || senderName?.[0] || "?"
+        };
+    }
+    const charCode = (senderName || " ").charCodeAt(0);
+    return {
+        color: AVATAR_COLORS[charCode % AVATAR_COLORS.length],
+        badgeChar: senderName?.[0] || "?"
+    };
+};
+
+const formatCommentTime = (date: Date | null): string => {
     if (!date) return "";
-    const h = date.getHours();
-    const m = String(date.getMinutes()).padStart(2, "0");
-    const period = h < 12 ? "오전" : "오후";
-    const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-    return `${period} ${hour12}:${m}`;
+    return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
 };
 
-const formatChatDate = (date: Date | null): string => {
+const getSafeDateString = (date: Date | null): string => {
     if (!date) return "";
-    const m = date.getMonth() + 1;
-    const d = date.getDate();
-    const days = ["일", "월", "화", "수", "목", "금", "토"];
-    const dayName = days[date.getDay()];
-    return `${m}월 ${d}일 (${dayName})`;
-};
-
-const shouldShowDateDivider = (current: ChatMessage, prev?: ChatMessage): boolean => {
-    if (!prev || !current.createdAt) return true;
-    if (!prev.createdAt) return true;
-    return current.createdAt.toDateString() !== prev.createdAt.toDateString();
-};
-
-interface ChatBubbleProps {
-    message: ChatMessage;
-    isOwn: boolean;
-    showAvatar: boolean;
-    userMetadata?: Record<string, any>;
-}
-
-const ChatBubble = ({ message, isOwn, showAvatar, userMetadata }: ChatBubbleProps) => {
-    const meta = userMetadata?.[message.senderId];
-
-    return (
-        <Flex
-            direction={isOwn ? "row-reverse" : "row"}
-            align="flex-end"
-            gap={1.5}
-            w="full"
-        >
-            {/* Avatar */}
-            <Box w="24px" flexShrink={0}>
-                {showAvatar && (
-                    <SurnameBadge
-                        name={meta?.name || message.senderName}
-                        badgeChar={meta?.badgeChar}
-                        color={meta?.color}
-                        w="24px"
-                        h="24px"
-                        fontSize="10px"
-                    />
-                )}
-            </Box>
-
-            {/* Bubble */}
-            <VStack
-                align={isOwn ? "flex-end" : "flex-start"}
-                spacing={0.5}
-                maxW="75%"
-            >
-                {showAvatar && !isOwn && (
-                    <Text fontSize="10px" color="gray.500" fontWeight="600" ml={1}>
-                        {meta?.name || message.senderName}
-                    </Text>
-                )}
-                <Box
-                    bg={isOwn ? "brand.500" : "gray.100"}
-                    color={isOwn ? "white" : "gray.700"}
-                    px={3}
-                    py={1.5}
-                    borderRadius="xl"
-                    borderBottomRightRadius={isOwn ? "sm" : "xl"}
-                    borderBottomLeftRadius={isOwn ? "xl" : "sm"}
-                    fontSize="13px"
-                    lineHeight="1.5"
-                    wordBreak="break-word"
-                >
-                    {message.text}
-                </Box>
-                <Text fontSize="9px" color="gray.400" px={1}>
-                    {formatChatTime(message.createdAt)}
-                </Text>
-            </VStack>
-        </Flex>
-    );
+    return date.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
 };
 
 interface ChatCardProps {
@@ -116,10 +53,11 @@ export const ChatCard = ({ userMetadata }: ChatCardProps) => {
 
     const handleSend = async () => {
         if (!inputValue.trim() || isSending) return;
+        const text = inputValue;
+        setInputValue("");
         setIsSending(true);
         try {
-            await sendMessage(inputValue);
-            setInputValue("");
+            await sendMessage(text);
         } catch {
             // Error already logged in hook
         } finally {
@@ -128,7 +66,7 @@ export const ChatCard = ({ userMetadata }: ChatCardProps) => {
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === "Enter" && !e.shiftKey) {
+        if (e.key === "Enter" && !e.shiftKey && !(e.nativeEvent as any).isComposing) {
             e.preventDefault();
             handleSend();
         }
@@ -149,102 +87,178 @@ export const ChatCard = ({ userMetadata }: ChatCardProps) => {
             <TeasyCardHeader title="업무 채팅" count={0} />
 
             {/* Messages Area */}
-            <Box
-                ref={scrollRef}
-                flex={1}
-                overflowY="auto"
-                px={3}
-                py={2}
-                css={{
-                    "&::-webkit-scrollbar": { width: "4px" },
-                    "&::-webkit-scrollbar-thumb": {
-                        background: "#CBD5E0",
-                        borderRadius: "4px",
-                    },
-                }}
-            >
-                {isLoading ? (
-                    <Center h="full">
-                        <Spinner size="sm" color="brand.500" />
-                    </Center>
-                ) : messages.length === 0 ? (
-                    <Center h="full">
-                        <Text fontSize="sm" color="gray.400" fontWeight="medium">
-                            첫 메시지를 보내보세요!
-                        </Text>
-                    </Center>
-                ) : (
-                    <VStack spacing={2} align="stretch">
-                        {messages.map((msg, idx) => {
-                            const prev = idx > 0 ? messages[idx - 1] : undefined;
-                            const showDate = shouldShowDateDivider(msg, prev);
-                            const showAvatar = !prev || prev.senderId !== msg.senderId || showDate;
+            <Box flex={1} w="full" position="relative" overflow="hidden">
+                {/* Top Fade Gradient */}
+                <Box
+                    position="absolute"
+                    top={0}
+                    left={0}
+                    right={0}
+                    h="40px"
+                    bgGradient="linear(to-b, white, transparent)"
+                    zIndex={2}
+                    pointerEvents="none"
+                />
 
-                            return (
-                                <React.Fragment key={msg.id}>
-                                    {showDate && (
-                                        <Center py={2}>
-                                            <Text
-                                                fontSize="10px"
-                                                color="gray.400"
-                                                bg="gray.50"
-                                                px={3}
-                                                py={0.5}
-                                                borderRadius="full"
-                                                fontWeight="medium"
-                                            >
-                                                {formatChatDate(msg.createdAt)}
-                                            </Text>
-                                        </Center>
-                                    )}
-                                    <ChatBubble
-                                        message={msg}
-                                        isOwn={msg.senderId === currentUserId}
-                                        showAvatar={showAvatar}
-                                        userMetadata={userMetadata}
-                                    />
-                                </React.Fragment>
-                            );
-                        })}
-                    </VStack>
-                )}
+                <Box
+                    w="full"
+                    h="full"
+                    overflowY="auto"
+                    px={4}
+                    py={4}
+                    ref={scrollRef}
+                    css={{
+                        "&::-webkit-scrollbar": { width: "4px" },
+                        "&::-webkit-scrollbar-thumb": {
+                            background: "#CBD5E0",
+                            borderRadius: "4px",
+                        },
+                    }}
+                >
+                    {isLoading ? (
+                        <Flex h="full" align="center" justify="center">
+                            <Spinner size="sm" color="brand.500" />
+                        </Flex>
+                    ) : messages.length === 0 ? (
+                        <Flex h="full" align="center" justify="center">
+                            <Text fontSize="xs" color="gray.400" fontWeight="medium">
+                                첫 메시지를 보내보세요!
+                            </Text>
+                        </Flex>
+                    ) : (
+                        <Flex direction="column" minH="full">
+                            <Box flex={1} />
+                            <VStack spacing={0} w="full" align="stretch">
+                                {messages.map((msg, index) => {
+                                    const isMe = msg.senderId === currentUserId;
+                                    const { color: badgeColor, badgeChar } = getAvatarMetadata(msg.senderId, msg.senderName, userMetadata);
+                                    const currentDate = getSafeDateString(msg.createdAt);
+                                    const prevMsg = index > 0 ? messages[index - 1] : undefined;
+                                    const prevDate = prevMsg ? getSafeDateString(prevMsg.createdAt) : "";
+                                    const showDateDivider = currentDate !== prevDate;
+
+                                    return (
+                                        <React.Fragment key={msg.id}>
+                                            {showDateDivider && (
+                                                <Flex align="center" my={6} w="full">
+                                                    <Divider borderColor="gray.200" />
+                                                    <Text px={3} whiteSpace="nowrap" color="gray.400" fontSize="10px" fontWeight="bold">
+                                                        {currentDate}
+                                                    </Text>
+                                                    <Divider borderColor="gray.200" />
+                                                </Flex>
+                                            )}
+                                            <VStack align="stretch" spacing={1} mb={4} w="full">
+                                                <Flex justify={isMe ? "flex-end" : "flex-start"} align="flex-start">
+                                                    <HStack spacing={1} align="flex-start">
+                                                        {/* Time for me (left side) */}
+                                                        {isMe && (
+                                                            <Text fontSize="9px" color="gray.400" whiteSpace="nowrap" fontWeight="medium" mt="auto" mb={1}>
+                                                                {formatCommentTime(msg.createdAt)}
+                                                            </Text>
+                                                        )}
+
+                                                        {/* Badge for others (left side) */}
+                                                        {!isMe && (
+                                                            <SurnameBadge
+                                                                name={msg.senderName}
+                                                                badgeChar={badgeChar}
+                                                                color={badgeColor}
+                                                                mt={0}
+                                                            />
+                                                        )}
+
+                                                        {/* Message Bubble */}
+                                                        <Box
+                                                            bg={`${badgeColor}15`}
+                                                            backdropFilter="blur(15px)"
+                                                            px={3}
+                                                            py={1.5}
+                                                            maxW="85%"
+                                                            borderRadius={isMe ? "16px 4px 16px 16px" : "4px 16px 16px 16px"}
+                                                            shadow="xs"
+                                                            border="1px solid"
+                                                            borderColor={`${badgeColor}30`}
+                                                        >
+                                                            {/* Sender name for others */}
+                                                            {!isMe && (
+                                                                <Text fontSize="10px" color="gray.500" fontWeight="600" mb={0.5}>
+                                                                    {userMetadata?.[msg.senderId]?.name || msg.senderName}
+                                                                </Text>
+                                                            )}
+                                                            <Text fontSize="13px" lineHeight="1.5" fontWeight="normal" color="gray.800" whiteSpace="pre-wrap" wordBreak="break-word">
+                                                                {msg.text}
+                                                            </Text>
+                                                        </Box>
+
+                                                        {/* Badge for me (right side) */}
+                                                        {isMe && (
+                                                            <SurnameBadge
+                                                                name={msg.senderName}
+                                                                badgeChar={badgeChar}
+                                                                color={badgeColor}
+                                                                mt={0}
+                                                            />
+                                                        )}
+
+                                                        {/* Time for others (right side) */}
+                                                        {!isMe && (
+                                                            <Text fontSize="9px" color="gray.400" whiteSpace="nowrap" fontWeight="medium" mt="auto" mb={1}>
+                                                                {formatCommentTime(msg.createdAt)}
+                                                            </Text>
+                                                        )}
+                                                    </HStack>
+                                                </Flex>
+                                            </VStack>
+                                        </React.Fragment>
+                                    );
+                                })}
+                            </VStack>
+                        </Flex>
+                    )}
+                </Box>
+
+                {/* Bottom Fade Gradient */}
+                <Box
+                    position="absolute"
+                    bottom={0}
+                    left={0}
+                    right={0}
+                    h="40px"
+                    bgGradient="linear(to-t, white, transparent)"
+                    zIndex={2}
+                    pointerEvents="none"
+                />
             </Box>
 
-            {/* Input Area */}
-            <Box
-                px={3}
-                py="10px"
-                borderTop="1px"
-                borderColor="gray.100"
-                bg="gray.50"
-            >
-                <HStack spacing={2} mt="-1px">
+            {/* Input Area — Matching AdminCommentRoom style */}
+            <Box p={3} borderTop="1px" borderColor="gray.50" w="full" bg="white">
+                <HStack spacing={2}>
                     <Input
+                        placeholder="메세지를 입력하세요."
+                        size="md"
+                        h="42px"
+                        borderRadius="xl"
+                        bg="gray.50"
+                        border="none"
+                        focusBorderColor="brand.500"
+                        fontSize="sm"
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="메시지 입력..."
-                        h="38px"
-                        borderRadius="lg"
-                        bg="white"
-                        border="1px"
-                        borderColor="gray.200"
-                        focusBorderColor="brand.400"
-                        _hover={{ borderColor: "gray.300" }}
-                        fontSize="13px"
+                        _placeholder={{ color: "gray.400" }}
                     />
-                    <IconButton
-                        aria-label="메시지 전송"
-                        icon={<MdSend />}
+                    <TeasyButton
+                        h="42px"
+                        px={5}
+                        borderRadius="xl"
                         onClick={handleSend}
                         isLoading={isSending}
                         isDisabled={!inputValue.trim()}
-                        colorScheme="brand"
-                        borderRadius="full"
-                        size="sm"
-                        minW="38px"
-                        h="38px"
-                    />
+                        fontSize="13px"
+                    >
+                        전송
+                    </TeasyButton>
                 </HStack>
             </Box>
         </Box>
