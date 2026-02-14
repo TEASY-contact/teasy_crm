@@ -211,7 +211,7 @@ export const MainDashboard = () => {
                 {/* Row 2+3: Work Request + Work Chat */}
                 <GridItem colSpan={1} rowSpan={2} mt={10} minH="0" minW="0" display="flex" flexDirection="column">
                     <Grid templateColumns="1fr 1fr" gap={6} h="full">
-                        <SideStatusCard title="업무 요청" count={0} placeholder="모든 업무를 처리하였습니다." h="full" isEmpty={normalizedWorkRequests.length === 0}>
+                        <SideStatusCard title="업무 요청" count={0} placeholder="모든 업무를 처리하였습니다." h="full" isEmpty={normalizedWorkRequests.length === 0} pb={normalizedWorkRequests.length === 0 ? "66px" : 0}>
                             <TeasyList>
                                 {normalizedWorkRequests.map((req, idx) => (
                                     <TeasyListItem key={req.id} isLast={idx === normalizedWorkRequests.length - 1} onClick={() => handleWorkRequestClick(req)} cursor="pointer" opacity={req.isRead ? 0.6 : 1} spacing={3} alignItems="center">
