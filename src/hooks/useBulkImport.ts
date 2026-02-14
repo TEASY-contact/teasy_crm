@@ -10,6 +10,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { REPORT_SHEETS, CUSTOMER_SHEET } from "@/utils/bulkTemplateGenerator";
 import { DISTRIBUTOR_COLORS } from "@/utils/constants";
+import { Customer, Activity, UserRole } from "@/types/domain";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -27,7 +28,7 @@ export interface BulkImportResult {
 
 interface FailedRow {
     sheetName: string;
-    row: Record<string, any>;
+    row: Record<string, unknown>;
     reason: string;
 }
 
@@ -36,7 +37,7 @@ interface ParsedCustomer {
     name: string;
     phone: string;
     normalizedPhone: string;
-    raw: Record<string, any>;
+    raw: Record<string, unknown>;
     memo: string;
     registeredDate: string;
 }
@@ -44,7 +45,7 @@ interface ParsedCustomer {
 interface ResolvedManager {
     uid: string;
     name: string;
-    role: string;
+    role: UserRole | string;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -63,11 +64,11 @@ const BATCH_LIMIT = 450; // Firestore batch limit is 500, keep margin
 // ─── Utilities ───────────────────────────────────────────────────────────────
 
 /** 전화번호 정규화 (숫자만 추출) */
-const normalizePhone = (val: any): string =>
+const normalizePhone = (val: string | number | null | undefined): string =>
     String(val || "").replace(/[^0-9]/g, "");
 
 /** 쉼표 구분 → 배열 */
-const splitComma = (val: any): string[] => {
+const splitComma = (val: string | number | null | undefined): string[] => {
     if (!val) return [];
     return String(val).split(",").map(s => s.trim()).filter(Boolean);
 };
@@ -128,7 +129,7 @@ const resolveManager = (
 };
 
 /** 날짜 fallback: 빈칸 → 등록일 → 오늘 */
-const resolveDate = (dateVal: any, registeredDate: string): string => {
+const resolveDate = (dateVal: unknown, registeredDate: string): string => {
     const d = String(dateVal || "").trim();
     if (d) return d;
     if (registeredDate) return registeredDate;
@@ -136,11 +137,11 @@ const resolveDate = (dateVal: any, registeredDate: string): string => {
 };
 
 /** 셀 값 안전하게 문자열 추출 */
-const cellStr = (row: any, key: string): string =>
+const cellStr = (row: Record<string, unknown>, key: string): string =>
     String(row[key] ?? "").trim();
 
 /** 셀 값 숫자 추출 */
-const cellNum = (row: any, key: string): number =>
+const cellNum = (row: Record<string, unknown>, key: string): number =>
     Number(row[key]) || 0;
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
@@ -160,7 +161,7 @@ export const useBulkImport = () => {
         const wb = XLSX.utils.book_new();
 
         // 시트별로 그룹화
-        const grouped = new Map<string, Record<string, any>[]>();
+        const grouped = new Map<string, Record<string, unknown>[]>();
         failedRows.forEach(({ sheetName, row }) => {
             if (!grouped.has(sheetName)) grouped.set(sheetName, []);
             grouped.get(sheetName)!.push(row);
@@ -207,7 +208,7 @@ export const useBulkImport = () => {
                 return result;
             }
 
-            const customerRows: any[] = XLSX.utils.sheet_to_json(customerSheet);
+            const customerRows = XLSX.utils.sheet_to_json(customerSheet) as Record<string, unknown>[];
             if (customerRows.length === 0) {
                 result.errors.push("고객 정보 시트에 데이터가 없습니다.");
                 result.errorCount++;
@@ -257,8 +258,8 @@ export const useBulkImport = () => {
                     seqRedirect.set(cust.seq, existing);
                     const primary = seqToCustomer.get(existing)!;
                     // 후순위 데이터의 보충 정보 병합
-                    const pRaw = primary.raw;
-                    const cRaw = cust.raw;
+                    const pRaw = primary.raw as Record<string, string>;
+                    const cRaw = cust.raw as Record<string, string>;
                     if (!pRaw["주소(대표)"] && cRaw["주소(대표)"]) pRaw["주소(대표)"] = cRaw["주소(대표)"];
                     if (cRaw["추가 연락처"]) {
                         pRaw["추가 연락처"] = [pRaw["추가 연락처"], cRaw["추가 연락처"]].filter(Boolean).join(",");
@@ -285,9 +286,9 @@ export const useBulkImport = () => {
             // STEP 4: Firestore 기존 고객 조회 (중복 체크용)
             // ══════════════════════════════════════════════════════════════════
             const existingSnap = await getDocs(collection(db, "customers"));
-            const phoneIndex = new Map<string, { id: string; data: any }>();
+            const phoneIndex = new Map<string, { id: string; data: Customer }>();
             existingSnap.docs.forEach(d => {
-                const cd = d.data();
+                const cd = d.data() as Customer;
                 const norm = normalizePhone(cd.phone);
                 if (norm) phoneIndex.set(norm, { id: d.id, data: cd });
                 (cd.sub_phones || []).forEach((sp: string) => {
@@ -319,10 +320,10 @@ export const useBulkImport = () => {
                     if (existing) {
                         // ── 중복 → 병합 ──
                         const batch = writeBatch(db);
-                        const updates: Record<string, any> = {};
-                        const incomingSubPhones = splitComma(row["추가 연락처"]);
-                        const incomingSubAddresses = splitComma(row["추가 주소"]);
-                        const incomingProducts = splitComma(row["보유 상품"]);
+                        const updates: Partial<Customer> = {};
+                        const incomingSubPhones = splitComma(row["추가 연락처"] as string);
+                        const incomingSubAddresses = splitComma(row["추가 주소"] as string);
+                        const incomingProducts = splitComma(row["보유 상품"] as string);
                         const incomingAddress = cellStr(row, "주소(대표)");
 
                         if (incomingSubPhones.length > 0) {
@@ -357,8 +358,8 @@ export const useBulkImport = () => {
                         }
 
                         if (Object.keys(updates).length > 0) {
-                            updates.updatedAt = serverTimestamp();
-                            batch.update(doc(db, "customers", existing.id), updates);
+                            (updates as any).updatedAt = serverTimestamp();
+                            batch.update(doc(db, "customers", existing.id), updates as any);
                             await batch.commit();
                         }
 
@@ -373,14 +374,14 @@ export const useBulkImport = () => {
                     } else {
                         // ── 신규 등록 ──
                         const newRef = doc(collection(db, "customers"));
-                        const newCustomer: Record<string, any> = {
+                        const newCustomer: Partial<Customer> = {
                             no: cust.seq,
                             name: cust.name,
                             phone: cust.phone,
                             address: cellStr(row, "주소(대표)"),
-                            sub_phones: splitComma(row["추가 연락처"]),
-                            sub_addresses: splitComma(row["추가 주소"]),
-                            ownedProducts: splitComma(row["보유 상품"]),
+                            sub_phones: splitComma(row["추가 연락처"] as string),
+                            sub_addresses: splitComma(row["추가 주소"] as string),
+                            ownedProducts: splitComma(row["보유 상품"] as string),
                             distributor,
                             manager: manager.name,
                             managerId: manager.uid,
@@ -388,25 +389,26 @@ export const useBulkImport = () => {
                             notes: cellStr(row, "비고"),
                             registeredDate: cust.registeredDate,
                             lastConsultDate: cust.registeredDate || null,
-                            createdAt: serverTimestamp(),
                         };
+                        (newCustomer as any).createdAt = serverTimestamp();
 
                         const batch = writeBatch(db);
-                        batch.set(newRef, newCustomer);
+                        batch.set(newRef, newCustomer as any);
                         await batch.commit();
 
                         seqToDocId.set(cust.seq, newRef.id);
                         seqToName.set(cust.seq, cust.name);
-                        phoneIndex.set(cust.normalizedPhone, { id: newRef.id, data: newCustomer });
+                        phoneIndex.set(cust.normalizedPhone, { id: newRef.id, data: newCustomer as Customer });
                         result.newCount++;
 
                         // 메모 → 채팅
                         if (cust.memo) memoMessages.push({ customerId: newRef.id, content: cust.memo });
                     }
-                } catch (err: any) {
-                    result.errors.push(`고객 "${cust.name}" 처리 실패: ${err.message}`);
+                } catch (err: unknown) {
+                    const msg = err instanceof Error ? err.message : "관리자 문의 필요";
+                    result.errors.push(`고객 "${cust.name}" 처리 실패: ${msg}`);
                     result.errorCount++;
-                    result.failedRows.push({ sheetName: CUSTOMER_SHEET.name, row, reason: err.message });
+                    result.failedRows.push({ sheetName: CUSTOMER_SHEET.name, row, reason: msg });
                 }
 
                 // seqRedirect로 후순위 순번 → 같은 docId/name 매핑
@@ -432,8 +434,9 @@ export const useBulkImport = () => {
                         senderName: SYSTEM_NAME,
                         createdAt: serverTimestamp(),
                     });
-                } catch (err: any) {
-                    result.errors.push(`채팅 메시지 생성 실패: ${err.message}`);
+                } catch (err: unknown) {
+                    const msgContent = err instanceof Error ? err.message : "메시지 생성 실패";
+                    result.errors.push(`채팅 메시지 생성 실패: ${msgContent}`);
                 }
             }
 
@@ -446,12 +449,12 @@ export const useBulkImport = () => {
             // 기존 보고서 카운트 조회 (sequenceNumber용)
             const seqNumMap = new Map<string, number>(); // "customerId_type" → count
 
-            const allReportRows: { sheetName: string; activityType: string; row: any; rowIdx: number }[] = [];
+            const allReportRows: { sheetName: string; activityType: string; row: Record<string, unknown>; rowIdx: number }[] = [];
 
             for (const config of REPORT_SHEETS) {
                 const sheet = workbook.Sheets[config.name];
                 if (!sheet) continue;
-                const rows: any[] = XLSX.utils.sheet_to_json(sheet);
+                const rows = XLSX.utils.sheet_to_json(sheet) as Record<string, unknown>[];
                 rows.forEach((row, idx) => {
                     allReportRows.push({
                         sheetName: config.name,
@@ -523,21 +526,21 @@ export const useBulkImport = () => {
                 seqNumMap.set(seqKey, currentSeqNum);
 
                 const activityRef = doc(collection(db, "activities"));
-                const activity: Record<string, any> = {
+                const activity: Partial<Activity> = {
                     customerId,
                     customerName,
-                    type: typeInfo.type,
+                    type: activityType as any,
                     typeName: currentSeqNum > 1 ? `${typeInfo.typeName} (${currentSeqNum})` : typeInfo.typeName,
                     sequenceNumber: currentSeqNum,
                     date: dateVal,
                     manager: mgr.uid,
                     managerName: mgr.name,
-                    managerRole: mgr.role,
+                    managerRole: mgr.role as any,
                     memo: cellStr(row, "참고 사항"),
-                    createdAt: serverTimestamp(),
                     createdBy: writer.uid,
                     createdByName: writer.name,
                 };
+                (activity as any).createdAt = serverTimestamp();
 
                 // 시트 타입별 추가 필드
                 switch (activityType) {
@@ -597,7 +600,7 @@ export const useBulkImport = () => {
                         break;
                 }
 
-                currentBatch.set(activityRef, activity);
+                currentBatch.set(activityRef, activity as any);
                 batchCount++;
                 result.reportCount++;
 
@@ -646,8 +649,9 @@ export const useBulkImport = () => {
             // 캐시 무효화
             await queryClient.invalidateQueries({ queryKey: ["customers"] });
 
-        } catch (error: any) {
-            result.errors.push(`처리 중 오류: ${error.message || "알 수 없는 오류"}`);
+        } catch (error: unknown) {
+            const msg = error instanceof Error ? error.message : "알 수 없는 오류";
+            result.errors.push(`처리 중 오류: ${msg}`);
             result.errorCount++;
         } finally {
             setIsProcessing(false);
