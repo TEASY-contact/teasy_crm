@@ -15,7 +15,7 @@ import { CustomSelect } from "@/components/common/CustomSelect";
 import { useWorkOrder } from "@/hooks/useWorkOrder";
 import { useAuth } from "@/context/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import { collection, query, where, orderBy, getDocs } from "firebase/firestore";
+import { collection, query, where, orderBy, getDocs, doc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import { useReportMetadata } from "@/hooks/useReportMetadata";
@@ -192,6 +192,15 @@ export const CreateWorkRequestModal = ({ isOpen, onClose, initialData }: CreateW
             }
 
             await createRequest(title, content, receiverId, uploadedAttachments, relatedActivityId);
+
+            // 관련 업무 선택 시 해당 고객의 lastConsultDate 갱신 → 최근 1주일 목록 포함
+            if (relatedActivityId) {
+                const act = activities.find(a => a.id === relatedActivityId);
+                if (act?.customerId) {
+                    const today = new Date().toISOString().split('T')[0];
+                    await updateDoc(doc(db, "customers", act.customerId), { lastConsultDate: today });
+                }
+            }
 
             toast({ title: "업무 요청이 생성되었습니다.", status: "success" });
             onClose();

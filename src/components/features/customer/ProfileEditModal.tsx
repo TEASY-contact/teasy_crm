@@ -119,7 +119,9 @@ export const ProfileEditModal = ({
                 };
             }
 
-            await updateDoc(docRef, updateData);
+            // 고객 정보 수정 시 lastConsultDate 갱신 → 최근 1주일 목록 포함
+            const today = new Date().toISOString().split('T')[0];
+            await updateDoc(docRef, { ...updateData, lastConsultDate: today });
 
             toast({
                 title: "저장 성공",

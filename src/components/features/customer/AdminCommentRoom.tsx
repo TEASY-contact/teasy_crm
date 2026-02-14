@@ -5,7 +5,7 @@ import { MdChevronRight } from "react-icons/md";
 import React, { useState, useEffect, useRef } from "react";
 import { TeasyButton, SurnameBadge } from "@/components/common/UIComponents";
 import { db } from "@/lib/firebase";
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, doc, updateDoc } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { applyColonStandard } from "@/utils/textFormatter";
 
@@ -109,6 +109,10 @@ export const AdminCommentRoom = ({ customerId }: { customerId: string }) => {
                 senderName: myName,
                 createdAt: serverTimestamp(),
             });
+
+            // 채팅 메시지 전송 시 lastConsultDate 갱신 → 최근 1주일 목록 포함
+            const today = new Date().toISOString().split('T')[0];
+            await updateDoc(doc(db, "customers", customerId), { lastConsultDate: today });
         } catch (error) {
             console.error("Message send error:", error);
         }
