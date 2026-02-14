@@ -57,7 +57,6 @@ const TruncatedTooltip = ({ label, children }: { label: string, children: React.
 };
 
 
-
 /**
  * Helper: Text highlighting for search matches (v123.79)
  */
