@@ -353,7 +353,9 @@ export const usePurchaseForm = ({
                             type: "inventory", isDeliveryItem: info.isDeliveryItem || false, lastActionDate: actionDate,
                             lastOperator: selectedManager?.label || userData?.name || "System", lastOutflow: q,
                             lastRecipient: customer.name, lastRecipientId: customer.id, masterId: p.masterId || null,
-                            createdAt: serverTimestamp(), editLog, sourceActivityId: targetActivityId
+                            createdAt: serverTimestamp(), editLog, editTime: actionDate,
+                            editOperators: selectedManager?.label || userData?.name || "System",
+                            sourceActivityId: targetActivityId
                         });
                     }
                 }
