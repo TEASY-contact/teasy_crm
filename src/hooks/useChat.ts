@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { db } from "@/lib/firebase";
 import {
-    collection, addDoc, query, orderBy, where,
+    collection, addDoc, query, where,
     onSnapshot, serverTimestamp, Timestamp
 } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
@@ -41,8 +41,7 @@ export const useChat = (selectedDate: Date) => {
 
         const q = query(
             collection(db, CHAT_COLLECTION),
-            where("chatDate", "==", dateStr),
-            orderBy("createdAt", "asc")
+            where("chatDate", "==", dateStr)
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -58,6 +57,12 @@ export const useChat = (selectedDate: Date) => {
                         ? data.createdAt.toDate()
                         : null,
                 };
+            });
+            // Sort client-side (oldest first)
+            msgs.sort((a, b) => {
+                const ta = a.createdAt?.getTime() ?? Date.now();
+                const tb = b.createdAt?.getTime() ?? Date.now();
+                return ta - tb;
             });
             setMessages(msgs);
             setIsLoading(false);
