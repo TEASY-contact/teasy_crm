@@ -1,6 +1,6 @@
 // src/components/features/customer/CustomerRegistrationModal.tsx
 "use client";
-import { useState, useRef } from "react";
+import { useState } from "react";
 import {
     FormControl,
     VStack,
