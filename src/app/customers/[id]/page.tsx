@@ -1,7 +1,6 @@
 "use client";
 import React from 'react';
 import { Box, Flex, Heading, Skeleton, Button, VStack, HStack, IconButton, Text } from "@chakra-ui/react";
-import { Global } from "@emotion/react";
 import { ArrowBackIcon, AddIcon } from "@chakra-ui/icons";
 import { useRouter } from "next/navigation";
 import { TimelineCard } from "@/components/features/customer/TimelineCard";

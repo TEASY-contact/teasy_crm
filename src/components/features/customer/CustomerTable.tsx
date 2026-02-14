@@ -19,7 +19,6 @@ import {
 import { AddIcon } from "@chakra-ui/icons";
 import { Customer } from "@/types/domain";
 import Link from "next/link";
-import { ThinParen } from "@/components/common/ui/BaseAtoms";
 import { ProfileEditModal } from "@/components/features/customer/ProfileEditModal";
 import { FixedSizeList, ListChildComponentProps } from "react-window";
 

@@ -14,7 +14,7 @@ import { BulkImportResultModal } from "@/components/features/customer/BulkImport
 import { useBulkImport, BulkImportResult } from "@/hooks/useBulkImport";
 
 import { db } from "@/lib/firebase";
-import { doc, deleteDoc, writeBatch } from "firebase/firestore";
+import { doc, writeBatch } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
