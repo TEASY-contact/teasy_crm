@@ -1,5 +1,7 @@
 // src/types/auth.ts
-export type UserRole = 'master' | 'admin' | 'employee' | 'partner';
+export type { UserRole } from './domain';
+import { UserRole, UserStatus } from './domain';
+import { Timestamp } from "firebase/firestore";
 
 export interface UserData {
     uid: string;
@@ -11,8 +13,8 @@ export interface UserData {
     lastSessionId: string;
     badgeChar?: string;
     representativeColor: string;
-    status: 'active' | 'banned';
+    status: UserStatus;
     bannedUntil?: string;
-    createdAt?: any;
-    lastLogin?: any;
+    createdAt?: Timestamp | Date | string;
+    lastLogin?: Timestamp | Date | string;
 }

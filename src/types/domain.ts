@@ -6,8 +6,8 @@ import { Timestamp } from "firebase/firestore";
  */
 export interface BaseDoc {
     id: string; // Document ID
-    createdAt?: Timestamp | Date | any;
-    updatedAt?: Timestamp | Date | any;
+    createdAt?: Timestamp | Date | string;
+    updatedAt?: Timestamp | Date | string;
     createdBy?: string;
     createdByName?: string;
 }
@@ -175,14 +175,14 @@ export interface Activity extends BaseDoc {
     symptomIncompleteReason?: string;
     taskIncompleteReason?: string;
     asType?: string;
-    actions?: any[];
+    actions?: Record<string, unknown>[];
     commitmentFiles?: InquiryFile[];
     collectionVideo?: InquiryFile | null;
     reinstallationVideo?: InquiryFile | null;
 
     // Compatibility for work_requests or nested content
     category?: string;
-    content?: Record<string, any>;
+    content?: Record<string, unknown>;
     modificationHistory?: ModificationLog[];
 }
 

@@ -5,7 +5,7 @@ export type StepType =
 
 export interface ContentItem {
     label: string;
-    value: any;
+    value: string | number | boolean | null;
     isHighlight?: boolean;
     isSubItem?: boolean;
     isFirstSubItem?: boolean;
@@ -21,6 +21,6 @@ export interface TimelineItem {
     createdByName: string;
     managerName?: string;
     managerRole?: string;
-    content: any;
+    content: Record<string, unknown>;
     customerName?: string;
 }

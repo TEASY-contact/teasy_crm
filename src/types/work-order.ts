@@ -1,4 +1,6 @@
 
+import { Timestamp } from "firebase/firestore";
+
 export type WorkRequestStatus = 'pending' | 'review_requested' | 'approved' | 'rejected';
 
 export interface WorkRequestAttachment {
@@ -11,7 +13,7 @@ export interface WorkRequestMessage {
     id: string; // UUID or timestamp based
     senderId: string; // 'me' or user UID, but for DB it should be UID
     content: string;
-    timestamp: any; // Firestore Timestamp or string for serialization
+    timestamp: Timestamp | Date | string; // Firestore Timestamp or string for serialization
     time?: string; // Formatted time string for UI (e.g. "오전 10:00")
 }
 
@@ -25,13 +27,13 @@ export interface WorkRequest {
     attachments?: WorkRequestAttachment[];
     messages?: WorkRequestMessage[];
     relatedActivityId?: string | null;
-    createdAt: any;
-    updatedAt: any;
-    lastReadTimestamp?: any; // For unread message divider logic
+    createdAt: Timestamp | Date | string;
+    updatedAt: Timestamp | Date | string;
+    lastReadTimestamp?: Timestamp | Date | string; // For unread message divider logic
     readStatus?: Record<string, boolean>; // { [userId]: boolean }
     isReReview?: boolean;
     triggerType?: 'tax_biz_securing' | 'tax_biz_delay' | string;
     parentWorkId?: string;
-    reviewRequestedAt?: any;
+    reviewRequestedAt?: Timestamp | Date | string;
     participants?: string[];
 }
