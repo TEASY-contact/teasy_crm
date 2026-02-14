@@ -25,13 +25,13 @@ const getAvatarMetadata = (senderId: string, senderName: string, userMetadata?: 
 };
 
 const formatCommentTime = (date: Date | null): string => {
-    if (!date) return "";
+    if (!date) return "방금";
     return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
 };
 
 const getSafeDateString = (date: Date | null): string => {
-    if (!date) return "";
-    return date.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+    const d = date || new Date();
+    return d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
 };
 
 interface ChatCardProps {
@@ -44,10 +44,10 @@ export const ChatCard = ({ userMetadata }: ChatCardProps) => {
     const [isSending, setIsSending] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    // Auto-scroll to bottom on new messages
+    // Auto-scroll to bottom on new messages (smooth)
     useEffect(() => {
         if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
         }
     }, [messages]);
 
@@ -126,8 +126,7 @@ export const ChatCard = ({ userMetadata }: ChatCardProps) => {
                             </Text>
                         </Flex>
                     ) : (
-                        <Flex direction="column" minH="full">
-                            <Box flex={1} />
+                        <Flex direction="column" minH="full" justifyContent="flex-end">
                             <VStack spacing={0} w="full" align="stretch">
                                 {messages.map((msg, index) => {
                                     const isMe = msg.senderId === currentUserId;
@@ -256,6 +255,8 @@ export const ChatCard = ({ userMetadata }: ChatCardProps) => {
                         isLoading={isSending}
                         isDisabled={!inputValue.trim()}
                         fontSize="13px"
+                        _hover={{ transform: "none", boxShadow: "none" }}
+                        _active={{ transform: "none", boxShadow: "none" }}
                     >
                         전송
                     </TeasyButton>
