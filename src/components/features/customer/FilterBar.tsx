@@ -10,9 +10,10 @@ interface FilterBarProps {
     currentSort: string;
     onViewMode: (val: string) => void;
     currentViewMode: string;
+    currentSearch: string;
 }
 
-export const FilterBar = ({ onSearch, onSort, currentSort, onViewMode, currentViewMode }: FilterBarProps) => {
+export const FilterBar = ({ onSearch, onSort, currentSort, onViewMode, currentViewMode, currentSearch }: FilterBarProps) => {
     return (
         <Flex gap={4} align="center">
             <CustomSelect
@@ -35,6 +36,7 @@ export const FilterBar = ({ onSearch, onSort, currentSort, onViewMode, currentVi
                     _placeholder={{ color: "gray.300", fontSize: "14px" }}
                     focusBorderColor="brand.500"
                     fontSize="sm"
+                    value={currentSearch}
                     onChange={(e) => onSearch(e.target.value)}
                 />
             </InputGroup>

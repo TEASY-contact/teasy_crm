@@ -110,11 +110,17 @@ export const useCustomerSearch = ({ initialViewMode = "recent" }: UseCustomerSea
         (needsAllData && isAllLoading) ||
         (viewMode === "recent" && !debouncedQuery && isRecentLoading);
 
+    // 뷰 모드 변경 시 검색어 자동 초기화
+    const handleSetViewMode = (mode: "recent" | "all") => {
+        setSearchQuery("");
+        setViewMode(mode);
+    };
+
     return {
         customers: finalData,
         isLoading,
         viewMode,
-        setViewMode,
+        setViewMode: handleSetViewMode,
         searchQuery,
         setSearchQuery
     };

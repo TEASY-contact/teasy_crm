@@ -132,6 +132,7 @@ export default function CustomersPage() {
                         currentSort={sortBy}
                         onViewMode={(val) => setViewMode(val as "recent" | "all")}
                         currentViewMode={viewMode}
+                        currentSearch={searchQuery}
                     />
                     {isMaster && (
                         <HStack spacing={2} ml={2}>

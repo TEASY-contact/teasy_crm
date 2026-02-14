@@ -66,7 +66,7 @@ export interface Customer extends BaseDoc {
     ownedProducts?: string[];
     manager?: string; // Manager name or ID
     managerId?: string; // Specific UID
-    registeredDate?: string;
+    registeredDate: string;
     license?: string;
     notes?: string;
     memo?: string;
