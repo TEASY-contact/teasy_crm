@@ -8,7 +8,8 @@ export const useAudioEngine = () => {
 
     const initAudio = useCallback(() => {
         if (!audioCtx.current) {
-            audioCtx.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+            audioCtx.current = new AudioContextClass();
             // Silent Pulse to unlock mobile audio (v122.0)
             const buffer = audioCtx.current.createBuffer(1, 1, 22050);
             const source = audioCtx.current.createBufferSource();

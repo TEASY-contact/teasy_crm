@@ -130,7 +130,11 @@ export const REPORT_SHEETS = [
  * Sheet 2~10에 VLOOKUP 수식 삽입
  * A열(순번)을 기준으로 Sheet1의 고객명(B)/연락처(C)를 자동 참조
  */
-function addAutoRefFormulas(ws: any, XLSX: any, maxRows: number) {
+/**
+ * Sheet 2~10에 VLOOKUP 수식 삽입
+ * A열(순번)을 기준으로 Sheet1의 고객명(B)/연락처(C)를 자동 참조
+ */
+function addAutoRefFormulas(ws: import("xlsx").WorkSheet, XLSX: typeof import("xlsx"), maxRows: number) {
     for (let row = 2; row <= maxRows; row++) {
         // B열: 고객명
         const cellB = XLSX.utils.encode_cell({ r: row - 1, c: 1 });

@@ -9,7 +9,8 @@ import { cleanupOrphanedPhotos } from "@/utils/reportUtils";
 import { useAuth } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { AsCompleteFormData, AS_COMPLETE_CONSTANTS } from "./types";
-import { Activity } from "@/types/domain";
+import { Activity, InquiryFile, ChecklistItem, SymptomItem } from "@/types/domain";
+import { Timestamp, FieldValue } from "firebase/firestore";
 import { getCircledNumber } from "@/components/features/asset/AssetModalUtils";
 import { performSelfHealing } from "@/utils/assetUtils";
 import { isWithinBusinessDays } from "@/utils/dateUtils";
@@ -24,6 +25,9 @@ interface UseAsCompleteFormProps {
     initialData?: Partial<AsCompleteFormData>;
     defaultManager?: string;
 }
+
+const isTimestamp = (val: unknown): val is Timestamp =>
+    !!val && typeof (val as Timestamp).toDate === 'function';
 
 export const useAsCompleteForm = ({ customer, activities = [], activityId, initialData, defaultManager }: UseAsCompleteFormProps) => {
     const { userData } = useAuth();
@@ -81,10 +85,16 @@ export const useAsCompleteForm = ({ customer, activities = [], activityId, initi
                 phone: formatPhone(lastSchedule?.phone || customer?.phone || ""),
                 manager: lastSchedule?.manager || prev.manager,
                 asType: lastSchedule?.asType || "",
-                selectedProducts: lastSchedule?.selectedProducts || [],
-                selectedSupplies: lastSchedule?.selectedSupplies || [],
-                symptoms: (lastSchedule?.symptoms || []).map((s: string) => ({ text: s, completed: false })),
-                tasks: (lastSchedule?.tasks || []).map((t: string) => ({ text: t, completed: false })),
+                selectedProducts: (lastSchedule?.selectedProducts || []) as import("@/types/domain").SelectedItem[],
+                selectedSupplies: (lastSchedule?.selectedSupplies || []) as import("@/types/domain").SelectedItem[],
+                symptoms: (lastSchedule?.symptoms || []).map((s) => {
+                    const text = typeof s === 'string' ? s : s.text;
+                    return { text, completed: false };
+                }),
+                tasks: (lastSchedule?.tasks || []).map((t) => {
+                    const text = typeof t === 'string' ? t : t.text;
+                    return { text, completed: false };
+                }),
                 photos: lastSchedule?.photos || []
             }));
         }
@@ -159,8 +169,8 @@ export const useAsCompleteForm = ({ customer, activities = [], activityId, initi
         if (isLoading || isSubmitting.current) return false;
 
         if (activityId && initialData) {
-            const currentActivity = activities.find(a => a.id === activityId);
-            const createdAt = currentActivity?.createdAt?.toDate ? currentActivity.createdAt.toDate() : null;
+            const currentActivity = (activities as Activity[]).find(a => a.id === activityId);
+            const createdAt = isTimestamp(currentActivity?.createdAt) ? currentActivity.createdAt.toDate() : null;
             if (createdAt && userData?.role !== 'master' && !isWithinBusinessDays(createdAt, 3, holidayMap)) {
                 toast({ title: "수정 불가", description: "3영업일 경과하여 마스터만 가능합니다.", status: "error", position: "top" });
                 return false;
@@ -322,7 +332,8 @@ export const useAsCompleteForm = ({ customer, activities = [], activityId, initi
                     commitmentFiles: formData.asType === "이전 시공" ? finalCommitment : [],
                     collectionVideo: formData.asType === "방문 수거" ? finalCollectionVideo : null,
                     reinstallationVideo: formData.asType === "방문 재설치" ? finalReinstallVideo : null,
-                    memo: applyColonStandard(formData.memo || ""), updatedAt: serverTimestamp()
+                    memo: applyColonStandard(formData.memo || ""),
+                    updatedAt: serverTimestamp() as unknown as Timestamp
                 };
 
                 // History (ModificationHistory)
@@ -433,8 +444,15 @@ export const useAsCompleteForm = ({ customer, activities = [], activityId, initi
                     transaction.update(activityRef, dataToSave as any);
                 } else {
                     const nextSeq = lastSchedule?.sequenceNumber || (activities.filter(a => a.type === AS_COMPLETE_CONSTANTS.TYPE).length + 1);
-                    transaction.set(activityRef, { ...dataToSave, sequenceNumber: nextSeq, createdAt: serverTimestamp(), createdBy: userData?.uid || "system", createdByName: userData?.name || "알 수 없음" });
-                    transaction.set(metaRef, { lastSequence: nextSeq, totalCount: (Number(currentMeta.totalCount) || 0) + 1, lastUpdatedAt: serverTimestamp() }, { merge: true });
+                    const newActivity = {
+                        ...dataToSave,
+                        sequenceNumber: nextSeq,
+                        createdAt: serverTimestamp() as unknown as Timestamp,
+                        createdBy: userData?.uid || "system",
+                        createdByName: userData?.name || "알 수 없음"
+                    };
+                    transaction.set(activityRef, newActivity as any);
+                    transaction.set(metaRef, { lastSequence: nextSeq, totalCount: (Number(currentMeta.totalCount) || 0) + 1, lastUpdatedAt: serverTimestamp() as unknown as Timestamp }, { merge: true });
                 }
 
                 const nowSec = new Date();
@@ -476,7 +494,8 @@ export const useAsCompleteForm = ({ customer, activities = [], activityId, initi
                             currentStock: (Number(tracker.data.currentStock) || 0) + tracker.deltaStock,
                             totalOutflow: (Number(tracker.data.totalOutflow) || 0) + tracker.deltaOutflow,
                             totalInflow: (Number(tracker.data.totalInflow) || 0) + tracker.deltaInflow,
-                            lastUpdatedAt: serverTimestamp(), lastAction: "as_complete_sync"
+                            lastUpdatedAt: serverTimestamp() as unknown as Timestamp,
+                            lastAction: "as_complete_sync"
                         }, { merge: true });
                     }
                 }
@@ -512,8 +531,8 @@ export const useAsCompleteForm = ({ customer, activities = [], activityId, initi
     const handleDelete = useCallback(async () => {
         if (!activityId) return false;
         if (initialData) {
-            const currentActivity = activities.find(a => a.id === activityId);
-            const createdAt = currentActivity?.createdAt?.toDate ? currentActivity.createdAt.toDate() : null;
+            const currentActivity = (activities as Activity[]).find(a => a.id === activityId);
+            const createdAt = isTimestamp(currentActivity?.createdAt) ? currentActivity.createdAt.toDate() : null;
             if (createdAt && userData?.role !== 'master' && !isWithinBusinessDays(createdAt, 3, holidayMap)) {
                 toast({ title: "삭제 불가", description: "3영업일 경과하여 마스터만 가능합니다.", status: "error", position: "top" });
                 return false;
@@ -555,7 +574,7 @@ export const useAsCompleteForm = ({ customer, activities = [], activityId, initi
                             currentStock: (Number(currentData.currentStock) || 0) - inflow + outflow,
                             totalInflow: (Number(currentData.totalInflow) || 0) - inflow,
                             totalOutflow: (Number(currentData.totalOutflow) || 0) - outflow,
-                            lastUpdatedAt: serverTimestamp()
+                            lastUpdatedAt: serverTimestamp() as unknown as Timestamp
                         };
 
                         transaction.update(tracker.ref, updatedData);
