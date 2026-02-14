@@ -186,45 +186,25 @@ export const TableRowItem = ({
             ) : (
                 <>
                     <AssetTd p={0} textAlign="center">
-                        <HStack spacing={0} h="full" w="full" px={1}>
-                            <Flex
-                                w="full" h="full" minH="45px" cursor="pointer"
-                                onClick={() => setSelectedAssetId(prev => prev === asset.id ? null : asset.id)}
-                                align="center" justify="center"
-                                userSelect="none"
-                                _active={{ bg: "transparent" }}
-                                _focus={{ bg: "transparent" }}
+                        <Flex
+                            w="full" h="full" minH="45px" cursor="pointer"
+                            onClick={() => setSelectedAssetId(prev => prev === asset.id ? null : asset.id)}
+                            align="center" justify="center"
+                            userSelect="none"
+                            _active={{ bg: "transparent" }}
+                            _focus={{ bg: "transparent" }}
+                            _focusVisible={{ boxShadow: "none" }}
+                            style={{ WebkitTapHighlightColor: "transparent" }}
+                        >
+                            <Checkbox
+                                colorScheme="brand"
+                                isChecked={isSelected}
+                                pointerEvents="none"
+                                _focus={{ boxShadow: "none" }}
                                 _focusVisible={{ boxShadow: "none" }}
-                                style={{ WebkitTapHighlightColor: "transparent" }}
-                                flex={1}
-                            >
-                                <Checkbox
-                                    colorScheme="brand"
-                                    isChecked={isSelected}
-                                    pointerEvents="none"
-                                    _focus={{ boxShadow: "none" }}
-                                    _focusVisible={{ boxShadow: "none" }}
-                                    _active={{ bg: "transparent" }}
-                                />
-                            </Flex>
-                            <Flex
-                                justify="center"
-                                align="center"
-                                cursor="grab"
-                                _active={{ cursor: "grabbing" }}
-                                onPointerDown={(e) => controls.start(e)}
-                                p={1}
-                                borderRadius="sm"
-                                _hover={{ bg: "gray.100" }}
-                                flex={1}
-                            >
-                                <Box as="svg" width="14px" height="14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" color="gray.300">
-                                    <line x1="4" y1="8" x2="20" y2="8" />
-                                    <line x1="4" y1="12" x2="20" y2="12" />
-                                    <line x1="4" y1="16" x2="20" y2="16" />
-                                </Box>
-                            </Flex>
-                        </HStack>
+                                _active={{ bg: "transparent" }}
+                            />
+                        </Flex>
                     </AssetTd>
                     <AssetTd textAlign="center" color="gray.600" whiteSpace="nowrap">
                         {totalCount - idx}
