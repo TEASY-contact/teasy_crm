@@ -207,48 +207,40 @@ export const MainDashboard = () => {
                     </Flex>
                 </GridItem>
 
-                {/* Row 2+3: Work Request */}
+                {/* Row 2+3: Work Request + Work Chat */}
                 <GridItem colSpan={1} rowSpan={2} mt={10} minH="0" minW="0" display="flex" flexDirection="column">
-                    <SideStatusCard title="업무 요청" count={0} placeholder="모든 업무를 처리하였습니다." h="full" isEmpty={normalizedWorkRequests.length === 0}>
-                        <TeasyList>
-                            {normalizedWorkRequests.map((req, idx) => (
-                                <TeasyListItem key={req.id} isLast={idx === normalizedWorkRequests.length - 1} onClick={() => handleWorkRequestClick(req)} cursor="pointer" opacity={req.isRead ? 0.6 : 1} spacing={3} alignItems="center">
-                                    {/* 1. 요청자 배지 */}
-                                    <Box flexShrink={0}>
-                                        <SurnameBadge name={req.name} badgeChar={userMetadata[req.createdBy]?.badgeChar} color={userMetadata[req.createdBy]?.color || getBadgeColor(req.category)} w="22px" h="22px" />
-                                    </Box>
+                    <Grid templateColumns="1fr 1fr" gap={6} h="full">
+                        <SideStatusCard title="업무 요청" count={0} placeholder="모든 업무를 처리하였습니다." h="full" isEmpty={normalizedWorkRequests.length === 0}>
+                            <TeasyList>
+                                {normalizedWorkRequests.map((req, idx) => (
+                                    <TeasyListItem key={req.id} isLast={idx === normalizedWorkRequests.length - 1} onClick={() => handleWorkRequestClick(req)} cursor="pointer" opacity={req.isRead ? 0.6 : 1} spacing={3} alignItems="center">
+                                        {/* 1. 요청자 배지 */}
+                                        <Box flexShrink={0}>
+                                            <SurnameBadge name={req.name} badgeChar={userMetadata[req.createdBy]?.badgeChar} color={userMetadata[req.createdBy]?.color || getBadgeColor(req.category)} w="22px" h="22px" />
+                                        </Box>
 
-                                    {/* 2. 제목 (남은 공간 차지, 말줄임) */}
-                                    <TeasyListText flex={1} minW={0} fontWeight="bold" isTruncated mr={3}>
-                                        {req.title}
-                                    </TeasyListText>
+                                        {/* 2. 제목 (남은 공간 차지, 말줄임) */}
+                                        <TeasyListText flex={1} minW={0} fontWeight="bold" isTruncated>
+                                            {req.title}
+                                        </TeasyListText>
 
-                                    {/* 3. 우측 그룹: [업무 배지 + 고객명] --gap=2-- [구분선 + 일시] */}
-                                    <Flex align="center" flexShrink={0} gap={2}>
-                                        {req.category !== 'general' && (
-                                            <Flex align="center" gap={2} w="140px">
-                                                <Box flexShrink={0}>
-                                                    <ReportBadge colorType={getBadgeInfo(req.category).color as any} fontSize="10px" h="16px" px={1}>
-                                                        {getBadgeInfo(req.category).text}
-                                                    </ReportBadge>
-                                                </Box>
-                                                <Text color="gray.500" fontSize="sm" fontWeight="normal" flex={1} minW={0} isTruncated>
-                                                    {req.customer}
-                                                </Text>
-                                            </Flex>
-                                        )}
-
-                                        <Flex align="center" gap={2}>
-                                            <TeasyDivider orientation="vertical" h="10px" borderColor="gray.300" />
+                                        {/* 3. 일시 */}
+                                        <Box flexShrink={0}>
                                             <TeasyListSubText whiteSpace="pre" fontWeight="medium" sx={{ fontVariantNumeric: "tabular-nums" }}>
                                                 <ThinParen text={req.date || ''} />
                                             </TeasyListSubText>
-                                        </Flex>
-                                    </Flex>
-                                </TeasyListItem>
-                            ))}
-                        </TeasyList>
-                    </SideStatusCard>
+                                        </Box>
+                                    </TeasyListItem>
+                                ))}
+                            </TeasyList>
+                        </SideStatusCard>
+
+                        <SideStatusCard title="업무 채팅" count={0} placeholder="진행 중인 채팅이 없습니다." h="full" isEmpty={true}>
+                            <TeasyList>
+                                {/* Chat items will be rendered here when chat feature is implemented */}
+                            </TeasyList>
+                        </SideStatusCard>
+                    </Grid>
                 </GridItem>
 
                 {/* Row 3: Bottom Stats */}
