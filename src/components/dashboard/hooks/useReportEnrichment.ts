@@ -2,9 +2,11 @@
 import { useState, useEffect, useMemo } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { Activity } from "@/types/domain";
+import { UserData } from "@/types/auth";
 
-export const useReportEnrichment = (recentReportsRaw: any[], userData: any, dismissedRecentIds: Set<string>) => {
-    const [recentList, setRecentList] = useState<any[]>([]);
+export const useReportEnrichment = (recentReportsRaw: Activity[], userData: UserData | null, dismissedRecentIds: Set<string>) => {
+    const [recentList, setRecentList] = useState<Activity[]>([]);
     const [customerCache, setCustomerCache] = useState<Record<string, string>>({});
 
     useEffect(() => {
@@ -15,7 +17,8 @@ export const useReportEnrichment = (recentReportsRaw: any[], userData: any, dism
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
             const filtered = recentReportsRaw.filter(item => {
-                const createdTime = item.createdAt?.toDate ? item.createdAt.toDate() : new Date();
+                const raw = item.createdAt;
+                const createdTime = raw && typeof raw === 'object' && 'toDate' in raw ? raw.toDate() : new Date();
                 const isRecent = createdTime >= sevenDaysAgo;
                 const isNotMe = item.createdBy !== userData.uid;
                 const isNotDismissed = !dismissedRecentIds.has(item.id);
@@ -26,7 +29,7 @@ export const useReportEnrichment = (recentReportsRaw: any[], userData: any, dism
             const inFlight = new Map<string, Promise<string | null>>();
             let cacheChanged = false;
 
-            const enriched = await Promise.all(filtered.map(async (item: any) => {
+            const enriched = await Promise.all(filtered.map(async (item: Activity) => {
                 const cid = item.customerId;
                 if (item.customerName) return item;
                 if (!cid) return { ...item, customerName: '알 수 없는 고객' };

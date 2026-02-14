@@ -1,4 +1,5 @@
 // src/components/dashboard/utils/dashboardUtils.ts
+import { Timestamp } from "firebase/firestore";
 
 /**
  * Utility: Standardized Badge Info Mapping (v123.80)
@@ -65,13 +66,13 @@ export const getBadgeColor = (type: string) => getBadgeInfo(type).color;
  * @param inputDate Date | Timestamp | string
  * @param timeStr Optional time string (HH:mm) if inputDate is just a date string
  */
-export const formatDashboardDate = (inputDate: any, timeStr?: string) => {
+export const formatDashboardDate = (inputDate: Timestamp | Date | string | null | undefined, timeStr?: string) => {
     if (!inputDate) return "";
 
     let d: Date | null = null;
 
     try {
-        if (inputDate?.toDate) {
+        if (typeof inputDate === 'object' && inputDate !== null && 'toDate' in inputDate) {
             // Firestore Timestamp
             d = inputDate.toDate();
         } else if (inputDate instanceof Date) {

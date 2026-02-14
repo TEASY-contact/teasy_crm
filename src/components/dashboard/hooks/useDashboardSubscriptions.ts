@@ -2,11 +2,13 @@
 import { useState, useEffect, useMemo } from "react";
 import { collection, query, where, onSnapshot, orderBy, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { Activity } from "@/types/domain";
+import { WorkRequest } from "@/types/work-order";
 
 export const useDashboardSubscriptions = (selectedDate: Date) => {
-    const [recentReportsRaw, setRecentReportsRaw] = useState<any[]>([]);
-    const [workRequestsList, setWorkRequestsList] = useState<any[]>([]);
-    const [schedulesList, setSchedulesList] = useState<any[]>([]);
+    const [recentReportsRaw, setRecentReportsRaw] = useState<Activity[]>([]);
+    const [workRequestsList, setWorkRequestsList] = useState<WorkRequest[]>([]);
+    const [schedulesList, setSchedulesList] = useState<Activity[]>([]);
     const [userMetadata, setUserMetadata] = useState<Record<string, { name: string, color: string, badgeChar: string }>>({});
 
     useEffect(() => {
@@ -35,12 +37,12 @@ export const useDashboardSubscriptions = (selectedDate: Date) => {
     useEffect(() => {
         const qActivities = query(collection(db, "activities"), orderBy("createdAt", "desc"), limit(100));
         const unsubActivities = onSnapshot(qActivities, (snap) => {
-            setRecentReportsRaw(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+            setRecentReportsRaw(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Activity)));
         });
 
         const qWork = query(collection(db, "work_requests"), orderBy("createdAt", "desc"));
         const unsubWork = onSnapshot(qWork, (snap) => {
-            setWorkRequestsList(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+            setWorkRequestsList(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as WorkRequest)));
         });
 
         return () => { unsubActivities(); unsubWork(); };
@@ -58,7 +60,7 @@ export const useDashboardSubscriptions = (selectedDate: Date) => {
             where("date", "<=", endOfMonth)
         );
         const unsubSchedules = onSnapshot(qSchedules, (snap) => {
-            setSchedulesList(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+            setSchedulesList(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Activity)));
         });
 
         return () => unsubSchedules();
