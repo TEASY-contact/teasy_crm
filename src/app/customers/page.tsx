@@ -141,7 +141,7 @@ export default function CustomersPage() {
                         onSearch={setSearchQuery}
                         onSort={setSortBy}
                         currentSort={sortBy}
-                        onViewMode={setViewMode}
+                        onViewMode={(val) => setViewMode(val as "recent" | "all")}
                         currentViewMode={viewMode}
                     />
                     {isMaster && (
