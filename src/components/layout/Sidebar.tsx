@@ -8,7 +8,13 @@ import { useAuth } from "@/context/AuthContext";
 import { SurnameBadge } from "@/components/common/UIComponents";
 import { UserEditModal } from "@/components/features/admin/UserEditModal";
 
-const NavItem = React.memo(({ icon, children, href }: any) => (
+interface NavItemProps {
+    icon: React.ElementType;
+    children: React.ReactNode;
+    href: string;
+}
+
+const NavItem = React.memo(({ icon, children, href }: NavItemProps) => (
     <ChakraLink as={NextLink} href={href} w="full" _hover={{ textDecoration: "none" }}>
         <Flex align="center" p={3} borderRadius="md" _hover={{ bg: "whiteAlpha.200" }} _active={{ transform: "scale(0.95)" }} transition="transform 0.1s" cursor="pointer">
             <Icon as={icon} mr={3} fontSize="xl" />

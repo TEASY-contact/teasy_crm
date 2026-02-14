@@ -1,11 +1,11 @@
 "use client";
 import React from "react";
 import {
-    Input, Textarea, FormLabel, Text, HStack, Box, useToast, type InputProps, type TextareaProps, type FormLabelProps, type TextProps
+    Input, Textarea, FormLabel, Text, HStack, Box, useToast, type InputProps, type TextareaProps, type FormLabelProps, type TextProps, type BoxProps
 } from "@chakra-ui/react";
 import { formatPhone, formatLicenseKey } from "@/utils/formatter";
 
-export const TeasyInput = React.forwardRef((props: InputProps, ref: any) => (
+export const TeasyInput = React.forwardRef<HTMLInputElement, InputProps>((props, ref) => (
     <Input
         ref={ref}
         h="45px"
@@ -26,15 +26,31 @@ export const TeasyInput = React.forwardRef((props: InputProps, ref: any) => (
 ));
 TeasyInput.displayName = "TeasyInput";
 
-export const TeasyPhoneInput = ({ value, onChange, ...props }: any) => (
-    <TeasyInput type="tel" placeholder="000-0000-0000" value={formatPhone(value)} onChange={(e: any) => onChange(formatPhone(e.target.value))} {...props} />
+interface TeasyPhoneInputProps extends Omit<InputProps, 'onChange'> {
+    value?: string;
+    onChange: (val: string) => void;
+}
+
+export const TeasyPhoneInput = ({ value, onChange, ...props }: TeasyPhoneInputProps) => (
+    <TeasyInput type="tel" placeholder="000-0000-0000" value={formatPhone(value)} onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(formatPhone(e.target.value))} {...props} />
 );
 
-export const TeasyLicenseInput = ({ value, onChange, ...props }: any) => (
-    <TeasyInput value={value} onChange={(e: any) => onChange(formatLicenseKey(e.target.value))} {...props} />
+interface TeasyLicenseInputProps extends Omit<InputProps, 'onChange'> {
+    value?: string;
+    onChange: (val: string) => void;
+}
+
+export const TeasyLicenseInput = ({ value, onChange, ...props }: TeasyLicenseInputProps) => (
+    <TeasyInput value={value} onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(formatLicenseKey(e.target.value))} {...props} />
 );
 
-export const TeasyDateTimeInput = ({ value, onChange, limitType, ...props }: any) => {
+interface TeasyDateTimeInputProps extends Omit<InputProps, 'onChange'> {
+    value?: string;
+    onChange: (val: string) => void;
+    limitType?: "future" | "past";
+}
+
+export const TeasyDateTimeInput = ({ value, onChange, limitType, ...props }: TeasyDateTimeInputProps) => {
     const inputRef = React.useRef<HTMLInputElement>(null);
     const lastCursorPos = React.useRef<number>(0);
     const [selection, setSelection] = React.useState(0);
@@ -208,7 +224,10 @@ export const TeasyDateTimeInput = ({ value, onChange, limitType, ...props }: any
                 ref={inputRef}
                 value={value}
                 onChange={handleInputChange}
-                onSelect={(e: any) => setSelection(e.target.selectionStart)}
+                onSelect={(e: React.SyntheticEvent<HTMLInputElement>) => {
+                    const target = e.target as HTMLInputElement;
+                    setSelection(target.selectionStart || 0);
+                }}
                 position="relative"
                 zIndex={2}
                 bg="transparent"
@@ -217,7 +236,9 @@ export const TeasyDateTimeInput = ({ value, onChange, limitType, ...props }: any
                 fontSize="sm"
                 fontWeight="normal"
                 color="gray.700"
-                caretColor="var(--chakra-colors-brand-500)"
+                sx={{
+                    caretColor: "var(--chakra-colors-brand-500)"
+                }}
                 letterSpacing="0.5px"
                 _focus={{ boxShadow: "none" }}
                 {...props}
@@ -248,8 +269,8 @@ export const TeasyDateTimeInput = ({ value, onChange, limitType, ...props }: any
                                 borderRadius="4px"
                                 transition="all 0.1s"
                             >
-                                <Box as="span" color={seg.text.trim() === "" ? "gray.300" : "transparent"}>
-                                    {seg.text.trim() === "" ? seg.placeholder : seg.text}
+                                <Box as="span" color={(seg.text || "").trim() === "" ? "gray.300" : "transparent"}>
+                                    {(seg.text || "").trim() === "" ? seg.placeholder : seg.text}
                                 </Box>
                             </Box>
                         )}
@@ -260,7 +281,7 @@ export const TeasyDateTimeInput = ({ value, onChange, limitType, ...props }: any
     );
 };
 
-export const TeasyTextarea = React.forwardRef((props: TextareaProps, ref: any) => (
+export const TeasyTextarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>((props, ref) => (
     <Textarea
         ref={ref}
         borderRadius="lg"
@@ -299,7 +320,11 @@ export const TeasyFormLabel = ({ sub, children, ...props }: FormLabelProps & { s
 );
 export const TeasyFormHelperText = (props: TextProps) => <Text fontSize="xs" fontWeight="500" color="gray.400" mt={1} pl={0.5} {...props} />;
 
-export const TeasyFormGroup = React.forwardRef(({ children, isWhite = false, ...props }: any, ref: any) => (
+interface TeasyFormGroupProps extends BoxProps {
+    isWhite?: boolean;
+}
+
+export const TeasyFormGroup = React.forwardRef<HTMLDivElement, TeasyFormGroupProps>(({ children, isWhite = false, ...props }, ref) => (
     <Box
         ref={ref}
         p={3}

@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import {
-    Text, Badge, Center, Box, Divider, type TextProps, type BadgeProps
+    Text, Badge, Center, Box, Divider, type TextProps, type BadgeProps, type DividerProps, type CenterProps
 } from "@chakra-ui/react";
 
 /**
@@ -27,8 +27,8 @@ export interface TeasyBadgeProps extends BadgeProps {
     colorType?: 'brand' | 'red' | 'green' | 'blue' | 'gray' | 'purple' | 'yellow' | 'orange' | 'pink';
 }
 
-export const TeasyBadge = ({ colorType = 'brand', children, ...props }: any) => {
-    const colorMap: any = {
+export const TeasyBadge = ({ colorType = 'brand', children, ...props }: TeasyBadgeProps) => {
+    const colorMap: Record<string, { bg: string; color: string }> = {
         brand: { bg: "rgba(128, 90, 213, 0.12)", color: "brand.500" },
         purple: { bg: "rgba(128, 90, 213, 0.12)", color: "brand.500" },
         red: { bg: "rgba(229, 62, 62, 0.12)", color: "red.500" },
@@ -53,7 +53,13 @@ export const ReportBadge = TeasyBadge;
 
 export const TeasyPlaceholderText = (props: TextProps) => <Text fontSize="sm" color="gray.300" textAlign="center" {...props} />;
 
-export const SurnameBadge = ({ name, color, badgeChar, ...props }: any) => {
+interface SurnameBadgeProps extends CenterProps {
+    name?: string;
+    color?: string;
+    badgeChar?: string;
+}
+
+export const SurnameBadge = ({ name, color, badgeChar, ...props }: SurnameBadgeProps) => {
     // TEASY_SYSTEM 전용 배지: 보라색 배경 + 'T' 텍스트
     const isSystem = name === 'TEASY_SYSTEM' || name === '시스템';
     const resolvedColor = isSystem ? 'purple.500' : (color || "brand.500");
@@ -88,4 +94,4 @@ export const SurnameBadge = ({ name, color, badgeChar, ...props }: any) => {
     );
 };
 
-export const TeasyDivider = (props: any) => <Divider borderColor="gray.100" {...props} />;
+export const TeasyDivider = (props: DividerProps) => <Divider borderColor="gray.100" {...props} />;
