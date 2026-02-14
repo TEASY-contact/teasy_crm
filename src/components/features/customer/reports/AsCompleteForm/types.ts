@@ -1,5 +1,5 @@
 import { SelectedItem } from "../InstallScheduleForm/types";
-import { ActivityType, InquiryFile } from "@/types/domain";
+import { ActivityType, InquiryFile, ManagerOption } from "@/types/domain";
 
 export interface AsCompleteFormData {
     date: string;
@@ -21,7 +21,7 @@ export interface AsCompleteFormData {
 }
 
 export interface AsCompleteFormHandle {
-    submit: (managerOptions: any[]) => Promise<boolean>;
+    submit: (managerOptions: ManagerOption[]) => Promise<boolean>;
     delete: () => Promise<boolean>;
 }
 
