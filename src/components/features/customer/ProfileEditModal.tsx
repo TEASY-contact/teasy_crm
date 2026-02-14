@@ -130,7 +130,7 @@ export const ProfileEditModal = ({
             // Delay for Firestore indexing (v123.05)
             await new Promise(resolve => setTimeout(resolve, 500));
             await queryClient.invalidateQueries({ queryKey: ["customer", customerId] });
-            await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
+            await queryClient.invalidateQueries({ queryKey: ["customers"] });
 
             onClose();
         } catch (error) {

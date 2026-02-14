@@ -491,7 +491,7 @@ export const useAsCompleteForm = ({ customer, activities = [], activityId, initi
                 await new Promise(r => setTimeout(r, 500));
                 await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
-                await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
+                await queryClient.invalidateQueries({ queryKey: ["customers"] });
                 await queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
                 toast({ title: "A/S 완료 보고 저장", status: "success", position: "top" });
                 return true;

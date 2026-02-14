@@ -576,7 +576,7 @@ export const useInstallCompleteForm = ({ customer, activities = [], activityId, 
                 await new Promise(resolve => setTimeout(resolve, 500));
                 await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
-                await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
+                await queryClient.invalidateQueries({ queryKey: ["customers"] });
                 await queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
                 toast({ title: "시공 완료 보고 저장", status: "success", duration: 2000, position: "top" });
                 return true;

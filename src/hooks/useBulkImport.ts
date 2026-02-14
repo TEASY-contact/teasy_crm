@@ -644,7 +644,7 @@ export const useBulkImport = () => {
             setProgress(100);
 
             // 캐시 무효화
-            await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
+            await queryClient.invalidateQueries({ queryKey: ["customers"] });
 
         } catch (error: any) {
             result.errors.push(`처리 중 오류: ${error.message || "알 수 없는 오류"}`);

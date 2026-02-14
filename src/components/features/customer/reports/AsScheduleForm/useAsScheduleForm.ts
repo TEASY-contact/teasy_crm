@@ -432,7 +432,7 @@ export const useAsScheduleForm = ({ customer, activities = [], activityId, initi
                 await new Promise(r => setTimeout(r, 500));
                 await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
-                await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
+                await queryClient.invalidateQueries({ queryKey: ["customers"] });
                 await queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
                 toast({ title: "A/S 예약 완료", status: "success", position: "top" });
                 return true;

@@ -201,7 +201,7 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
                 await new Promise(resolve => setTimeout(resolve, 500));
                 await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
-                await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
+                await queryClient.invalidateQueries({ queryKey: ["customers"] });
                 toast({ title: "저장 성공", status: "success", duration: 2000, position: "top" });
                 return true;
             } catch (error: any) {
@@ -233,7 +233,7 @@ export const StandardReportForm = forwardRef<StandardReportFormHandle, StandardR
                 await new Promise(resolve => setTimeout(resolve, 500));
                 await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
-                await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
+                await queryClient.invalidateQueries({ queryKey: ["customers"] });
                 toast({ title: "삭제 성공", status: "info", duration: 2000, position: "top" });
                 return true;
             } catch (error) { return false; } finally { setIsLoading(false); }

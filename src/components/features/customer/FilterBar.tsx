@@ -8,9 +8,11 @@ interface FilterBarProps {
     onSearch: (val: string) => void;
     onSort: (val: string) => void;
     currentSort: string;
+    onViewMode: (val: string) => void;
+    currentViewMode: string;
 }
 
-export const FilterBar = ({ onSearch, onSort, currentSort, onViewMode, currentViewMode }: FilterBarProps & { onViewMode: (val: string) => void, currentViewMode: string }) => {
+export const FilterBar = ({ onSearch, onSort, currentSort, onViewMode, currentViewMode }: FilterBarProps) => {
     return (
         <Flex gap={4} align="center">
             <CustomSelect

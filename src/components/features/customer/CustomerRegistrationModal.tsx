@@ -101,7 +101,7 @@ const CustomerRegistrationModalContent = ({ onClose }: { onClose: () => void }) 
 
             // Delay for Firestore indexing (v123.02)
             await new Promise(resolve => setTimeout(resolve, 500));
-            await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
+            await queryClient.invalidateQueries({ queryKey: ["customers"] });
             onClose();
         } catch (error: any) {
             console.error("DEBUG - Firestore Error:", error);

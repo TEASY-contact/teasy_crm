@@ -38,7 +38,7 @@ export const invalidateReportQueries = async (
     }
     await queryClient.invalidateQueries({ queryKey: ["activities", customerId] });
     await queryClient.invalidateQueries({ queryKey: ["customer", customerId] });
-    await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
+    await queryClient.invalidateQueries({ queryKey: ["customers"] });
     if (options?.includeAssets) {
         await queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
     }

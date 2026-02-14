@@ -615,7 +615,7 @@ export const useRemoteAsCompleteForm = ({
                 await new Promise(resolve => setTimeout(resolve, 500));
                 await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
-                await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
+                await queryClient.invalidateQueries({ queryKey: ["customers"] });
                 await queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
 
                 toast({ title: "저장되었습니다.", status: "success", position: "top" });
@@ -720,7 +720,7 @@ export const useRemoteAsCompleteForm = ({
                 await new Promise(resolve => setTimeout(resolve, 500));
                 await queryClient.invalidateQueries({ queryKey: ["activities", customer.id] });
                 await queryClient.invalidateQueries({ queryKey: ["customer", customer.id] });
-                await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
+                await queryClient.invalidateQueries({ queryKey: ["customers"] });
                 await queryClient.invalidateQueries({ queryKey: ["assets", "management"] });
 
                 toast({ title: "삭제되었습니다.", status: "info", position: "top" });

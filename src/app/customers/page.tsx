@@ -1,10 +1,11 @@
 // src/app/customers/page.tsx
 "use client";
 import { Box, Flex, Spacer, useDisclosure, HStack, Badge, Text, VStack, useToast } from "@chakra-ui/react";
+import { ThinParen } from "@/components/common/ui/BaseAtoms";
 import { FilterBar } from "@/components/features/customer/FilterBar";
 import { CustomerTable } from "@/components/features/customer/CustomerTable";
 import { PageHeader, TeasyButton, TeasyInput, TeasyModal, TeasyModalBody, TeasyModalContent, TeasyModalFooter, TeasyModalHeader, TeasyModalOverlay } from "@/components/common/UIComponents";
-import { ThinParen } from "@/components/common/ui/BaseAtoms";
+
 import { useState, useMemo } from "react";
 import { Customer } from "@/types/domain";
 import { CustomerRegistrationModal } from "@/components/features/customer/CustomerRegistrationModal";
@@ -13,15 +14,15 @@ import { BulkImportResultModal } from "@/components/features/customer/BulkImport
 import { useBulkImport, BulkImportResult } from "@/hooks/useBulkImport";
 import { generateBulkTestData } from "@/utils/bulkTestDataGenerator"; // ⚠️ 임시 — 배포 전 삭제
 import { db } from "@/lib/firebase";
-import { collection, getDocs, orderBy, query, doc, deleteDoc } from "firebase/firestore";
+import { doc, deleteDoc } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 
 /**
  * Constants & Utilities: Standardized for Customer Management (v123.78)
  */
-const normalize = (val: string) => (val || "").toLowerCase().replace(/[-\s]/g, "");
+
 
 const SORT_STRATEGIES: Record<string, (a: Customer, b: Customer) => number> = {
     name: (a, b) => a.name.localeCompare(b.name, 'ko'),
@@ -42,22 +43,6 @@ const SORT_STRATEGIES: Record<string, (a: Customer, b: Customer) => number> = {
 
 export default function CustomersPage() {
     const queryClient = useQueryClient();
-    // New Hook Integration
-    // import { useCustomerSearch } from "@/hooks/useCustomerSearch"; // Ensure import is added at top
-    // For now, assume it's imported or available.
-
-    // Note: We need to import useCustomerSearch in the file.
-    // I will replace the imports separately or ensuring they are correct.
-
-    // Replacing old logic:
-    /*
-    const { data: customers = [], isLoading } = useQuery({ ... });
-    const [searchQuery, setSearchQuery] = useState("");
-    ...
-    const finalData = useMemo(...)
-    */
-
-    /* New Logic Start */
     const {
         customers: searchedCustomers,
         isLoading,
@@ -67,7 +52,7 @@ export default function CustomersPage() {
         setSearchQuery
     } = useCustomerSearch();
 
-    // Sort Logic (Client-side sort for the fetched subset)
+
     const [sortBy, setSortBy] = useState("none");
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const { isOpen, onOpen, onClose } = useDisclosure();
@@ -98,7 +83,6 @@ export default function CustomersPage() {
             no: sorted.length - idx
         }));
     }, [searchedCustomers, sortBy]);
-    /* New Logic End */
 
     const handleBulkDelete = async () => {
         if (delConfirmInput !== "삭제") {
@@ -128,7 +112,12 @@ export default function CustomersPage() {
                     title="고객 관리"
                     leftContent={
                         <Badge colorScheme="brand" borderRadius="full" px={3} py={1} fontSize="md">
-                            TOTAL. {finalData.length}
+                            {searchQuery
+                                ? `검색결과 ${finalData.length}건`
+                                : viewMode === "recent"
+                                    ? `최근 1개월 ${finalData.length}명`
+                                    : `TOTAL. ${finalData.length}`
+                            }
                         </Badge>
                     }
                 />
