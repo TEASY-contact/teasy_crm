@@ -62,9 +62,17 @@
 
 > **목표:** 모든 `catch (e: any)` → `catch (e: unknown)` + 타입 가드 패턴 적용
 > **위험도:** ⬇ 낮음
-> **예상 소요:** 15분
+> **예상 소요:** 20분
+> **총 건수:** 프로젝트 전체 **36건** (검증 완료)
 
-**대상 파일:** `admin/settings/page.tsx` (14개 중 대부분이 `catch (e: any)`), `useBulkImport.ts` (3건)
+| 파일 | `catch (e: any)` 수 | 비고 |
+|---|---|---|
+| `admin/settings/page.tsx` | 12건 | 나머지 2건 `: any`는 `renderItem` 파라미터 (Phase 5-6 범위) |
+| `useBulkImport.ts` | 3건 | Phase 8에서 함께 처리 |
+| Form Hooks 9개 (Phase 9 대상) | 21건 | Phase 9에서 함께 처리 |
+
+> ⚠️ 36건 중 24건(bulkImport 3 + form hooks 21)은 Phase 8-9 실행 시 자동 해소됩니다.
+> Phase 7에서 독립 처리 대상은 `settings/page.tsx`의 **12건**입니다.
 
 ```typescript
 // Before
@@ -190,16 +198,17 @@ export const logError = (context: string, error: unknown) => {
 
 | 순서 | Phase | 해소 `any` 수 | 위험도 | 소요 |
 |---|---|---|---|---|
-| 1️⃣ | **Phase 5** (공통 컴포넌트) | ~14개 | ⬇ | 15분 |
-| 2️⃣ | **Phase 6** (소규모 Hooks) | ~21개 | ⬇ | 20분 |
-| 3️⃣ | **Phase 7** (catch `any`) | ~17개 | ⬇ | 15분 |
-| 4️⃣ | **Phase 8** (useBulkImport) | ~12개 | 🟡 | 30분 |
-| 5️⃣ | **Phase 9** (Form Hooks) | ~130개 | 🟡 | 40분 |
-| 6️⃣ | **Phase 10** (UI `as any`) | ~31개 | ⬇ | 20분 |
+| 1️⃣ | **Phase 5** (공통 컴포넌트) | 14개 | ⬇ | 15분 |
+| 2️⃣ | **Phase 6** (소규모 Hooks) | 21개 | ⬇ | 20분 |
+| 3️⃣ | **Phase 7** (catch `any`) | 36건 (독립 12 + Phase 8-9 중복 24) | ⬇ | 20분 |
+| 4️⃣ | **Phase 8** (useBulkImport) | 12개 | 🟡 | 30분 |
+| 5️⃣ | **Phase 9** (Form Hooks) | 130개 | 🟡 | 40분 |
+| 6️⃣ | **Phase 10** (UI `as any`) | 31개 | ⬇ | 20분 |
 | 7️⃣ | **Phase 11** (console 중앙화) | 0 | ⬇ | 15분 |
-| | **합계** | **~225개** | | **~2시간 35분** |
+| | **합계** | **244개** (중복 제외 시 ~220개) | | **~2시간 40분** |
 
-> ⚠️ 나머지 ~182개(407-225)는 보고서 Form UI + 기타 분산 코드에 있으며, Phase 9-10 실행 시 추가 해소됩니다.
+> ⚠️ Phase 7의 36건 중 24건은 Phase 8-9에서 중복 처리됩니다. 중복 제외 실효 해소 수는 ~220개입니다.
+> 나머지 ~187개(407-220)는 보고서 Form UI + 기타 분산 코드에 있으며, Phase 9-10 실행 시 추가 해소됩니다.
 
 ---
 
