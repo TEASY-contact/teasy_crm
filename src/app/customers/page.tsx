@@ -41,58 +41,38 @@ const SORT_STRATEGIES: Record<string, (a: Customer, b: Customer) => number> = {
 
 export default function CustomersPage() {
     const queryClient = useQueryClient();
-    const { data: customers = [], isLoading } = useQuery({
-        queryKey: ["customers", "list"],
-        queryFn: async () => {
-            const q = query(collection(db, "customers"), orderBy("createdAt", "desc"));
-            const snapshot = await getDocs(q);
-            return snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            } as Customer));
-        }
-    });
+    // New Hook Integration
+    // import { useCustomerSearch } from "@/hooks/useCustomerSearch"; // Ensure import is added at top
+    // For now, assume it's imported or available.
 
+    // Note: We need to import useCustomerSearch in the file.
+    // I will replace the imports separately or ensuring they are correct.
+
+    // Replacing old logic:
+    /*
+    const { data: customers = [], isLoading } = useQuery({ ... });
     const [searchQuery, setSearchQuery] = useState("");
+    ...
+    const finalData = useMemo(...)
+    */
+
+    /* New Logic Start */
+    const {
+        customers: searchedCustomers,
+        isLoading,
+        viewMode,
+        setViewMode,
+        searchQuery,
+        setSearchQuery
+    } = useCustomerSearch();
+
+    // Sort Logic (Client-side sort for the fetched subset)
     const [sortBy, setSortBy] = useState("none");
-    const [selectedIds, setSelectedIds] = useState<string[]>([]);
-    const { isOpen, onOpen, onClose } = useDisclosure();
-    const { isOpen: isDelOpen, onOpen: onDelOpen, onClose: onDelClose } = useDisclosure();
-    const { userData } = useAuth();
-    const toast = useToast();
-    const [delConfirmInput, setDelConfirmInput] = useState("");
-    const isMaster = userData?.role === 'master';
-    const { isOpen: isBulkOpen, onOpen: onBulkOpen, onClose: onBulkClose } = useDisclosure();
-    const [bulkResult, setBulkResult] = useState<BulkImportResult | null>(null);
-    const { downloadFailedTemplate } = useBulkImport();
 
-    const refreshCustomers = async () => {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        await queryClient.invalidateQueries({ queryKey: ["customers", "list"] });
-    };
-
-    // 1. Filter + Sort + Assign (Memoized)
     const finalData = useMemo(() => {
-        const filtered = customers.filter(c => {
-            const q = normalize(searchQuery);
-            if (!q) return true;
-
-            const fields = [
-                c.name,
-                c.phone,
-                ...(c.sub_phones || []),
-                c.address,
-                ...(c.sub_addresses || []),
-                c.license,
-                ...(c.ownedProducts || []),
-                c.notes,
-                c.distributor
-            ];
-
-            return fields.some(f => normalize(f || "").includes(q));
-        });
-
-        const sorted = [...filtered].sort((a, b) => {
+        // The hook already filters by search query.
+        // We just need to apply sorting here.
+        const sorted = [...searchedCustomers].sort((a, b) => {
             const strategy = SORT_STRATEGIES[sortBy];
             return strategy ? strategy(a, b) : 0;
         });
@@ -101,7 +81,8 @@ export default function CustomersPage() {
             ...item,
             no: sorted.length - idx
         }));
-    }, [customers, searchQuery, sortBy]);
+    }, [searchedCustomers, sortBy]);
+    /* New Logic End */
 
     const handleBulkDelete = async () => {
         if (delConfirmInput !== "삭제") {
