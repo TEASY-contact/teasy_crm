@@ -5,7 +5,7 @@ import { Box, Flex, Spacer, Text, useToast, Spinner, VStack, IconButton } from "
 import { ArrowBackIcon } from "@chakra-ui/icons";
 import { isWithinBusinessDays } from "@/utils/dateUtils";
 import { InquiryForm } from "./reports/InquiryForm/index";
-import { StandardReportForm } from "./reports/StandardReportForm/index";
+
 import { DemoScheduleForm } from "./reports/DemoScheduleForm/index";
 import { DemoCompleteForm } from "./reports/DemoCompleteForm/index";
 import { PurchaseConfirmForm } from "./reports/PurchaseConfirmForm/index";
@@ -134,7 +134,7 @@ const ReportDetailModalContent = ({ onClose, customer, activity, activities = []
         if (activity.type === "as_schedule") return <AsScheduleForm {...commonProps as any} />;
         if (activity.type === "as_complete") return <AsCompleteForm {...commonProps as any} />;
         if (activity.type === "remoteas_complete") return <RemoteAsCompleteForm {...commonProps as any} />;
-        return <StandardReportForm {...commonProps} />;
+        return null;
     };
 
     return (

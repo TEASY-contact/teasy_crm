@@ -5,7 +5,7 @@ import { ArrowBackIcon } from "@chakra-ui/icons";
 import { CustomSelect } from "@/components/common/CustomSelect";
 import { InquiryForm } from "./reports/InquiryForm/index";
 import { PurchaseConfirmForm } from "./reports/PurchaseConfirmForm/index";
-import { StandardReportForm } from "./reports/StandardReportForm/index";
+
 import { DemoScheduleForm } from "./reports/DemoScheduleForm/index";
 import { DemoCompleteForm } from "./reports/DemoCompleteForm/index";
 import { InstallScheduleForm } from "./reports/InstallScheduleForm/index";
@@ -181,13 +181,7 @@ const ReportSelectionModalContent = ({ onClose, customer, activities = [] }: { o
             case "remoteas_complete":
                 return <RemoteAsCompleteForm {...props} />;
             default:
-                return (
-                    <StandardReportForm
-                        {...props}
-                        reportType={selectedReport}
-                        reportLabel={label}
-                    />
-                );
+                return null;
         }
     };
 
