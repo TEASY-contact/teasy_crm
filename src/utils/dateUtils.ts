@@ -3,11 +3,13 @@
  * API-Driven Holiday Management
  */
 
+export type HolidayMap = Record<string, Record<string, string[]>>;
+
 /**
  * Checks if a given date is a Korean holiday or weekend
  * holidayMap: { [year: string]: { [date: string]: string[] } }
  */
-export const isKoreanHoliday = (date: Date, holidayMap?: any): boolean => {
+export const isKoreanHoliday = (date: Date, holidayMap?: HolidayMap): boolean => {
     const kstDate = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
     const day = kstDate.getDay();
 
@@ -28,7 +30,7 @@ export const isKoreanHoliday = (date: Date, holidayMap?: any): boolean => {
 /**
  * Calculates if the elapsed work days since startDate is within the limit
  */
-export const isWithinBusinessDays = (startDate: Date, limit: number, holidayMap?: any): boolean => {
+export const isWithinBusinessDays = (startDate: Date, limit: number, holidayMap?: HolidayMap): boolean => {
     if (!startDate) return false;
 
     // Normalize to KST

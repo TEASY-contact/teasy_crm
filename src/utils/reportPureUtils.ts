@@ -1,13 +1,17 @@
-// src/utils/reportPureUtils.ts
-// Pure utility functions that don't depend on Firebase — safe for unit testing
-import { isWithinBusinessDays } from "@/utils/dateUtils";
+import { isWithinBusinessDays, HolidayMap } from "@/utils/dateUtils";
+import { Timestamp } from "firebase/firestore";
+
+interface FileLike {
+    url?: string;
+    [key: string]: any;
+}
 
 /**
  * URL-based deduplication for file/photo arrays (v127.0)
  * Removes duplicate entries by comparing base URLs (without query params)
  */
-export const deduplicateFiles = (list: any[]): any[] => {
-    const seen = new Set();
+export const deduplicateFiles = <T extends string | FileLike>(list: T[]): T[] => {
+    const seen = new Set<string>();
     return (list || []).filter(item => {
         const val = typeof item === 'string' ? item : item?.url;
         if (!val) return false;
@@ -23,15 +27,15 @@ export const deduplicateFiles = (list: any[]): any[] => {
  * Returns { allowed: true } or { allowed: false, reason: string }
  */
 export const checkEditPermission = (opts: {
-    createdAt: any;
+    createdAt: Timestamp | Date | string | null | undefined;
     userRole: string | undefined;
-    holidayMap: any;
+    holidayMap: HolidayMap | undefined;
 }): { allowed: boolean; reason?: string } => {
     const { createdAt, userRole, holidayMap } = opts;
     if (!createdAt) return { allowed: true };
     if (userRole === 'master') return { allowed: true };
 
-    const date = createdAt?.toDate ? createdAt.toDate() : new Date(createdAt);
+    const date = (createdAt as any)?.toDate ? (createdAt as any).toDate() : new Date(createdAt as any);
     if (!isWithinBusinessDays(date, 3, holidayMap)) {
         return {
             allowed: false,

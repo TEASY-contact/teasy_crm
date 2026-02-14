@@ -5,7 +5,7 @@ import {
     addDoc, collection, query, where, orderBy, onSnapshot
 } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
-import { WorkRequest, WorkRequestStatus, WorkRequestMessage } from "@/types/work-order";
+import { WorkRequest, WorkRequestStatus, WorkRequestMessage, WorkRequestAttachment } from "@/types/work-order";
 
 export const useWorkOrder = () => {
     const { userData } = useAuth();
@@ -33,9 +33,14 @@ export const useWorkOrder = () => {
 
                 // Sort client-side to avoid complex index requirements
                 const sortedData = data.sort((a, b) => {
-                    const timeA = a.createdAt?.toMillis?.() || 0;
-                    const timeB = b.createdAt?.toMillis?.() || 0;
-                    return timeB - timeA;
+                    const getTime = (ts: any) => {
+                        if (!ts) return 0;
+                        if (typeof ts.toMillis === 'function') return ts.toMillis();
+                        if (ts instanceof Date) return ts.getTime();
+                        if (typeof ts === 'string') return new Date(ts).getTime();
+                        return 0;
+                    };
+                    return getTime(b.createdAt) - getTime(a.createdAt);
                 });
 
                 callback(sortedData);
@@ -46,7 +51,7 @@ export const useWorkOrder = () => {
         });
     };
 
-    const createRequest = async (title: string, content: string, receiverId: string, attachments: any[] = [], relatedActivityId?: string) => {
+    const createRequest = async (title: string, content: string, receiverId: string, attachments: WorkRequestAttachment[] = [], relatedActivityId?: string) => {
         if (!userData) throw new Error("Unauthorized");
 
         const newRequest = {
@@ -71,9 +76,9 @@ export const useWorkOrder = () => {
         await addDoc(collection(db, "work_requests"), newRequest);
     };
 
-    const handleStatusChange = async (requestId: string, newStatus: WorkRequestStatus, additionalData: any = {}) => {
+    const handleStatusChange = async (requestId: string, newStatus: WorkRequestStatus, additionalData: Partial<WorkRequest> = {}) => {
         const ref = doc(db, "work_requests", requestId);
-        const updateData: any = {
+        const updateData: Record<string, any> = {
             status: newStatus,
             updatedAt: serverTimestamp(),
             ...additionalData
@@ -111,7 +116,7 @@ export const useWorkOrder = () => {
         });
     };
 
-    const removeAttachment = async (requestId: string, file: any) => {
+    const removeAttachment = async (requestId: string, file: WorkRequestAttachment) => {
         const ref = doc(db, "work_requests", requestId);
         await updateDoc(ref, {
             attachments: arrayRemove(file)

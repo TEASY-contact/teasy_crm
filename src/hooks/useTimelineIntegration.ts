@@ -1,7 +1,7 @@
 // src/hooks/useTimelineIntegration.ts
 "use client";
 import { db } from "@/lib/firebase";
-import { doc, runTransaction, serverTimestamp, collection } from "firebase/firestore";
+import { doc, runTransaction, serverTimestamp, collection, DocumentReference, DocumentSnapshot } from "firebase/firestore";
 import { TimelineItem } from "@/types/timeline";
 
 /**
@@ -18,10 +18,17 @@ export const useTimelineIntegration = () => {
             const customerSnap = await transaction.get(customerRef);
             if (!customerSnap.exists()) throw new Error("Customer not found");
 
-            let inventorySnaps: any[] = [];
+            interface PreparedPart { id: string; qty: number; }
+            interface InventorySnap {
+                item: PreparedPart;
+                ref: DocumentReference;
+                snap: DocumentSnapshot;
+            }
+
+            let inventorySnaps: InventorySnap[] = [];
             if (reportData.stepType === 'install_schedule' || reportData.stepType === 'as_schedule') {
-                const items = reportData.content.preparedParts || [];
-                inventorySnaps = await Promise.all(items.map(async (item: any) => {
+                const items = (reportData.content?.preparedParts as PreparedPart[]) || [];
+                inventorySnaps = await Promise.all(items.map(async (item) => {
                     const itemRef = doc(db, "inventory_items", item.id);
                     const snap = await transaction.get(itemRef);
                     return { item, ref: itemRef, snap };

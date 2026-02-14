@@ -1,6 +1,5 @@
-// src/utils/assetUtils.ts
 import { db } from "@/lib/firebase";
-import { doc, getDoc, updateDoc, writeBatch, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc, updateDoc, writeBatch, collection, query, where, getDocs, Timestamp } from "firebase/firestore";
 
 export interface AssetData {
     id: string;
@@ -21,7 +20,7 @@ export interface AssetData {
     lastRecipient?: string;
     editTime?: string;
     editLog?: string;
-    createdAt: any;
+    createdAt: Timestamp | Date | string | null;
     dividerType?: "inventory" | "product";
     orderIndex?: number;
     isDeliveryItem?: boolean;
@@ -35,8 +34,13 @@ export interface AssetData {
  */
 export const getAssetTimestamp = (createdAt: any): number => {
     if (!createdAt) return Date.now() / 1000;
-    if (createdAt.seconds) return createdAt.seconds;
+    if (createdAt instanceof Timestamp) return createdAt.seconds;
+    if (typeof createdAt.seconds === 'number') return createdAt.seconds;
     if (createdAt instanceof Date) return createdAt.getTime() / 1000;
+    if (typeof createdAt === 'string' || typeof createdAt === 'number') {
+        const d = new Date(createdAt);
+        return isNaN(d.getTime()) ? Date.now() / 1000 : d.getTime() / 1000;
+    }
     return Date.now() / 1000;
 };
 
@@ -44,7 +48,7 @@ export const getAssetTimestamp = (createdAt: any): number => {
  * Global Self-Healing Engine (v2.0)
  * Re-calculates entire history for a specific item and syncs with asset_meta.
  */
-export const performSelfHealing = async (name: string, category: string, assets?: AssetData[], updates?: any, targetId?: string, masterId?: string) => {
+export const performSelfHealing = async (name: string, category: string, assets?: AssetData[], updates?: Partial<AssetData>, targetId?: string, masterId?: string) => {
     let related: AssetData[] = [];
 
     const sanitizedName = name.trim();

@@ -26,13 +26,19 @@ export const useReportMetadata = () => {
 
             // Backup 1: taetae98coding mirror (Yearly fetch)
             try {
-                const backupMap: any = {};
+                interface taetaeHoliday {
+                    isHoliday: boolean;
+                    start: string;
+                    endInclusive: string;
+                    name: string;
+                }
+                const backupMap: Record<string, Record<string, string[]>> = {};
                 await Promise.all(yearsToFetch.map(async (year) => {
                     const bRes = await fetch(`https://taetae98coding.github.io/Holiday/holiday/${year}.json`);
                     if (bRes.ok) {
-                        const data = await bRes.json();
+                        const data: taetaeHoliday[] = await bRes.json();
                         backupMap[year] = backupMap[year] || {};
-                        data.forEach((h: any) => {
+                        data.forEach((h) => {
                             if (h.isHoliday) {
                                 let curr = new Date(h.start);
                                 const end = new Date(h.endInclusive);
@@ -49,13 +55,17 @@ export const useReportMetadata = () => {
 
             // Backup 2: Nager.Date Global API (Yearly fetch)
             try {
-                const globalBackupMap: any = {};
+                interface nagerHoliday {
+                    date: string;
+                    localName: string;
+                }
+                const globalBackupMap: Record<string, Record<string, string[]>> = {};
                 await Promise.all(yearsToFetch.map(async (year) => {
                     const gRes = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/KR`);
                     if (gRes.ok) {
-                        const data = await gRes.json();
+                        const data: nagerHoliday[] = await gRes.json();
                         globalBackupMap[year] = globalBackupMap[year] || {};
-                        data.forEach((h: any) => {
+                        data.forEach((h) => {
                             globalBackupMap[year][h.date] = [h.localName];
                         });
                     }

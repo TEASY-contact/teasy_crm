@@ -1,4 +1,5 @@
-// src/utils/formatter.ts
+import { Timestamp } from "firebase/firestore";
+
 export const formatPhone = (val: string | null | undefined) => {
     if (!val) return "";
     const nums = val.replace(/[^\d]/g, "");
@@ -38,10 +39,20 @@ export const formatDateTime = (val: string) => {
     if (nums.length > 10) res += ":" + nums.slice(10, 12);
     return res;
 };
-export const formatTimestamp = (ts: any): string => {
+export const formatTimestamp = (ts: Timestamp | Date | string | number | null | undefined): string => {
     if (!ts) return "";
-    // Handle Firestore Timestamp
-    const date = ts?.toDate ? ts.toDate() : new Date(ts);
+
+    let date: Date;
+    if (ts instanceof Timestamp) {
+        date = ts.toDate();
+    } else if (ts instanceof Date) {
+        date = ts;
+    } else if (ts && typeof ts === 'object' && 'toDate' in ts && typeof (ts as any).toDate === 'function') {
+        date = (ts as any).toDate();
+    } else {
+        date = new Date(ts as any);
+    }
+
     if (isNaN(date.getTime())) return "";
 
     const YYYY = date.getFullYear();

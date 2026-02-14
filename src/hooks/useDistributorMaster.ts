@@ -11,14 +11,15 @@ import {
     updateDoc,
     serverTimestamp,
     onSnapshot,
-    writeBatch
+    writeBatch,
+    Timestamp
 } from "firebase/firestore";
 import { useState, useEffect } from "react";
 
 export interface DistributorItem {
     id: string;
     name: string;
-    createdAt: any;
+    createdAt: Timestamp | Date | string | null;
     isDivider?: boolean;
     orderIndex?: number;
     colorConfig?: { bg: string, color: string };
