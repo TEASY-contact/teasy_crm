@@ -19,7 +19,7 @@ import { applyColonStandard, normalizeText } from "@/utils/textFormatter";
 
 interface UseAsCompleteFormProps {
     customer: { id: string, name: string, address?: string, phone?: string };
-    activities?: any[];
+    activities?: Activity[];
     activityId?: string;
     initialData?: Partial<AsCompleteFormData>;
     defaultManager?: string;
@@ -155,7 +155,7 @@ export const useAsCompleteForm = ({ customer, activities = [], activityId, initi
 
 
 
-    const submit = useCallback(async (managerOptions: any[]) => {
+    const submit = useCallback(async (managerOptions: import("@/types/domain").ManagerOption[]) => {
         if (isLoading || isSubmitting.current) return false;
 
         if (activityId && initialData) {
@@ -207,7 +207,7 @@ export const useAsCompleteForm = ({ customer, activities = [], activityId, initi
             }
 
             // Upload Attachments
-            const uploadQueue = async (fileList: any[], folder: string) => {
+            const uploadQueue = async (fileList: (InquiryFile & { _file?: File })[], folder: string) => {
                 return Promise.all(fileList.map(async (f) => {
                     if (!f.url.startsWith('blob:')) return { id: f.id, url: f.url, name: f.name, displayName: f.displayName, ext: f.ext };
                     const file = f._file;
@@ -226,10 +226,10 @@ export const useAsCompleteForm = ({ customer, activities = [], activityId, initi
             const finalReinstallVideo = formData.reinstallationVideo ? (await uploadQueue([formData.reinstallationVideo], 'reinstall_video'))[0] : null;
 
             // --- Pre-transaction Read ---
-            let existingAssets: any[] = [];
+            let existingAssets: { ref: import("firebase/firestore").DocumentReference, data: import("@/types/domain").Asset }[] = [];
             if (activityId) {
                 const assetSnap = await getDocs(query(collection(db, "assets"), where("sourceActivityId", "==", activityId)));
-                existingAssets = assetSnap.docs.map(d => ({ ref: d.ref, data: d.data() }));
+                existingAssets = assetSnap.docs.map(d => ({ ref: d.ref, data: d.data() as import("@/types/domain").Asset }));
             }
 
             const saveResult = await runTransaction(db, async (transaction) => {
@@ -239,9 +239,9 @@ export const useAsCompleteForm = ({ customer, activities = [], activityId, initi
 
                 // --- 1. Settlement Calculation (Local) ---
                 const lastSchedule = [...(activities || [])].reverse().find(a => a.type === "as_schedule");
-                const reservedSupplies = lastSchedule?.selectedSupplies || [];
+                const reservedSupplies = (lastSchedule?.selectedSupplies || []) as import("@/types/domain").SelectedItem[];
                 const reservedMap = new Map<string, { name: string, category: string, quantity: number }>();
-                reservedSupplies.forEach((s: any) => {
+                reservedSupplies.forEach((s) => {
                     const key = `${s.name.trim()}|${(s.category || "").trim()}`;
                     if (s.category) {
                         const qty = Number(s.quantity) || 0;
@@ -274,7 +274,11 @@ export const useAsCompleteForm = ({ customer, activities = [], activityId, initi
                 const metaRef = doc(db, "customer_meta", `${customer.id}_${AS_COMPLETE_CONSTANTS.META_PREFIX}`);
                 const metaSnap = await transaction.get(metaRef);
 
-                const metaTracker = new Map<string, { ref: any, data: any, deltaStock: number, deltaOutflow: number, deltaInflow: number }>();
+                const metaTracker = new Map<string, {
+                    ref: import("firebase/firestore").DocumentReference,
+                    data: { totalInflow: number, totalOutflow: number, currentStock: number },
+                    deltaStock: number, deltaOutflow: number, deltaInflow: number
+                }>();
                 const encryptMetaId = (name: string, category: string) => `meta_${name.trim()}_${category.trim()}`.replace(/\//g, "_");
                 const loadMeta = async (metaId: string) => {
                     if (!metaTracker.has(metaId)) {
@@ -358,8 +362,8 @@ export const useAsCompleteForm = ({ customer, activities = [], activityId, initi
                         if (cleanOld !== cleanNew) changes.push(`점검: ${cleanOld || "없음"} → ${cleanNew || "없음"}`);
                     }
 
-                    const oldSupplies = (oldData.selectedSupplies || []).map((s: any) => `${s.name}x${s.quantity}`).sort().join(", ");
-                    const newSupplies = (formData.selectedSupplies || []).map((s: any) => `${s.name}x${s.quantity}`).sort().join(", ");
+                    const oldSupplies = ((oldData.selectedSupplies || []) as import("@/types/domain").SelectedItem[]).map((s) => `${s.name}x${s.quantity}`).sort().join(", ");
+                    const newSupplies = (formData.selectedSupplies || []).map((s) => `${s.name}x${s.quantity}`).sort().join(", ");
                     if (oldSupplies !== newSupplies) {
                         changes.push(`사용: ${oldSupplies || "없음"} → ${newSupplies || "없음"}`);
                     }
@@ -372,8 +376,8 @@ export const useAsCompleteForm = ({ customer, activities = [], activityId, initi
                         changes.push(`증상: ${oldSymptomsCompleted}/${oldSymptoms.length} → ${newSymptomsCompleted}/${formData.symptoms.length}`);
                     }
 
-                    const oldTasks = oldData.tasks || [];
-                    const oldTasksCompleted = oldTasks.filter((t: any) => t.completed).length;
+                    const oldTasks = (oldData.tasks || []) as { completed: boolean }[];
+                    const oldTasksCompleted = oldTasks.filter((t) => t.completed).length;
                     const newTasksCompleted = formData.tasks.filter(t => t.completed).length;
                     if (oldTasksCompleted !== newTasksCompleted || oldTasks.length !== formData.tasks.length) {
                         changes.push(`결과: ${oldTasksCompleted}/${oldTasks.length} → ${newTasksCompleted}/${formData.tasks.length}`);
@@ -497,9 +501,10 @@ export const useAsCompleteForm = ({ customer, activities = [], activityId, initi
                 return true;
             }
             return false;
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(error);
-            toast({ title: "저장 실패", description: error.message, status: "error", position: "top" });
+            const msg = error instanceof Error ? error.message : "알 수 없는 오류";
+            toast({ title: "저장 실패", description: msg, status: "error", position: "top" });
             return false;
         } finally { setIsLoading(false); isSubmitting.current = false; }
     }, [isLoading, formData, activities, pendingFiles, activityId, initialData, customer.id, customer.name, userData, toast, queryClient, holidayMap]);
@@ -518,10 +523,10 @@ export const useAsCompleteForm = ({ customer, activities = [], activityId, initi
         setIsLoading(true);
         try {
             const assetSnap = await getDocs(query(collection(db, "assets"), where("sourceActivityId", "==", activityId)));
-            const assets = assetSnap.docs.map(d => ({ ref: d.ref, data: d.data() }));
+            const assets = assetSnap.docs.map(d => ({ ref: d.ref, data: d.data() as import("@/types/domain").Asset }));
             const result = await runTransaction(db, async (transaction) => {
                 const affectedItems = new Set<string>();
-                const trackers = new Map<string, { ref: any, data: any }>();
+                const trackers = new Map<string, { ref: import("firebase/firestore").DocumentReference, data: any }>();
 
                 // 1. ALL READS FIRST
                 for (const asset of assets) {
@@ -573,9 +578,10 @@ export const useAsCompleteForm = ({ customer, activities = [], activityId, initi
                 return true;
             }
             return false;
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error(e);
-            toast({ title: "삭제 실패", description: e.message, status: "error", position: "top" });
+            const msg = e instanceof Error ? e.message : "알 수 없는 오류";
+            toast({ title: "삭제 실패", description: msg, status: "error", position: "top" });
             return false;
         } finally { setIsLoading(false); }
     }, [activityId, initialData, activities, userData?.role, holidayMap, toast, customer.id, queryClient]);
