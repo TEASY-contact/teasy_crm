@@ -149,7 +149,10 @@ export default function SettingsPage() {
                                         if (!name.trim()) { toast({ title: "총판명을 입력해주세요.", status: "warning", position: "top" }); return; }
                                         setIsSubmitting(true);
                                         try { await addDistributor(name); setName(""); toast({ title: "추가 완료", status: "success", position: "top" }); }
-                                        catch (e: any) { toast({ title: e.message || "추가 실패", status: "error", position: "top" }); }
+                                        catch (e: unknown) {
+                                            const msg = e instanceof Error ? e.message : "추가 실패";
+                                            toast({ title: msg, status: "error", position: "top" });
+                                        }
                                         finally { setIsSubmitting(false); }
                                     })()}
                                 />
@@ -159,7 +162,7 @@ export default function SettingsPage() {
                                     onClick={async () => {
                                         setIsSubmitting(true);
                                         try { await addDivider(); toast({ title: "구분선 추가 완료", status: "success", position: "top" }); }
-                                        catch (e: any) { toast({ title: "지원되지 않는 항목", status: "error", position: "top" }); }
+                                        catch (e: unknown) { toast({ title: "지원되지 않는 항목", status: "error", position: "top" }); }
                                         finally { setIsSubmitting(false); }
                                     }}
                                     isLoading={isSubmitting}
@@ -177,7 +180,10 @@ export default function SettingsPage() {
                                         if (!name.trim()) { toast({ title: "총판명을 입력해주세요.", status: "warning", position: "top" }); return; }
                                         setIsSubmitting(true);
                                         try { await addDistributor(name); setName(""); toast({ title: "추가 완료", status: "success", position: "top" }); }
-                                        catch (e: any) { toast({ title: e.message || "추가 실패", status: "error", position: "top" }); }
+                                        catch (e: unknown) {
+                                            const msg = e instanceof Error ? e.message : "추가 실패";
+                                            toast({ title: msg, status: "error", position: "top" });
+                                        }
                                         finally { setIsSubmitting(false); }
                                     }}
                                     isLoading={isSubmitting}
@@ -242,7 +248,10 @@ export default function SettingsPage() {
                                         if (!visitAsTypeName.trim()) { toast({ title: "유형명을 입력해주세요.", status: "warning", position: "top" }); return; }
                                         setIsVisitAsSubmitting(true);
                                         try { await addVisitAsType(visitAsTypeName); setVisitAsTypeName(""); toast({ title: "추가 완료", status: "success", position: "top" }); }
-                                        catch (e: any) { toast({ title: e.message || "추가 실패", status: "error", position: "top" }); }
+                                        catch (e: unknown) {
+                                            const msg = e instanceof Error ? e.message : "추가 실패";
+                                            toast({ title: msg, status: "error", position: "top" });
+                                        }
                                         finally { setIsVisitAsSubmitting(false); }
                                     })()}
                                 />
@@ -252,7 +261,7 @@ export default function SettingsPage() {
                                     onClick={async () => {
                                         setIsVisitAsSubmitting(true);
                                         try { await addVisitAsDivider(); toast({ title: "구분선 추가 완료", status: "success", position: "top" }); }
-                                        catch (e: any) { toast({ title: "지원되지 않는 항목", status: "error", position: "top" }); }
+                                        catch (e: unknown) { toast({ title: "지원되지 않는 항목", status: "error", position: "top" }); }
                                         finally { setIsVisitAsSubmitting(false); }
                                     }}
                                     isLoading={isVisitAsSubmitting}
@@ -270,7 +279,10 @@ export default function SettingsPage() {
                                         if (!visitAsTypeName.trim()) { toast({ title: "유형명을 입력해주세요.", status: "warning", position: "top" }); return; }
                                         setIsVisitAsSubmitting(true);
                                         try { await addVisitAsType(visitAsTypeName); setVisitAsTypeName(""); toast({ title: "추가 완료", status: "success", position: "top" }); }
-                                        catch (e: any) { toast({ title: e.message || "추가 실패", status: "error", position: "top" }); }
+                                        catch (e: unknown) {
+                                            const msg = e instanceof Error ? e.message : "추가 실패";
+                                            toast({ title: msg, status: "error", position: "top" });
+                                        }
                                         finally { setIsVisitAsSubmitting(false); }
                                     }}
                                     isLoading={isVisitAsSubmitting}
@@ -335,7 +347,10 @@ export default function SettingsPage() {
                                         if (!remoteAsTypeName.trim()) { toast({ title: "유형명을 입력해주세요.", status: "warning", position: "top" }); return; }
                                         setIsRemoteAsSubmitting(true);
                                         try { await addRemoteAsType(remoteAsTypeName); setRemoteAsTypeName(""); toast({ title: "추가 완료", status: "success", position: "top" }); }
-                                        catch (e: any) { toast({ title: e.message || "추가 실패", status: "error", position: "top" }); }
+                                        catch (e: unknown) {
+                                            const msg = e instanceof Error ? e.message : "추가 실패";
+                                            toast({ title: msg, status: "error", position: "top" });
+                                        }
                                         finally { setIsRemoteAsSubmitting(false); }
                                     })()}
                                 />
@@ -345,7 +360,7 @@ export default function SettingsPage() {
                                     onClick={async () => {
                                         setIsRemoteAsSubmitting(true);
                                         try { await addRemoteAsDivider(); toast({ title: "구분선 추가 완료", status: "success", position: "top" }); }
-                                        catch (e: any) { toast({ title: "지원되지 않는 항목", status: "error", position: "top" }); }
+                                        catch (e: unknown) { toast({ title: "지원되지 않는 항목", status: "error", position: "top" }); }
                                         finally { setIsRemoteAsSubmitting(false); }
                                     }}
                                     isLoading={isRemoteAsSubmitting}
@@ -363,7 +378,10 @@ export default function SettingsPage() {
                                         if (!remoteAsTypeName.trim()) { toast({ title: "유형명을 입력해주세요.", status: "warning", position: "top" }); return; }
                                         setIsRemoteAsSubmitting(true);
                                         try { await addRemoteAsType(remoteAsTypeName); setRemoteAsTypeName(""); toast({ title: "추가 완료", status: "success", position: "top" }); }
-                                        catch (e: any) { toast({ title: e.message || "추가 실패", status: "error", position: "top" }); }
+                                        catch (e: unknown) {
+                                            const msg = e instanceof Error ? e.message : "추가 실패";
+                                            toast({ title: msg, status: "error", position: "top" });
+                                        }
                                         finally { setIsRemoteAsSubmitting(false); }
                                     }}
                                     isLoading={isRemoteAsSubmitting}
@@ -428,7 +446,10 @@ export default function SettingsPage() {
                                         if (!remoteAsProductName.trim()) { toast({ title: "상품명을 입력해주세요.", status: "warning", position: "top" }); return; }
                                         setIsRemoteAsProductSubmitting(true);
                                         try { await addRemoteAsProduct(remoteAsProductName); setRemoteAsProductName(""); toast({ title: "추가 완료", status: "success", position: "top" }); }
-                                        catch (e: any) { toast({ title: e.message || "추가 실패", status: "error", position: "top" }); }
+                                        catch (e: unknown) {
+                                            const msg = e instanceof Error ? e.message : "추가 실패";
+                                            toast({ title: msg, status: "error", position: "top" });
+                                        }
                                         finally { setIsRemoteAsProductSubmitting(false); }
                                     })()}
                                 />
@@ -438,7 +459,7 @@ export default function SettingsPage() {
                                     onClick={async () => {
                                         setIsRemoteAsProductSubmitting(true);
                                         try { await addRemoteAsProductDivider(); toast({ title: "구분선 추가 완료", status: "success", position: "top" }); }
-                                        catch (e: any) { toast({ title: "지원되지 않는 항목", status: "error", position: "top" }); }
+                                        catch (e: unknown) { toast({ title: "지원되지 않는 항목", status: "error", position: "top" }); }
                                         finally { setIsRemoteAsProductSubmitting(false); }
                                     }}
                                     isLoading={isRemoteAsProductSubmitting}
@@ -456,7 +477,10 @@ export default function SettingsPage() {
                                         if (!remoteAsProductName.trim()) { toast({ title: "상품명을 입력해주세요.", status: "warning", position: "top" }); return; }
                                         setIsRemoteAsProductSubmitting(true);
                                         try { await addRemoteAsProduct(remoteAsProductName); setRemoteAsProductName(""); toast({ title: "추가 완료", status: "success", position: "top" }); }
-                                        catch (e: any) { toast({ title: e.message || "추가 실패", status: "error", position: "top" }); }
+                                        catch (e: unknown) {
+                                            const msg = e instanceof Error ? e.message : "추가 실패";
+                                            toast({ title: msg, status: "error", position: "top" });
+                                        }
                                         finally { setIsRemoteAsProductSubmitting(false); }
                                     }}
                                     isLoading={isRemoteAsProductSubmitting}
@@ -522,7 +546,7 @@ export default function SettingsPage() {
                                                 await updateColor(selectedTarget.id, { bg: theme.bg, color: theme.color });
                                                 colorDisclosure.onClose();
                                                 toast({ title: "색상 반영 완료", status: "success", size: "sm", position: "top" });
-                                            } catch (e) {
+                                            } catch (e: unknown) {
                                                 toast({ title: "저장 실패", status: "error" });
                                             }
                                         }}
