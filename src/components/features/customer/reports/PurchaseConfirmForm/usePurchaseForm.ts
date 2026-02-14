@@ -315,14 +315,23 @@ export const usePurchaseForm = ({
 
                 // New Deductions
                 if (productCategory === "inventory") {
-                    const actionDate = new Date().toISOString().split('T')[0];
+                    const now = new Date();
+                    const actionDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-                    // Build old quantity map for edit log comparison
+                    // Build old data maps for edit log comparison
                     const oldQuantityMap = new Map<string, number>();
+                    const oldAssetDataMap = new Map<string, { editLog?: string; editTime?: string; editOperators?: string }>();
                     if (activityId) {
                         existingAssets.forEach(asset => {
                             const key = asset.data.name?.trim();
-                            if (key) oldQuantityMap.set(key, (oldQuantityMap.get(key) || 0) + (Number(asset.data.lastOutflow) || 0));
+                            if (key) {
+                                oldQuantityMap.set(key, (oldQuantityMap.get(key) || 0) + (Number(asset.data.lastOutflow) || 0));
+                                oldAssetDataMap.set(key, {
+                                    editLog: asset.data.editLog,
+                                    editTime: asset.data.editTime,
+                                    editOperators: asset.data.editOperators
+                                });
+                            }
                         });
                     }
 
@@ -335,16 +344,27 @@ export const usePurchaseForm = ({
                         affectedItems.add(`${p.name.trim()}|${(info.category || "").trim()}|${p.masterId || ""}`);
                         if (tracker) { tracker.deltaStock -= q; tracker.deltaOutflow += q; }
 
-                        // Descriptive editLog: show quantity change on edit
+                        // Descriptive editLog: show quantity change on edit, preserve original for unchanged
                         let editLog = `구매 확정 차감 (${customer.name}) [Lock-Verified]`;
+                        let editTime = actionDate;
+                        let editOperators = selectedManager?.label || userData?.name || "System";
+
                         if (activityId) {
                             const oldQty = oldQuantityMap.get(p.name.trim());
+                            const oldData = oldAssetDataMap.get(p.name.trim());
                             if (oldQty !== undefined && oldQty !== q) {
-                                editLog = `구매 확정 수정 (${customer.name}) 수량: ${oldQty}→${q}`;
+                                // Quantity changed → append modification log
+                                const modLog = `구매 확정 수정 (${customer.name}) 수량: ${oldQty}→${q}`;
+                                editLog = oldData?.editLog ? `${oldData.editLog}\n${modLog}` : modLog;
+                                editTime = oldData?.editTime ? `${oldData.editTime}\n${actionDate}` : actionDate;
+                                editOperators = oldData?.editOperators ? `${oldData.editOperators}\n${editOperators}` : editOperators;
                             } else if (oldQty === undefined) {
                                 editLog = `구매 확정 추가 (${customer.name}) 수량: ${q}`;
                             } else {
-                                editLog = `구매 확정 수정 (${customer.name}) 수량: ${q}`;
+                                // No change → preserve original log
+                                editLog = oldData?.editLog || editLog;
+                                editTime = oldData?.editTime || editTime;
+                                editOperators = oldData?.editOperators || editOperators;
                             }
                         }
 
@@ -353,8 +373,7 @@ export const usePurchaseForm = ({
                             type: "inventory", isDeliveryItem: info.isDeliveryItem || false, lastActionDate: actionDate,
                             lastOperator: selectedManager?.label || userData?.name || "System", lastOutflow: q,
                             lastRecipient: customer.name, lastRecipientId: customer.id, masterId: p.masterId || null,
-                            createdAt: serverTimestamp(), editLog, editTime: actionDate,
-                            editOperators: selectedManager?.label || userData?.name || "System",
+                            createdAt: serverTimestamp(), editLog, editTime, editOperators,
                             sourceActivityId: targetActivityId
                         });
                     }
