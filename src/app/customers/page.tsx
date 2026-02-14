@@ -23,7 +23,6 @@ import { useCustomerSearch } from "@/hooks/useCustomerSearch";
  * Constants & Utilities: Standardized for Customer Management (v123.78)
  */
 
-
 const SORT_STRATEGIES: Record<string, (a: Customer, b: Customer) => number> = {
     name: (a, b) => a.name.localeCompare(b.name, 'ko'),
     register: (a, b) => {

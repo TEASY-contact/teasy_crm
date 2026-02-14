@@ -48,7 +48,6 @@ export default function CustomerDetailPage({ params: paramsPromise }: { params: 
     return (
         <Box p={8} bg="gray.50" minH="100vh" position="relative" pb={20}>
 
-
             <Flex
                 align="center" mb={8} onClick={() => router.back()} cursor="pointer"
                 transition="all 0.2s cubic-bezier(0.4, 0, 0.2, 1)" w="fit-content" role="button"
