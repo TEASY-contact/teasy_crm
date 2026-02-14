@@ -69,6 +69,21 @@ export default function CustomersPage() {
 
     // Sort Logic (Client-side sort for the fetched subset)
     const [sortBy, setSortBy] = useState("none");
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const { isOpen, onOpen, onClose } = useDisclosure();
+    const { isOpen: isDelOpen, onOpen: onDelOpen, onClose: onDelClose } = useDisclosure();
+    const { userData } = useAuth();
+    const toast = useToast();
+    const [delConfirmInput, setDelConfirmInput] = useState("");
+    const isMaster = userData?.role === 'master';
+    const { isOpen: isBulkOpen, onOpen: onBulkOpen, onClose: onBulkClose } = useDisclosure();
+    const [bulkResult, setBulkResult] = useState<BulkImportResult | null>(null);
+    const { downloadFailedTemplate } = useBulkImport();
+
+    const refreshCustomers = async () => {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await queryClient.invalidateQueries({ queryKey: ["customers"] });
+    };
 
     const finalData = useMemo(() => {
         // The hook already filters by search query.
