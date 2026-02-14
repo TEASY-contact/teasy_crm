@@ -10,9 +10,18 @@ interface FilterBarProps {
     currentSort: string;
 }
 
-export const FilterBar = ({ onSearch, onSort, currentSort }: FilterBarProps) => {
+export const FilterBar = ({ onSearch, onSort, currentSort, onViewMode, currentViewMode }: FilterBarProps & { onViewMode: (val: string) => void, currentViewMode: string }) => {
     return (
         <Flex gap={4} align="center">
+            <CustomSelect
+                width="160px"
+                value={currentViewMode}
+                onChange={(val) => onViewMode(val)}
+                options={[
+                    { value: "recent", label: "최신 1개월" },
+                    { value: "all", label: "전체 데이터" },
+                ]}
+            />
             <InputGroup maxW="350px" bg="white">
                 <InputLeftElement pointerEvents="none" h="45px">
                     <MdSearch color="gray.400" size="20px" />
